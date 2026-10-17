@@ -14,8 +14,7 @@ guides the complete authoring path:
 programming manual and evidence
   -> control workflow and raw response capture
   -> device-specific framing and parser
-  -> normalized artifact and integrity report
-  -> replay tests and support-level declaration
+  -> normalized output
 ```
 
 This Skill guides the authoring of device Skills; it does not connect to real
@@ -38,14 +37,15 @@ Keep commands and state rules inside the new device Skill.
    convenient text conversion hide binary boundaries or invalid bytes.
 5. **Define the artifact**: choose a data kind such as `waveform`,
    `scalar-measurement`, `spectrum`, or `status-record`. Record identity, source,
-   raw artifact path, hashes, units, encoding, calibration status, and support level.
+   units, and support level.
 6. **Validate evidence**: compare declared and observed lengths, element widths,
    segment ranges, checksums, timestamps, units, configuration, and source status
    where available. Return `COMPLETE`, `INCOMPLETE`, `INVALID`, `UNVERIFIED`, or
    `UNSUPPORTED`; never silently pad, truncate, interpolate, or infer.
-7. **Add replay tests**: test valid, truncated, malformed, length-mismatch,
-   unsupported, missing-unit, and missing-calibration cases offline. Assert both
-   parsed values and integrity status. Use binary fixtures for binary protocols.
+7. **Add tests where practical**: keep any offline tests free of hardware,
+   network access, and VISA enumeration; binary protocols get binary fixtures,
+   and `assets/parser-template/tests/` shows the structure. Replay tests and
+   integrity reports are recommended, not required.
 8. **Declare support**: label manual-only, replay-tested, hardware-verified, and
    firmware/interface-scoped claims separately. Include known limitations and the
    exact evidence used.
@@ -77,9 +77,7 @@ Start from `assets/parser-template/` and adapt only protocol-specific parts:
 |   `-- offline tests
 |-- references/
 |   `-- programming manual notes
-|-- assets/
-|   |-- replay fixtures
-|   `-- integrity-report.json
+|-- assets/          # optional: fixtures and expected results
 |-- manifest.json
 `-- SUPPORT.md
 ```
