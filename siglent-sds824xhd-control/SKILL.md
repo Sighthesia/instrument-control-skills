@@ -1,6 +1,6 @@
 ---
 name: siglent-sds824xhd-control
-description: Control and capture waveforms from a Siglent SDS824X HD/SDS800X HD over the available Siglent MCP tools or one explicit raw TCP session. Use for single-shot captures, Ready-to-Stop verification, IEEE 488.2 binary waveform parsing, modern WAV segmented downloads, legacy WF DAT2 diagnostics, WAVEDESC decoding, and rejecting incomplete waveform data.
+description: Control and capture waveforms from a Siglent SDS824X HD/SDS800X HD over the available Siglent MCP tools or one explicit raw TCP session. Use for single-shot captures, waveform downloads, signal measurements, screenshots, protocol decode, anomaly search, and progressive task-specific SCPI command discovery.
 ---
 
 # Siglent SDS824X HD Control
@@ -16,6 +16,20 @@ Use this skill whenever an AI needs to operate the Siglent SDS824X HD, capture a
 - Keep `immutable_capture` and `configured_capture` explicit. Never silently send `WFSU`, restore `TRMD`, or clean up the instrument.
 - Never use `max_points` as evidence of instrument record length. It is only a local CSV/downsampling setting.
 - Preserve raw payloads and metadata before producing CSV. A short payload is `INCOMPLETE` or `INVALID`, never complete.
+
+## Progressive Query Reference
+
+Load only the reference matching the current debugging goal. Do not read every command reference up front, and do not expose unrelated configuration commands in the active workflow.
+
+| Goal or observation | Read this reference |
+|---|---|
+| Identify the scope, find a signal, auto-range, inspect trigger/acquisition state, or evaluate voltage/timing/jitter | [Signal discovery and measurement](references/signal-discovery-and-measurement.md) |
+| Inspect waveform shape visually, fetch a screenshot, or download samples for external analysis | [Screenshot and waveform data](references/screenshot-and-waveform.md) |
+| Diagnose UART/I2C/SPI/CAN/LIN or another supported serial bus | [Protocol decode](references/protocol-decode.md) |
+| Find runt pulses, glitches, timing violations, mask failures, or replay a captured fault | [Anomaly search and mask testing](references/anomaly-search-and-mask-testing.md) |
+| Measure long-term frequency/period statistics, inspect cursor deltas, or inspect history timestamps | [Counter, cursor, and history](references/counter-cursor-and-history.md) |
+
+Start with the matching reference's read-only snapshot. Use a setup/enable command only when that workflow requires it and the caller authorized changing scope state. A command documented by the programming guide is not automatically available through the current MCP wrapper; each reference marks hardware-tested, manual-supported, and transport-limited commands separately.
 
 ## MCP Tool Selection
 
@@ -123,6 +137,7 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 - `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators.
 - `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
+- Task-specific command references under `references/`: load only the page selected by the goal table above. `programming-guide.md` records waveform implementation notes and is not a general command catalog.
 
 The protocol module exposes the handover API names: `scope_connect`, `scope_identify`, `scope_snapshot_configuration`, `scope_prepare_capture`, `scope_arm_single`, `scope_wait_ready`, `scope_wait_stop`, `scope_read_immutable_frame`, `scope_read_segment`, `scope_read_descriptor`, `scope_validate_frame`, `scope_restore_run_mode`, and `scope_disconnect`. `scope_arm_single` sends only `TRMD SINGLE`, never `ARM`. Descriptor reads remain an explicit post-download action.
 - `references/programming-guide.md`: command semantics and manual page references used by this skill.
