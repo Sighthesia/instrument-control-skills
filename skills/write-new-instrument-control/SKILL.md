@@ -55,6 +55,7 @@ Read the matching reference before implementing a stage:
 | Task | Reference |
 |---|---|
 | Choose Skill stages and deliverables | [Authoring workflow](references/authoring-workflow.md) |
+| Select an instrument type and matching example | [Instrument types and examples](references/instrument-types-and-examples.md) |
 | Handle response boundaries and binary framing | [Response framing](references/response-framing.md) |
 | Separate metadata, payload, normalization, and validation | [Metadata and validation](references/metadata-payload-validation.md) |
 | Decide integrity status and report failures | [Status and reports](references/status-and-reports.md) |
@@ -118,6 +119,17 @@ calibration. Bind external calibration to the exact raw or merged artifact hash.
 Use `assets/integrity-report.json` as a starting point. Keep raw bytes, request,
 identity, interface, timestamp, parser version, manual citation, hashes, and known
 limitations beside the normalized artifact.
+
+Runnable teaching examples live under `assets/examples/`. They are synthetic,
+vendor-neutral, standard-library-only, and included in the packaged Skill. Run all
+of them with:
+
+```bash
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
+```
+
+The examples deliberately cover different instrument/data types and wire formats;
+copy their stage boundaries and tests, not their synthetic field names.
 
 ## Non-negotiable Rules
 

@@ -1,0 +1,10 @@
+{
+  "name": "oscilloscope_ieee_block",
+  "instrument_type": "oscilloscope",
+  "data_kind": "waveform",
+  "response_format": "IEEE 488.2 definite-length binary block",
+  "synthetic": true,
+  "support_level": "replay-tested",
+  "purpose": "Show byte-preserving waveform framing and point-width validation.",
+  "hardware_io": false
+}

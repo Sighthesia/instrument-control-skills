@@ -1,0 +1,10 @@
+{
+  "name": "analyzer_csv_sweep",
+  "instrument_type": "analyzer",
+  "data_kind": "spectrum",
+  "response_format": "CSV with independent frequency axis",
+  "synthetic": true,
+  "support_level": "replay-tested",
+  "purpose": "Show column, numeric, axis-order, and duplicate-point validation.",
+  "hardware_io": false
+}

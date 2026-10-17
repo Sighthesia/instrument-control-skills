@@ -1,0 +1,1 @@
+"""Multimeter scalar text example."""

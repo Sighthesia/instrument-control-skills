@@ -1,0 +1,10 @@
+{
+  "name": "multimeter_scalar_text",
+  "instrument_type": "multimeter",
+  "data_kind": "scalar-measurement",
+  "response_format": "line-oriented CSV-like text",
+  "synthetic": true,
+  "support_level": "replay-tested",
+  "purpose": "Show scalar value, unit, function, status, and sequence evidence.",
+  "hardware_io": false
+}

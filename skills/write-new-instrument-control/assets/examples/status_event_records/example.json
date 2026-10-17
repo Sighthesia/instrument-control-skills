@@ -1,0 +1,10 @@
+{
+  "name": "status_event_records",
+  "instrument_type": "logger/status-source",
+  "data_kind": "status-record",
+  "response_format": "JSON-lines event records with explicit end marker",
+  "synthetic": true,
+  "support_level": "replay-tested",
+  "purpose": "Show sequence, timestamp, required-field, and end-marker checks.",
+  "hardware_io": false
+}

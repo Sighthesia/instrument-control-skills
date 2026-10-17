@@ -40,6 +40,12 @@ guess missing calibration.
 Parser contributions should include binary-safe fixtures, expected results, and
 negative cases for truncation, malformed headers, and declared-length mismatch.
 Use `write-new-instrument-control` as the authoring guide and template source.
+Its five synthetic examples under `assets/examples/` are the reference patterns
+for waveform, scalar, sweep, segmented, and event data; run them with:
+
+```bash
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
+```
 
 ## Evidence Levels
 

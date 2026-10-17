@@ -77,7 +77,7 @@ npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 
 - `skills/` —— self-contained Skill 源码，每个 Skill 使用独立目录。
   - `skills/siglent-sds800xhd-control/` —— Siglent 控制 Skill。
-  - `skills/write-new-instrument-control/` —— 新控制 Skill 编写、解析器模板和完整性指导。
+- `skills/write-new-instrument-control/` —— 新控制 Skill 编写、解析器模板和完整性指导。
   - 每个 Skill 自带自己的 `SKILL.md`、参考资料、脚本、测试或资源。
 - `registry.yaml` —— 当前 Skill、能力和验证等级的机器可读目录。
 - `CONTRIBUTING.md` —— 贡献目录、测试、证据和手册规则。
@@ -102,6 +102,8 @@ cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s .
   `python3 -m unittest test_scope_protocol.TestX.test_y`。
 - 解析器模板测试：
   `python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'`。
+- 五类解析范例及离线安全检查：
+  `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`。
 - 校验 skill（frontmatter、结构、引用）：
   `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
   以及对 `skills/write-new-instrument-control` 执行同一命令。

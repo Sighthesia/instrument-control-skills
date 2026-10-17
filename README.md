@@ -85,7 +85,7 @@ e.g. `~/.config/opencode/skills/`).
 
 - `skills/` — self-contained Skill sources, one directory per Skill.
   - `skills/siglent-sds800xhd-control/` — the Siglent control Skill.
-  - `skills/write-new-instrument-control/` — new control Skill authoring, parser templates, and integrity guidance.
+- `skills/write-new-instrument-control/` — new control Skill authoring, parser templates, and integrity guidance.
   - Each Skill contains its own `SKILL.md`, references, scripts, tests, or assets.
 - `registry.yaml` — machine-readable catalog of active Skills, capabilities, and evidence levels.
 - `CONTRIBUTING.md` — contribution layout, testing, evidence, and manual rules.
@@ -112,6 +112,8 @@ cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s .
   `python3 -m unittest test_scope_protocol.TestX.test_y`.
 - Parser template tests:
   `python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'`.
+- Five parser examples and the offline safety guard:
+  `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
 - Validate the skill (frontmatter, structure, references):
   `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
   and run the same command with `skills/write-new-instrument-control` for the authoring Skill.

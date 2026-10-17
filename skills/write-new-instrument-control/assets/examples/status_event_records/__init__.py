@@ -1,0 +1,1 @@
+"""Status event record example."""

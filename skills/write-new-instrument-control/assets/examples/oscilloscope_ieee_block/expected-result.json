@@ -1,0 +1,8 @@
+{
+  "kind": "waveform",
+  "sample_count": 4,
+  "bytes_per_point": 1,
+  "sample_interval_s": 0.001,
+  "unit": "V",
+  "integrity": {"status": "COMPLETE", "reasons": []}
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "scalar-measurement",
+  "value": 1.234,
+  "unit": "V",
+  "function": "DCV",
+  "status": "OK",
+  "count": 1,
+  "integrity": {"status": "COMPLETE", "reasons": []}
+}

@@ -1,0 +1,10 @@
+{
+  "name": "segmented_binary_records",
+  "instrument_type": "data-source",
+  "data_kind": "waveform",
+  "response_format": "ASCII-framed segment records with hexadecimal payload",
+  "synthetic": true,
+  "support_level": "replay-tested",
+  "purpose": "Show segment range, sequence, width, and merge validation.",
+  "hardware_io": false
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "spectrum",
+  "columns": ["frequency_hz", "magnitude_db"],
+  "frequency_hz": [100.0, 200.0, 300.0],
+  "magnitude_db": [-10.0, -8.0, -12.0],
+  "integrity": {"status": "COMPLETE", "reasons": []}
+}
