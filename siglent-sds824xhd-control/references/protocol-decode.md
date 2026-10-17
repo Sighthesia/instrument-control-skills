@@ -1,6 +1,6 @@
 # Protocol Decode
 
-Load this reference only when debugging a serial bus. The current Python scripts do not implement a general decoder-command client; the target firmware's documented SCPI query tree and MCP tool coverage are distinct.
+Load this reference only when debugging a serial bus. The current Python scripts do not implement a general decoder-command client; use the documented SCPI query tree through a raw TCP session.
 
 ## First Determine Existing Decode State
 
@@ -24,11 +24,10 @@ On the target during this check, list result returned only the header `I2C, Time
 4. Compare decoded event times and error/status fields with the raw waveform around the same time range. Treat an empty list, header-only response, or truncated transport response as “no decoded evidence,” not as a passing protocol.
 5. Prefer the full list result over the bus result for root-cause analysis. Keep the bus result only as a short screen-summary check.
 
-## MCP and Option Boundaries
+## Transport and Option Boundaries
 
-- `safe_scpi_query_tcp` can issue these no-argument text queries because they end in `?`.
-- The current MCP tool inventory has no dedicated decode configuration or result parser; use `safe_scpi_query_tcp` for documented scalar/text queries and a raw TCP session if large/multiline responses are truncated by the adapter.
-- The available `analyze_uart_csv_file` is host-side waveform analysis, not the scope's protocol decoder. It does not replace decode-list evidence.
+- Use the raw TCP session for these text queries. A line-oriented query helper may return only the first line; use a response reader that preserves all lines for decode-list results.
+- Host-side UART waveform analysis is separate from the scope's protocol decoder. It does not replace decode-list evidence.
 - Digital channels are an option on the SDS800X HD family. Do not assume digital decode sources or optional protocol features are installed; read the manual/model/option state first.
 
 ## Evidence and Manual Pages

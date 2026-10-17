@@ -5,7 +5,7 @@
 - **Target Files/Modules**: `SKILL.md`, `scripts/`, `references/`, `.specs/`
 
 ## 1. Core Objective
-Create an agent skill and deterministic helper scripts for operating the Siglent SDS824X HD via the available Siglent MCP tools and documented SCPI. Preserve single-shot captures, parse binary responses safely, and refuse to label partial waveform downloads complete.
+Create an agent skill and deterministic helper scripts for operating the Siglent SDS824X HD via raw TCP and documented SCPI. Preserve single-shot captures, parse binary responses safely, and refuse to label partial waveform downloads complete.
 
 ## 2. Hard Constraints & Negative Rules (Non-negotiables)
 - [x] **C-01**: Never send `ARM`; use `TRMD SINGLE` and verify `Ready -> Stop`.
@@ -17,7 +17,7 @@ Create an agent skill and deterministic helper scripts for operating the Siglent
 - [x] **C-07**: Do not modify or remove the pre-existing untracked `docs/` manuals.
 
 ## 3. Atomized Acceptance Criteria (Checklist)
-- [x] **AC-01**: Skill has valid frontmatter and provides MCP-first operating instructions grounded in the available `siglent-sds` tools.
+- [x] **AC-01**: Skill has valid frontmatter and provides operating instructions grounded in the bundled raw TCP scripts and documented SCPI.
 - [x] **AC-02**: Helper parser finds IEEE 488.2 blocks amid arbitrary prefixes/NULs and exactly reads declared payload lengths; malformed/truncated blocks fail closed.
 - [x] **AC-03**: Capture workflow exposes distinct immutable/configured modes and logs every command; immutable mode cannot issue forbidden state-changing commands.
 - [x] **AC-04**: Segmented reads validate exact start/count, cover the descriptor count without gaps/overlaps, report times/checksums, and invalidate the whole channel on any bad segment.

@@ -4,8 +4,7 @@ Load this reference when the agent needs visual inspection, raw waveform samples
 
 ## Screenshot
 
-- **Target-tested MCP path**: `screenshot_tcp`, implemented through the adapter's `SCDP` command and returning BMP/raw image bytes.
-- **Manual-supported SCPI path**: `:PRINt? PNG` or `:PRINt? BMP[,NORMal|INVerted]`. The manual specifies a binary screenshot response. `:PRINt?` is not a scalar ASCII query; use a byte-preserving block reader or the MCP screenshot helper.
+- **Manual-supported SCPI path**: `:PRINt? PNG` or `:PRINt? BMP[,NORMal|INVerted]`. The manual specifies a binary screenshot response. `:PRINt?` is not a scalar ASCII query; use a byte-preserving binary reader.
 - Inspect screenshots for clipping, ringing, pulses, setup mistakes, and on-screen decode/status context. A screenshot is evidence of display state, not a substitute for complete samples or a measurement report.
 
 ## Preferred Modern Waveform Transfer
@@ -25,7 +24,7 @@ The following binary path is documented and the segmented C4 transfer was hardwa
 :WAVeform:SEQuence?             # only when segmented acquisition is enabled
 ```
 
-`SOURce`, width, byte order, interval, start, and point count are writes and therefore change the transfer view. After a single-shot `Stop`, this is the explicit `configured_capture` read path in this skill, not an immutable acquisition view. Do not mix a trigger through MCP with a later reconnect to run this script; use one transport session for the entire capture.
+`SOURce`, width, byte order, interval, start, and point count are writes and therefore change the transfer view. After a single-shot `Stop`, this is the explicit `configured_capture` read path in this skill, not an immutable acquisition view. Use one TCP session for the entire capture; do not trigger and reconnect to run the download.
 
 The target's five 5,000,000-point WORD segments transferred 25,000,000 points / 50,000,000 bytes with validated contiguous ranges. This proves transport completeness and byte order, not voltage calibration or 16 effective ADC bits. Keep WORD samples raw until device-specific scaling is calibrated. BYTE signed decoding is supported by the existing parser; use descriptor `code_per_div`, probe, V/div, and offset, not a hard-coded conversion constant.
 
@@ -42,7 +41,7 @@ Do not infer full record length from a CSV/downsampled point limit. Compare scop
 - Binary responses use IEEE 488.2 definite-length blocks. The payload may contain newlines, NUL, or `#`; never line-split binary data.
 - Preserve prefix, header, payload, length, and SHA-256. Validate exactly `points * bytes_per_point` bytes per segment.
 - `WAVeform:PREamble?` itself returns a binary block containing the 346-byte little-endian WAVEDESC; it is not an ASCII structure.
-- Current bundled `capture_scope.py` handles segmented waveform transfer. The MCP `safe_scpi_query_tcp` is only for known text responses, not screenshot or waveform binary transfers.
+- Current bundled `capture_scope.py` handles segmented waveform transfer. Use a byte-preserving binary reader for screenshot or waveform responses; a line-oriented text reader is not suitable.
 
 ## Evidence and Manual Pages
 

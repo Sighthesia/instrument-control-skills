@@ -1,6 +1,6 @@
 ---
 name: siglent-sds824xhd-control
-description: Control and capture waveforms from a Siglent SDS824X HD/SDS800X HD over the available Siglent MCP tools or one explicit raw TCP session. Use for single-shot captures, waveform downloads, signal measurements, screenshots, protocol decode, anomaly search, and progressive task-specific SCPI command discovery.
+description: Control and capture waveforms from a Siglent SDS824X HD/SDS800X HD over one explicit raw SCPI TCP session. Use for single-shot captures, waveform downloads, signal measurements, screenshots, protocol decode, anomaly search, and progressive task-specific SCPI command discovery.
 ---
 
 # Siglent SDS824X HD Control
@@ -29,25 +29,17 @@ Load only the reference matching the current debugging goal. Do not read every c
 | Find runt pulses, glitches, timing violations, mask failures, or replay a captured fault | [Anomaly search and mask testing](references/anomaly-search-and-mask-testing.md) |
 | Measure long-term frequency/period statistics, inspect cursor deltas, or inspect history timestamps | [Counter, cursor, and history](references/counter-cursor-and-history.md) |
 
-Start with the matching reference's read-only snapshot. Use a setup/enable command only when that workflow requires it and the caller authorized changing scope state. A command documented by the programming guide is not automatically available through the current MCP wrapper; each reference marks hardware-tested, manual-supported, and transport-limited commands separately.
+Start with the matching reference's read-only snapshot. Use a setup/enable command only when that workflow requires it and the caller authorized changing scope state. Each reference distinguishes target-hardware-tested behavior from manual-documented behavior and notes feature prerequisites.
 
-## MCP Tool Selection
+## Raw TCP Session
 
-The connected MCP server is `siglent-sds`.
-
-1. Call `project_status` first. Confirm the target is SDS824X HD, firmware `4.8.12.1.1.6.5`, and port `5025`.
-2. Use `connect_tcp(host="192.168.10.2", port=5025, header_off=true)` once for a complete MCP workflow.
-3. Use `identify_tcp` and save the returned IDN.
-4. Use `get_channel_tcp` and `get_acquisition_status_tcp` only for read-only snapshots.
-5. Before a new capture, use `configure_channel_tcp` and `configure_acquisition_tcp` only when the caller explicitly requested configuration. Do all configuration before the single-shot operation.
-6. Start a single capture with `configure_acquisition_tcp(command="single")`; this maps to `TRMD SINGLE` in the MCP adapter and must not be followed by an `ARM` call.
-7. Poll `get_acquisition_status_tcp` until it reports `Ready`, then poll until it reports `Stop`. Do not retry by re-arming automatically.
-8. For a legacy stopped-frame read, call `get_waveform_tcp(capture_mode="immediate", restore_trmd=false, ...)`. Treat the result as partial until its descriptor point count and downloaded byte count agree.
-9. Do not use `get_waveform_tcp(capture_mode="configured")` for an immutable frame: that mode may issue `WFSU`.
-10. The current MCP surface does not expose the full modern `WAV:SOUR/STAR/INT/POIN/DATA` segmented transaction as one raw-binary operation. To download a 25 Mpts record, use `scripts/capture_scope.py` for the entire read in one socket session; do not trigger through MCP and then reconnect with the script. This path was hardware-verified on the target SDS824X HD firmware using C4: two probes (`10,000`, `1,000,000`) followed by five `5,000,000`-point segments completed with `25,000,000` bytes and `COMPLETE` status.
-11. `safe_scpi_query_tcp` is read-only. Use it for scalar queries only when the response type is known. It is not a replacement for a byte-preserving binary-block reader.
-
-If the MCP call returns only a CSV or a response without raw payload length, report that the export is unverified and do not analyze it as a complete frame.
+1. Connect once to SCPI TCP port `5025`; do not use legacy shell port `5024`.
+2. Send `*IDN?` and save the returned identity before issuing model-specific commands.
+3. Use `scripts/scope_protocol.py` for byte-preserving raw TCP queries and binary blocks; use `scripts/capture_scope.py` for complete segmented waveform downloads.
+4. Apply channel or acquisition configuration only when explicitly requested, and do it before starting a new single acquisition.
+5. Start a single acquisition with `TRMD SINGLE`; never send `ARM`. Poll `SAST?` until `Ready`, stimulate the DUT, then poll until `Stop`. Do not automatically retry.
+6. Keep the same socket session for the complete capture. Do not trigger and then reconnect to read the frame.
+7. Treat an export as unverified unless raw payload length and descriptor point count agree. A CSV or downsampled view alone does not prove a complete capture.
 
 ## Hardware Profile
 

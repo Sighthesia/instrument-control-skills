@@ -6,7 +6,7 @@ Load this reference when the goal is to find an active signal, choose useful ver
 
 - **Target-tested**: query or workflow was exercised on SDS824X HD firmware `4.8.12.1.1.6.5`.
 - **Manual-supported**: documented in the supplied SDS800X HD Programming Guide, but not individually hardware-tested here.
-- **MCP-limited**: the current `safe_scpi_query_tcp` wrapper cannot issue the documented query form. Use the bundled raw TCP session or another transport that accepts the complete query.
+- **Session-dependent**: query forms requiring arguments or multiline output must be sent/read through a raw TCP session that preserves the complete response.
 - **Conditional**: valid only after a feature is active or the signal produces valid data.
 
 ## Minimal Read-Only Snapshot
@@ -31,7 +31,7 @@ Example target snapshot observed: record `25 Mpts`, sample rate `5 MSa/s`, timeb
 ## Signal Discovery
 
 1. Query `*IDN?`, acquisition status, record length/rate, and channel state/coupling/probe/scale/offset.
-2. Prefer the existing `auto_find_waveform_tcp` for multi-channel discovery or `auto_setup_tcp` for one channel. These are measurement-driven MCP workflows, hardware-tested as alpha; their internal measurement/setting loops are not equivalent to a guarantee that every candidate SCPI spelling is supported on every firmware.
+2. The bundled scripts do not currently provide an automatic signal-discovery/autorange command. Follow the bounded read-measure-adjust loop below, using only commands documented for the identified model and firmware.
 3. For a manual read-only check, use `:MEASure:SIMPle:VALue? PKPK`, then `MAX`, `MIN`, `FREQ`, or `PER` for the selected simple-measurement source. Set/read `:MEASure:SIMPle:SOURce?` only when source identity is ambiguous.
 4. A `TRIGger:FREQuency?` value can inform a coarse timebase, but verify with a waveform/measurement. If it returns zero, fall back to measured period or sampled waveform; do not conclude the input is disconnected.
 
@@ -66,7 +66,7 @@ Manual-supported. Measurement slots are `P1` through `P12`; first query slot typ
 
 `STATistics?` accepts `ALL`, `CURRent`, `MEAN`, `MAXimum`, `MINimum`, `STDev`, or `COUNt`. `SHIStory? [count]` returns `Count=n,value...`; it is bounded measurement-statistics history, not necessarily a wall-clock timeline. The manual says history behavior depends on a finite maximum-statistics count; with no limit it returns current measurement data.
 
-These argument-bearing queries have `MCP-limited` status: current `safe_scpi_query_tcp` only accepts a command whose final character is `?`, so it rejects `...? ALL` and `...? 5`. Send the full query through a supported raw SCPI session; do not drop the argument to work around the wrapper.
+These argument-bearing queries must include their arguments exactly as documented. Send the complete command, for example `:MEASure:SIMPle:VALue? ALL`, through the raw TCP session; do not silently drop the argument. The current bundled waveform CLI does not expose these measurement queries as command-line options.
 
 ## Controlled Tuning Rules
 

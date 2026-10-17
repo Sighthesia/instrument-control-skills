@@ -11,7 +11,7 @@ Enable an AI agent to discover relevant SDS800X HD SCPI commands progressively b
 - [x] **C-01**: Preserve existing capture safety rules, including never sending `ARM` and immutable stopped-frame protections.
 - [x] **C-02**: Keep the main skill as a concise task router; place detailed command syntax in task-specific references.
 - [x] **C-03**: Mark each command family's prerequisites, state-changing risk, response shape, and hardware-verification status.
-- [x] **C-04**: Do not claim the MCP `safe_scpi_query_tcp` supports queries with arguments after `?`; identify a compatible transport for those queries.
+- [x] **C-04**: Preserve full query arguments and responses over raw TCP; distinguish commands supported by the bundled scripts from documented commands sent directly.
 - [x] **C-05**: Include all user-requested query families without exposing unrelated configuration commands in every workflow.
 - [x] **C-06**: Update the distributed `.skill` archive so its contents match the source skill and references.
 - [x] **C-07**: Preserve unrelated untracked artifacts and manuals.
@@ -28,7 +28,7 @@ Enable an AI agent to discover relevant SDS800X HD SCPI commands progressively b
 - [x] **AC-09**: Existing offline tests and skill structure checks pass.
 
 ## 4. Edge Cases & Boundary Conditions
-- Parameterized queries such as `...:STATistics? ALL` and `...:SHIStory? 5` are rejected by the current `safe_scpi_query_tcp` MCP wrapper because it requires the command to end in `?`.
+- Parameterized queries such as `...:STATistics? ALL` and `...:SHIStory? 5` must preserve the arguments after `?` when sent through raw TCP.
 - `TRIG:FREQ?` may return zero when no valid hardware frequency measurement is available; this is not proof of no signal.
 - `ACQ:NUMACq?` counts acquired frames and resets after acquisition-affecting changes; it is not a generic average-completion indicator.
 - `MEAS:ADV:P<n>:SHIS?` behavior depends on a finite measurement-history limit; unlimited mode returns current measurement data.
