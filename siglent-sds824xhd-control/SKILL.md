@@ -30,7 +30,7 @@ The connected MCP server is `siglent-sds`.
 7. Poll `get_acquisition_status_tcp` until it reports `Ready`, then poll until it reports `Stop`. Do not retry by re-arming automatically.
 8. For a legacy stopped-frame read, call `get_waveform_tcp(capture_mode="immediate", restore_trmd=false, ...)`. Treat the result as partial until its descriptor point count and downloaded byte count agree.
 9. Do not use `get_waveform_tcp(capture_mode="configured")` for an immutable frame: that mode may issue `WFSU`.
-10. The current MCP surface does not expose the full modern `WAV:SOUR/STAR/INT/POIN/DATA` segmented transaction as one raw-binary operation. To test and validate a 25 Mpts download, use `scripts/capture_scope.py` for the entire capture and read in one socket session; do not trigger through MCP and then reconnect with the script. The command sequence is documented, but target-firmware segmented behavior is not considered hardware-verified until an actual full-length run passes every integrity check.
+10. The current MCP surface does not expose the full modern `WAV:SOUR/STAR/INT/POIN/DATA` segmented transaction as one raw-binary operation. To download a 25 Mpts record, use `scripts/capture_scope.py` for the entire read in one socket session; do not trigger through MCP and then reconnect with the script. This path was hardware-verified on the target SDS824X HD firmware using C4: two probes (`10,000`, `1,000,000`) followed by five `5,000,000`-point segments completed with `25,000,000` bytes and `COMPLETE` status.
 11. `safe_scpi_query_tcp` is read-only. Use it for scalar queries only when the response type is known. It is not a replacement for a byte-preserving binary-block reader.
 
 If the MCP call returns only a CSV or a response without raw payload length, report that the export is unverified and do not analyze it as a complete frame.
@@ -53,7 +53,7 @@ If the MCP call returns only a CSV or a response without raw payload length, rep
 4. Issue `TRMD SINGLE`; never issue `ARM`.
 5. Poll `SAST?` until `Ready`; stimulate the DUT; poll until `Stop`.
 6. Freeze the command set. Do not restore `TRMD AUTO` automatically.
-7. For a full-length transfer, use the modern segmented path with the bundled script. Treat it as `configured_capture` because the scope receives transfer-selection writes after `Stop`; this path is protocol-supported by the guide but not yet firmware-verified as immutable:
+7. For a full-length transfer, use the modern segmented path with the bundled script. Treat it as `configured_capture` because the scope receives transfer-selection writes after `Stop`; the path is verified for complete transfer integrity, but it is not called immutable:
    - `WAV:SOURce Cn`
    - `WAV:WIDTh BYTE`
    - `WAV:INTerval 1`
@@ -62,6 +62,19 @@ If the MCP call returns only a CSV or a response without raw payload length, rep
    - `WAV:DATA?`
 8. Save one raw binary file and one metadata file per segment. Check each returned payload length and checksum.
 9. Build the full report only after all segments have contiguous ranges from `0` through `array_count - 1`.
+
+Example for the current stopped C4 frame:
+
+```text
+python3 scripts/capture_scope.py \
+  --host 192.168.10.2 --port 5025 \
+  --out /path/to/c4-capture --channels C4 \
+  --mode modern --capture-mode configured_capture \
+  --existing-stopped --segment-points 5000000 \
+  --probe-points 10000,1000000
+```
+
+The command writes `C4/segment-*.bin`, response/prefix files, per-segment JSON, `C4/waveform.bin`, and `manifest.json`. It creates `waveform.bin` only after the complete range validates.
 
 ### Existing Immutable Stopped Frame
 
@@ -106,10 +119,10 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 ## Bundled Resources
 
 - `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators.
-- `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes and modern segmented reads. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
+- `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
 
 The protocol module exposes the handover API names: `scope_connect`, `scope_identify`, `scope_snapshot_configuration`, `scope_prepare_capture`, `scope_arm_single`, `scope_wait_ready`, `scope_wait_stop`, `scope_read_immutable_frame`, `scope_read_segment`, `scope_read_descriptor`, `scope_validate_frame`, `scope_restore_run_mode`, and `scope_disconnect`. `scope_arm_single` sends only `TRMD SINGLE`, never `ARM`. Descriptor reads remain an explicit post-download action.
 - `references/programming-guide.md`: command semantics and manual page references used by this skill.
 
-Run `python3 scripts/test_scope_protocol.py` before relying on a modified parser. Hardware-only validation remains separate and must include a real `Ready -> Stop` transition and a saved command log.
+Run `python3 scripts/test_scope_protocol.py` before relying on a modified parser. The target firmware has now passed the current stopped-frame C4 segmented read: `25,000,000` expected/downloaded points, `5.000000058 s` calculated span, and no `ARM`, `STOP`, `TRMD`, or `WFSU` writes in the command log.

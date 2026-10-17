@@ -25,6 +25,8 @@ Create an agent skill and deterministic helper scripts for operating the Siglent
 - [x] **AC-06**: Preserve per-channel descriptor and configuration snapshot values (VDIV, OFST, SARA, TDIV, TRDL, WFSU where available) and raw data before any CSV/downsampling output.
 - [x] **AC-07**: Automated tests cover binary framing, banner/noise, truncation, segment boundaries, checksum, and incomplete 25M-vs-5M capture rejection without connecting to hardware.
 - [x] **AC-08**: Validate skill structure and run the complete local test suite; document any hardware-only verification boundary.
+- [x] **AC-09**: Modern WAV segmented capture supports a staged hardware probe and full-range download without `ARM`, `STOP`, `WFSU`, reconnect, or implicit restore after `Ready -> Stop`.
+- [x] **AC-10**: The modern path writes one complete merged raw waveform only after all requested segments pass exact range and payload validation; a failed probe or segment leaves the result non-complete.
 
 ## 4. Edge Cases & Boundary Conditions
 - TCP startup banner and `>>` prompt; arbitrary ASCII and NUL bytes before binary marker.

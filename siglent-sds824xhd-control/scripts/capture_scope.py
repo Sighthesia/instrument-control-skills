@@ -8,10 +8,12 @@ send WFSU while reading an immutable stopped frame.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 from scope_protocol import (
     ScopeProtocolError,
@@ -70,19 +72,123 @@ def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float
     raise ScopeProtocolError(f"timed out waiting for SAST?={wanted}")
 
 
-def write_block_artifact(root: Path, channel: str, index: int, block, start: int) -> tuple[Path, Path, Path]:
+def write_block_artifact(root: Path, channel: str, stem: str, block) -> tuple[Path, Path, Path]:
     directory = root / channel
     directory.mkdir(parents=True, exist_ok=True)
-    payload_path = directory / f"segment-{index:06d}.bin"
-    raw_path = directory / f"segment-{index:06d}.response.bin"
-    prefix_path = directory / f"segment-{index:06d}.prefix.bin"
+    payload_path = directory / f"{stem}.bin"
+    raw_path = directory / f"{stem}.response.bin"
+    prefix_path = directory / f"{stem}.prefix.bin"
     payload_path.write_bytes(block.payload)
     raw_path.write_bytes(block.raw)
     prefix_path.write_bytes(block.prefix)
     return payload_path, raw_path, prefix_path
 
 
-def read_modern_channel(scope: ScopeSession, root: Path, channel: str, segment_points: int, scope_record_points=None, scope_record_duration_s=None, trigger_relative_s=None) -> dict:
+def read_modern_segment(
+    scope: ScopeSession,
+    root: Path,
+    channel: str,
+    stem: str,
+    start: int,
+    count: int,
+    preamble: dict,
+) -> tuple[Segment, dict]:
+    scope.write(f"WAV:STAR {start}", allow_after_stop=True)
+    scope.write(f"WAV:POIN {count}", allow_after_stop=True)
+    actual_start = int(float(scope.query_ascii("WAV:STAR?", allow_after_stop=True)))
+    actual_count = int(float(scope.query_ascii("WAV:POIN?", allow_after_stop=True)))
+    if actual_start != start or actual_count != count:
+        raise ScopeProtocolError(f"scope selected {actual_start},{actual_count}; expected {start},{count}")
+    block = scope.query_block("WAV:DATA?", allow_after_stop=True)
+    payload_path, raw_path, prefix_path = write_block_artifact(root, channel, stem, block)
+    time_origin = preamble["horizontal_offset"] - preamble["timebase_s"] * 5
+    segment = Segment(
+        start=start,
+        requested_points=count,
+        payload_length=len(block.payload),
+        bytes_per_point=preamble["data_width_bytes"],
+        sample_interval_s=preamble["sample_interval"],
+        time_origin_s=time_origin,
+        sha256=block.sha256,
+    )
+    metadata = {
+        "channel": channel,
+        "requested_start": start,
+        "requested_points": count,
+        "scope_start": actual_start,
+        "scope_points": actual_count,
+        "actual_payload_bytes": len(block.payload),
+        "actual_points": segment.actual_points,
+        "time_start_s": segment.time_start_s,
+        "time_end_s": segment.time_end_s,
+        "sha256": block.sha256,
+        "payload": str(payload_path),
+        "raw_response": str(raw_path),
+        "prefix": str(prefix_path),
+        "preamble": preamble,
+    }
+    save_json(root / channel / f"{stem}.json", metadata)
+    return segment, {**metadata, "metadata": str(root / channel / f"{stem}.json")}
+
+
+def merge_segment_payloads(root: Path, channel: str, segment_files: list[dict], output_name: str) -> Path:
+    output_path = root / channel / output_name
+    partial_path = output_path.with_suffix(output_path.suffix + ".partial")
+    with partial_path.open("wb") as output:
+        for segment in segment_files:
+            output.write(Path(segment["payload"]).read_bytes())
+    partial_path.replace(output_path)
+    return output_path
+
+
+def run_modern_probes(
+    scope: ScopeSession,
+    root: Path,
+    channel: str,
+    preamble: dict,
+    max_points: int,
+    probe_points: list[int],
+) -> list[dict]:
+    """Validate small and medium WAV reads before requesting the full record."""
+
+    probes: list[dict] = []
+    for index, requested in enumerate(probe_points):
+        count = min(requested, max_points)
+        if count <= 0:
+            continue
+        segment, metadata = read_modern_segment(
+            scope,
+            root,
+            channel,
+            f"probe-{index:02d}-{count}",
+            0,
+            count,
+            preamble,
+        )
+        report = validate_segments(
+            [segment],
+            expected_points=count,
+            sample_interval_s=preamble["sample_interval"],
+            time_origin_s=preamble["horizontal_offset"] - preamble["timebase_s"] * 5,
+        )
+        metadata["validation"] = report
+        save_json(root / channel / f"probe-{index:02d}-{count}.json", metadata)
+        if report["status"] != "COMPLETE":
+            raise ScopeProtocolError(f"WAV probe failed at {count} points: {report['reasons']}" )
+        probes.append({**metadata, "validation": report})
+    return probes
+
+
+def read_modern_channel(
+    scope: ScopeSession,
+    root: Path,
+    channel: str,
+    segment_points: int,
+    scope_record_points=None,
+    scope_record_duration_s=None,
+    trigger_relative_s=None,
+    probe_points: Optional[list[int]] = None,
+) -> dict:
     channel_snapshot = {}
     for suffix, key in (("VDIV?", "vdiv"), ("OFST?", "offset")):
         channel_snapshot[key] = scope.query_ascii(f"{channel}:{suffix}", allow_after_stop=True)
@@ -104,6 +210,7 @@ def read_modern_channel(scope: ScopeSession, root: Path, channel: str, segment_p
         )
     max_points_text = scope.query_ascii("WAV:MAXP?", allow_after_stop=True)
     max_points = int(float(max_points_text))
+    probes = run_modern_probes(scope, root, channel, preamble, max_points, probe_points or [])
     step = min(segment_points, max_points) if max_points > 0 else segment_points
     segments: list[Segment] = []
     segment_files: list[dict] = []
@@ -111,39 +218,12 @@ def read_modern_channel(scope: ScopeSession, root: Path, channel: str, segment_p
     index = 0
     while start < expected_points:
         count = min(step, expected_points - start)
-        scope.write(f"WAV:STAR {start}", allow_after_stop=True)
-        scope.write(f"WAV:POIN {count}", allow_after_stop=True)
-        actual_start = int(float(scope.query_ascii("WAV:STAR?", allow_after_stop=True)))
-        actual_count = int(float(scope.query_ascii("WAV:POIN?", allow_after_stop=True)))
-        if actual_start != start or actual_count != count:
-            raise ScopeProtocolError(f"scope selected {actual_start},{actual_count}; expected {start},{count}")
-        block = scope.query_block("WAV:DATA?", allow_after_stop=True)
-        payload_path, raw_path, prefix_path = write_block_artifact(root, channel, index, block, start)
-        segment = Segment(
-            start=start,
-            requested_points=count,
-            payload_length=len(block.payload),
-            bytes_per_point=1,
-            sample_interval_s=preamble["sample_interval"],
-            time_origin_s=preamble["horizontal_offset"] - preamble["timebase_s"] * 5,
-            sha256=block.sha256,
-        )
+        stem = f"segment-{index:06d}"
+        segment, metadata = read_modern_segment(scope, root, channel, stem, start, count, preamble)
         segments.append(segment)
-        segment_files.append({"start": start, "count": count, "payload": str(payload_path), "raw_response": str(raw_path), "prefix": str(prefix_path), "sha256": block.sha256})
-        segment_meta_path = root / channel / f"segment-{index:06d}.json"
-        save_json(segment_meta_path, {
-            "channel": channel,
-            "requested_start": start,
-            "requested_points": count,
-            "actual_payload_bytes": len(block.payload),
-            "actual_points": len(block.payload),
-            "time_start_s": preamble["horizontal_offset"] - preamble["timebase_s"] * 5 + start * preamble["sample_interval"],
-            "time_end_s": preamble["horizontal_offset"] - preamble["timebase_s"] * 5 + (start + len(block.payload)) * preamble["sample_interval"],
-            "sha256": block.sha256,
-            "command_snapshot": channel_snapshot,
-            "preamble": preamble,
-        })
-        segment_files[-1]["metadata"] = str(segment_meta_path)
+        metadata["command_snapshot"] = channel_snapshot
+        save_json(root / channel / f"{stem}.json", metadata)
+        segment_files.append(metadata)
         start += count
         index += 1
     segment_report = validate_segments(
@@ -168,7 +248,14 @@ def read_modern_channel(scope: ScopeSession, root: Path, channel: str, segment_p
     preamble_prefix_path = root / channel / "preamble.prefix.bin"
     preamble_raw_path.write_bytes(preamble_block.raw)
     preamble_prefix_path.write_bytes(preamble_block.prefix)
-    return {"channel": channel, "mode": scope.capture_mode, "preamble": preamble, "preamble_payload": str(preamble_path), "preamble_raw_response": str(preamble_raw_path), "preamble_prefix": str(preamble_prefix_path), "segments": segment_files, "segment_report": segment_report, "frame_report": frame_report}
+    result = {"channel": channel, "mode": scope.capture_mode, "preamble": preamble, "preamble_payload": str(preamble_path), "preamble_raw_response": str(preamble_raw_path), "preamble_prefix": str(preamble_prefix_path), "segments": segment_files, "segment_report": segment_report, "frame_report": frame_report}
+    result["probes"] = probes
+    if segment_report["status"] == "COMPLETE":
+        merged_path = merge_segment_payloads(root, channel, segment_files, "waveform.bin")
+        result["merged_waveform"] = str(merged_path)
+        result["merged_waveform_bytes"] = merged_path.stat().st_size
+        result["merged_waveform_sha256"] = hashlib.sha256(merged_path.read_bytes()).hexdigest()
+    return result
 
 
 def read_legacy_channel(scope: ScopeSession, root: Path, channel: str, read_descriptor: bool) -> dict:
@@ -237,6 +324,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scope-record-duration", type=float, default=None)
     parser.add_argument("--trigger-relative-s", type=float, default=None)
     parser.add_argument("--segment-points", type=int, default=5_000_000)
+    parser.add_argument("--probe-points", default="10000,1000000", help="comma-separated preflight WAV probe sizes; use empty string to disable")
     parser.add_argument("--prepare", action="store_true", help="write the handover's capture configuration")
     parser.add_argument("--trigger", action="store_true", help="issue TRMD SINGLE and wait Ready -> Stop")
     parser.add_argument("--existing-stopped", action="store_true", help="read the current stopped frame without claiming a new Ready -> Stop transition")
@@ -253,6 +341,12 @@ def main() -> int:
         raise SystemExit("Refusing legacy shell port 5024; use SCPI TCP port 5025")
     if args.segment_points <= 0:
         raise SystemExit("--segment-points must be positive")
+    try:
+        probe_points = [int(item) for item in args.probe_points.split(",") if item.strip()]
+    except ValueError as exc:
+        raise SystemExit("--probe-points must be comma-separated integers") from exc
+    if any(item <= 0 for item in probe_points):
+        raise SystemExit("--probe-points values must be positive")
     if args.capture_mode is None:
         args.capture_mode = "configured_capture" if args.mode == "modern" else "immutable_capture"
     if args.mode == "modern" and args.capture_mode != "configured_capture":
@@ -311,7 +405,7 @@ def main() -> int:
             if trigger_relative is None:
                 trigger_relative = numeric_response(snapshot.get("trigger_delay"))
             for channel in args.channels:
-                manifest["results"].append(read_modern_channel(scope, args.out, channel, args.segment_points, scope_points, scope_duration, trigger_relative))
+                manifest["results"].append(read_modern_channel(scope, args.out, channel, args.segment_points, scope_points, scope_duration, trigger_relative, probe_points))
         else:
             results = [read_legacy_channel(scope, args.out, channel, args.read_descriptors) for channel in args.channels]
             manifest["results"].extend(results)

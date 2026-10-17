@@ -19,6 +19,8 @@ WAV:MAXPoint?
 
 The guide says `WAV:MAXPoint?` returns the per-transfer maximum and that `START` plus `POINT` controls a slice. The official Python example on PDF pages 479-482 sets the start for each slice, reads `WAV:DATA?`, and concatenates exact binary-block payloads. The implementation in this skill improves that example by retaining every prefix/header/payload and validating ranges before concatenation. This documents the protocol path, not a claim that firmware 4.8.12.1.1.6.5 has already passed a full 25 Mpts transfer with this script.
 
+The path has now been verified on firmware `4.8.12.1.1.6.5` with the current stopped C4 frame. The script read `10,000` and `1,000,000` point probes, then ranges `0`, `5,000,000`, `10,000,000`, `15,000,000`, and `20,000,000`, each for `5,000,000` points. All payload lengths matched, the ranges were contiguous, and the merged output was `25,000,000` bytes.
+
 `WAV:PREamble?` returns an IEEE binary block. For an analog waveform, the documented little-endian offsets are:
 
 | Offset | Field | Type |

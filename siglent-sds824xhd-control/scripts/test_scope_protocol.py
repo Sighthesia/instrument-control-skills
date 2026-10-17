@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import hashlib
 import struct
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock
 
 from scope_protocol import (
@@ -16,6 +18,7 @@ from scope_protocol import (
     validate_segments,
 )
 from capture_scope import numeric_response
+from capture_scope import merge_segment_payloads
 
 
 def block(payload: bytes, prefix: bytes = b"\x00DAT2,") -> bytes:
@@ -158,6 +161,25 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(numeric_response("5.00 MSa/s"), 5_000_000.0)
         self.assertEqual(numeric_response("25.0 Mpts"), 25_000_000.0)
         self.assertEqual(numeric_response("-2 s"), -2.0)
+
+    def test_merge_segment_payloads_preserves_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            channel = "C4"
+            channel_dir = root / channel
+            channel_dir.mkdir()
+            first = channel_dir / "segment-000000.bin"
+            second = channel_dir / "segment-000001.bin"
+            first.write_bytes(b"abc")
+            second.write_bytes(b"def")
+            output = merge_segment_payloads(
+                root,
+                channel,
+                [{"payload": str(first)}, {"payload": str(second)}],
+                "waveform.bin",
+            )
+            self.assertEqual(output.read_bytes(), b"abcdef")
+            self.assertFalse((channel_dir / "waveform.bin.partial").exists())
 
 
 if __name__ == "__main__":
