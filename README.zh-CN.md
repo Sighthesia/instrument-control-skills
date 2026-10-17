@@ -31,30 +31,9 @@
 
 ### 使用 skills CLI（推荐）
 
-[`skills`](https://github.com/vercel-labs/skills) CLI 可直接发现本仓库的 skill，
-无需额外清单文件：
-
 ```bash
-# 项目级（默认）-> .agents/skills/  (OpenCode)
 npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
-
-# 全局 -> ~/.config/opencode/skills/
-npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill -g
-
-# 指定 agent 和/或单个 skill，非交互式
-npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill -a opencode -g -y
-npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill --skill siglent-sds800xhd-control
-
-# 从本地检出安装
-npx skills@latest add ./ -g
 ```
-
-- **作用域**：项目级 `.agents/skills/`（OpenCode）或全局
-  `~/.config/opencode/skills/`；每个受支持的 agent 有各自的目录。
-  交互式安装会提供符号链接（推荐）或复制两种方式。
-- **管理**：`npx skills@latest list`、`npx skills@latest update`、
-  `npx skills@latest remove`。
-- 快速自检：`npx skills@latest add . --list` 应只列出一个 skill。
 
 ### 离线 / 手动
 

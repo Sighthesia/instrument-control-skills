@@ -36,31 +36,9 @@ search, and bounded local waveform analysis.
 
 ### With the skills CLI (recommended)
 
-The [`skills`](https://github.com/vercel-labs/skills) CLI discovers this repo's
-skill directly, so no extra manifest is needed:
-
 ```bash
-# Project scope (default) -> .agents/skills/  (OpenCode)
 npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
-
-# Global scope -> ~/.config/opencode/skills/
-npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill -g
-
-# Target agents and/or a single skill, non-interactively
-npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill -a opencode -g -y
-npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill --skill siglent-sds800xhd-control
-
-# From a local checkout
-npx skills@latest add ./ -g
 ```
-
-- **Scopes**: project `.agents/skills/` (OpenCode) or global
-  `~/.config/opencode/skills/`; each supported agent has its own directory.
-  Interactive install offers symlink (recommended) or copy.
-- **Manage**: `npx skills@latest list`, `npx skills@latest update`,
-  `npx skills@latest remove`.
-- A quick sanity check: `npx skills@latest add . --list` should list exactly one
-  skill.
 
 ### Offline / manual
 
