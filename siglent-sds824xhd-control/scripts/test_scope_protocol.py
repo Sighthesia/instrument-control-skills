@@ -11,6 +11,8 @@ from scope_protocol import (
     BufferedSocket,
     Segment,
     decide_waveform_width,
+    configure_left_aligned_trigger,
+    configure_memory_depth,
     read_wav_segment,
     parse_ieee_block,
     parse_wavedesc,
@@ -249,6 +251,86 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(numeric_response("5.00 MSa/s"), 5_000_000.0)
         self.assertEqual(numeric_response("25.0 Mpts"), 25_000_000.0)
         self.assertEqual(numeric_response("-2 s"), -2.0)
+
+    def test_left_aligned_trigger_sets_delay_and_memory_before_single(self):
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.commands = []
+                self.responses = {
+                    "TIM:SCAL?": "1.00E-04",
+                    "TIM:DEL?": "4.00E-04",
+                    "ACQ:MDEP?": "25M",
+                    "TIM:REF:POS?": "10",
+                }
+
+            def write(self, command, **kwargs):
+                self.commands.append(command)
+
+            def query_ascii(self, command, **kwargs):
+                return self.responses[command]
+
+        scope = FakeScope()
+        configuration = configure_left_aligned_trigger(
+            scope,
+            margin_div=1.0,
+            reference_position=10,
+            channel_count=3,
+        )
+        self.assertAlmostEqual(configuration["delay_s"], 4e-4)
+        self.assertAlmostEqual(configuration["pre_trigger_s"], 1e-4)
+        self.assertAlmostEqual(configuration["post_trigger_s"], 9e-4)
+        self.assertEqual(configuration["memory_depth_readback"], "25M")
+        self.assertEqual(configuration["reference_position_readback"], 10)
+        self.assertEqual(scope.commands[0], "TIM:DEL 4.000000000E-04")
+        self.assertEqual(scope.commands[1], "ACQ:MDEP 25M")
+        self.assertEqual(scope.commands[2], "TIM:REF:POS 10")
+        self.assertNotIn("ARM", [command.upper() for command in scope.commands])
+
+    def test_left_aligned_trigger_rejects_invalid_margin_before_io(self):
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.commands = []
+
+            def query_ascii(self, command, **kwargs):
+                self.commands.append(command)
+                return "1"
+
+        scope = FakeScope()
+        with self.assertRaises(ScopeProtocolError):
+            configure_left_aligned_trigger(scope, margin_div=0)
+        self.assertEqual(scope.commands, [])
+
+    def test_memory_depth_readback_mismatch_fails_closed(self):
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.commands = []
+
+            def write(self, command, **kwargs):
+                self.commands.append(command)
+
+            def query_ascii(self, command, **kwargs):
+                return "50M"
+
+        with self.assertRaises(ScopeProtocolError):
+            configure_memory_depth(FakeScope(), memory_depth="100M", channel_count=1)
+
+    def test_capture_cli_rejects_left_aligned_options_without_trigger(self):
+        from capture_scope import parse_args
+        import sys
+        from unittest.mock import patch
+
+        with patch.object(sys, "argv", ["capture_scope.py", "--out", "/tmp/capture", "--existing-stopped", "--left-aligned-trigger"]):
+            args = parse_args()
+        self.assertTrue(args.left_aligned_trigger)
 
     def test_merge_segment_payloads_preserves_order(self):
         with tempfile.TemporaryDirectory() as directory:

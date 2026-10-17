@@ -22,6 +22,8 @@ from scope_protocol import (
     decide_waveform_width,
     read_wav_segment,
     scope_assume_existing_stop,
+    configure_left_aligned_trigger,
+    configure_memory_depth,
     scope_prepare_capture,
     parse_wavedesc,
     save_json,
@@ -381,6 +383,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--probe-points", default="10000,1000000", help="comma-separated preflight WAV probe sizes; use empty string to disable")
     parser.add_argument("--prepare", action="store_true", help="write the handover's capture configuration")
     parser.add_argument("--trigger", action="store_true", help="issue TRMD SINGLE and wait Ready -> Stop")
+    parser.add_argument("--left-aligned-trigger", action="store_true", help="place the trigger at --trigger-margin-div from the left edge before TRMD SINGLE")
+    parser.add_argument("--trigger-margin-div", type=float, default=1.0, help="pre-trigger screen divisions for --left-aligned-trigger; default 1.0")
+    parser.add_argument("--memory-depth", choices=("auto", "100M", "50M", "25M"), default=None, help="explicit memory depth for a new capture; auto maps 1/2/3-4 channels to 100M/50M/25M")
+    parser.add_argument("--reference-position", type=int, help="optional TIM:REF:POS percentage 0..100 for a new capture")
     parser.add_argument("--existing-stopped", action="store_true", help="read the current stopped frame without claiming a new Ready -> Stop transition")
     parser.add_argument("--read-descriptors", action="store_true", help="after all legacy DAT2 reads, explicitly read DESC")
     parser.add_argument("--ready-timeout", type=float, default=30.0)
@@ -413,6 +419,18 @@ def main() -> int:
         raise SystemExit("--prepare requires --trigger so setup is applied before the new capture")
     if args.wfsu and not args.trigger:
         raise SystemExit("--wfsu requires --trigger so it is applied before the new capture")
+    if args.left_aligned_trigger and not args.trigger:
+        raise SystemExit("--left-aligned-trigger requires --trigger")
+    if args.left_aligned_trigger and args.existing_stopped:
+        raise SystemExit("--left-aligned-trigger cannot be used with --existing-stopped")
+    if args.reference_position is not None and not args.trigger:
+        raise SystemExit("--reference-position requires --trigger")
+    if args.memory_depth is not None and not args.trigger:
+        raise SystemExit("--memory-depth requires --trigger")
+    if args.left_aligned_trigger and (not 0 < args.trigger_margin_div <= 5):
+        raise SystemExit("--trigger-margin-div must be in the range (0, 5]")
+    if args.reference_position is not None and not 0 <= args.reference_position <= 100:
+        raise SystemExit("--reference-position must be in the range 0..100")
     args.out.mkdir(parents=True, exist_ok=True)
     scope = ScopeSession(args.host, args.port, args.timeout)
     scope.capture_mode = args.capture_mode
@@ -436,7 +454,34 @@ def main() -> int:
             configure_default_capture(scope)
         if args.wfsu:
             scope.write(args.wfsu)
+        trigger_strategy = None
+        if args.left_aligned_trigger:
+            trigger_strategy = configure_left_aligned_trigger(
+                scope,
+                margin_div=args.trigger_margin_div,
+                memory_depth=None if args.memory_depth in (None, "auto") else args.memory_depth,
+                reference_position=args.reference_position,
+                channel_count=len(args.channels),
+            )
+        elif args.reference_position is not None or args.memory_depth is not None:
+            trigger_strategy = {"enabled": False}
+            if args.memory_depth is not None:
+                trigger_strategy["memory_depth_readback"] = configure_memory_depth(
+                    scope,
+                    memory_depth=None if args.memory_depth == "auto" else args.memory_depth,
+                    channel_count=len(args.channels),
+                )
+            if args.reference_position is not None:
+                if not 0 <= args.reference_position <= 100:
+                    raise SystemExit("--reference-position must be in the range 0..100")
+                scope.write(f"TIM:REF:POS {args.reference_position}")
+                reference_readback = int(float(scope.query_ascii("TIM:REF:POS?")))
+                if reference_readback != args.reference_position:
+                    raise ScopeProtocolError("horizontal reference position readback mismatch")
+                trigger_strategy["reference_position_readback"] = reference_readback
         manifest["capture_configuration"] = scope_snapshot_configuration(scope, args.channels)
+        if trigger_strategy is not None:
+            manifest["capture_configuration"]["left_aligned_trigger"] = trigger_strategy
         if args.trigger:
             scope.write("TRMD SINGLE")
             wait_state(scope, "READY", args.ready_timeout, args.poll)

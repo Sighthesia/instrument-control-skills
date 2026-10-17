@@ -70,6 +70,20 @@ Start with the matching reference's read-only snapshot. Use a setup/enable comma
 8. Save one raw binary file and one metadata file per segment. For BYTE expect `count` payload bytes; for WORD expect `count * 2` payload bytes. Check each returned payload length and checksum.
 9. Build the full report only after all segments have contiguous ranges from `0` through `array_count - 1`.
 
+For a trigger-following burst, configure the optional horizontal strategy before step 4:
+
+```text
+python3 scripts/capture_scope.py \
+  --out /path/to/capture --channels C4 \
+  --mode modern --capture-mode configured_capture \
+  --prepare --trigger \
+  --left-aligned-trigger --trigger-margin-div 1 \
+  --memory-depth auto --reference-position 10 \
+  --wav-width auto
+```
+
+This queries `TIM:SCAL?`, sets `TIM:DEL = (5 - margin_div) * timebase`, and verifies the timebase, delay, memory-depth, and optional `TIM:REF:POS` readbacks before `TRMD SINGLE`. With `margin_div=1`, the trigger has one division of pre-trigger context and nine divisions of post-trigger window. The strategy is opt-in and is not valid with `--existing-stopped`; use a larger margin when pre-trigger history is important.
+
 Example for the current stopped C4 frame:
 
 ```text
@@ -163,6 +177,7 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 - `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators.
 - `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
+- `scripts/scope_protocol.py`: also exposes `configure_left_aligned_trigger` and `configure_memory_depth` for new captures; both preserve the no-`ARM` workflow.
 - `scripts/waveform_analysis.py`: read-only manifest validation, BYTE/WORD memory-mapped access, exact bounded summaries, M4 visualization preview, threshold/runt/long-interval events, and raw window extraction.
 - `scripts/analyze_waveform.py`: bounded JSON CLI with `inspect`, `summarize`, `events`, and `window` subcommands.
 - `scripts/test_waveform_analysis.py`: synthetic capture tests for integrity, relocation, BYTE/WORD behavior, statistics, M4 bounds, event chunk boundaries, cursors, scan budgets, and window limits.

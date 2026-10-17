@@ -23,10 +23,24 @@ The following scalar forms are **Target-tested** on TCP 5025:
 | `:ACQuire:POINts?` | Current record point count. |
 | `:ACQuire:SRATe?` | Current sample rate in Sa/s. |
 | `:TIMebase:SCALe?`, `:TIMebase:DELay?` | Main timebase in s/div and horizontal delay in s. |
+| `:TIMebase:REFerence:POSition?` | Horizontal reference position percentage, 0..100, for delay-fixed expansion. |
+| `:ACQuire:MDEPth?` | Current acquisition memory-depth class; SDS800X HD lists 100M/50M/25M classes by active channel count. |
 | `:CHANnel<n>:SCALe?`, `:CHANnel<n>:OFFSet?`, `:CHANnel<n>:SWITch?`, `:CHANnel<n>:COUPling?`, `:CHANnel<n>:PROBe?` | Per-channel V/div, offset, channel state, AC/DC/GND coupling, and probe attenuation. Substitute channel number 1-4. |
 | `:TRIGger:EDGE:LEVel?` | Edge trigger threshold in V. |
 
 Example target snapshot observed: record `25 Mpts`, sample rate `5 MSa/s`, timebase `0.5 s/div`, trigger delay `+2 s` in `TIMebase:DELay?`, edge level `2.5 V`. Do not assume the delay sign is the same as a legacy `TRDL?` field without checking that path's convention.
+
+### Trigger-Following Window Strategy
+
+Manual-supported and implemented as an explicit option in `scripts/capture_scope.py`. The 10-division YT time axis uses `t = Delay - 5 * Timebase + index * sample_interval`. To place the trigger `margin_div` divisions from the left edge:
+
+```text
+Delay = (5 - margin_div) * Timebase
+pre-trigger  = margin_div * Timebase
+post-trigger = (10 - margin_div) * Timebase
+```
+
+For `margin_div=1`, this is `Delay=+4*Timebase`, one division before the trigger and nine divisions after it. Use this only for events expected to continue after the trigger. Set `TIM:SCAL`, `TIM:DEL`, optional `TIM:REF:POS`, and `ACQ:MDEP` before `TRMD SINGLE`; never apply them while reading an existing stopped frame.
 
 ## Signal Discovery
 

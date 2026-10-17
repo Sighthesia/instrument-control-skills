@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import select
 import socket
@@ -305,7 +306,7 @@ def scope_snapshot_configuration(scope: ScopeSession, channels: Iterable[str] = 
     """Read a snapshot without changing acquisition state."""
 
     snapshot: dict[str, Any] = {"acquisition": {}, "channels": {}}
-    for command, key in (("TRMD?", "trigger_mode"), ("SAST?", "acquisition_state"), ("ACQ:POIN?", "scope_record_points"), ("SARA?", "sample_rate"), ("TDIV?", "timebase"), ("TRDL?", "trigger_delay"), ("WFSU?", "waveform_setup")):
+    for command, key in (("TRMD?", "trigger_mode"), ("SAST?", "acquisition_state"), ("ACQ:POIN?", "scope_record_points"), ("ACQ:MDEP?", "memory_depth"), ("SARA?", "sample_rate"), ("TDIV?", "timebase"), ("TRDL?", "trigger_delay"), ("TIM:SCAL?", "horizontal_scale"), ("TIM:DEL?", "horizontal_delay"), ("TIM:REF:POS?", "horizontal_reference_position"), ("WFSU?", "waveform_setup")):
         snapshot["acquisition"][key] = scope.query_ascii(command, allow_after_stop=True)
     for channel in channels:
         values: dict[str, str] = {}
@@ -334,6 +335,98 @@ def scope_prepare_capture(scope: ScopeSession) -> None:
     )
     for command in commands:
         scope.write(command)
+
+
+def configure_left_aligned_trigger(
+    scope: ScopeSession,
+    *,
+    margin_div: float = 1.0,
+    memory_depth: Optional[str] = None,
+    reference_position: Optional[int] = None,
+    channel_count: int = 1,
+) -> dict[str, Any]:
+    """Configure a new trigger-following capture before TRMD SINGLE.
+
+    The trigger is placed ``margin_div`` divisions from the left edge by
+    setting positive horizontal delay. This is intentionally opt-in.
+    """
+
+    try:
+        margin = float(margin_div)
+    except (TypeError, ValueError) as exc:
+        raise ScopeProtocolError("margin_div must be numeric") from exc
+    if not math.isfinite(margin) or margin <= 0 or margin > 5:
+        raise ScopeProtocolError("margin_div must be finite and in the range (0, 5]")
+    if channel_count not in (1, 2, 3, 4):
+        raise ScopeProtocolError("channel_count must be between 1 and 4")
+    timebase = _parse_numeric(scope.query_ascii("TIM:SCAL?"), "TIM:SCAL?")
+    if timebase <= 0:
+        raise ScopeProtocolError("TIM:SCAL? must return a positive timebase")
+    delay = (5.0 - margin) * timebase
+    scope.write(f"TIM:DEL {delay:.9E}")
+    normalized_depth = configure_memory_depth(scope, memory_depth=memory_depth, channel_count=channel_count)
+    if reference_position is not None:
+        if not isinstance(reference_position, int) or not 0 <= reference_position <= 100:
+            raise ScopeProtocolError("reference_position must be an integer in the range 0..100")
+        scope.write(f"TIM:REF:POS {reference_position}")
+
+    actual_timebase = _parse_numeric(scope.query_ascii("TIM:SCAL?"), "TIM:SCAL? readback")
+    actual_delay = _parse_numeric(scope.query_ascii("TIM:DEL?"), "TIM:DEL? readback")
+    if not math.isclose(actual_timebase, timebase, rel_tol=1e-6, abs_tol=max(1e-15, timebase * 1e-9)):
+        raise ScopeProtocolError(f"timebase changed during left-aligned setup: requested {timebase}, read {actual_timebase}")
+    if not math.isclose(actual_delay, delay, rel_tol=1e-6, abs_tol=max(1e-15, delay * 1e-9)):
+        raise ScopeProtocolError(f"delay readback mismatch: requested {delay}, read {actual_delay}")
+    actual_depth = scope.query_ascii("ACQ:MDEP?").strip().upper()
+    if normalized_depth not in actual_depth:
+        raise ScopeProtocolError(f"memory depth readback mismatch: requested {normalized_depth}, read {actual_depth!r}")
+    actual_reference = None
+    if reference_position is not None:
+        actual_reference = int(float(scope.query_ascii("TIM:REF:POS?")))
+        if actual_reference != reference_position:
+            raise ScopeProtocolError(f"reference position readback mismatch: requested {reference_position}, read {actual_reference}")
+    return {
+        "enabled": True,
+        "margin_div": margin,
+        "timebase_s_per_div": actual_timebase,
+        "delay_s": actual_delay,
+        "pre_trigger_s": margin * actual_timebase,
+        "post_trigger_s": (10.0 - margin) * actual_timebase,
+        "total_window_s": 10.0 * actual_timebase,
+        "memory_depth_requested": normalized_depth,
+        "memory_depth_readback": actual_depth,
+        "reference_position_requested": reference_position,
+        "reference_position_readback": actual_reference,
+    }
+
+
+def configure_memory_depth(
+    scope: ScopeSession,
+    *,
+    memory_depth: Optional[str] = None,
+    channel_count: int = 1,
+) -> str:
+    if channel_count not in (1, 2, 3, 4):
+        raise ScopeProtocolError("channel_count must be between 1 and 4")
+    if memory_depth is None:
+        memory_depth = {1: "100M", 2: "50M", 3: "25M", 4: "25M"}[channel_count]
+    normalized_depth = str(memory_depth).strip().upper()
+    if normalized_depth not in {"100M", "50M", "25M"}:
+        raise ScopeProtocolError("memory_depth must be one of 100M, 50M, or 25M")
+    scope.write(f"ACQ:MDEP {normalized_depth}")
+    actual_depth = scope.query_ascii("ACQ:MDEP?").strip().upper()
+    if normalized_depth not in actual_depth:
+        raise ScopeProtocolError(f"memory depth readback mismatch: requested {normalized_depth}, read {actual_depth!r}")
+    return actual_depth
+
+
+def _parse_numeric(value: Any, label: str) -> float:
+    match = re.search(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?", str(value).replace(" ", ""))
+    if not match:
+        raise ScopeProtocolError(f"{label} did not return a numeric value: {value!r}")
+    parsed = float(match.group(0))
+    if not math.isfinite(parsed):
+        raise ScopeProtocolError(f"{label} returned a non-finite value: {value!r}")
+    return parsed
 
 
 def scope_set_capture_mode(scope: ScopeSession, mode: str) -> None:
