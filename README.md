@@ -1,11 +1,13 @@
-# Siglent SDS800X HD SCPI Skill
+# Instrument Control Skills
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-An AgentSkill — plus deterministic Python helpers — that drives a Siglent
-SDS800X HD series oscilloscope over a single raw SCPI TCP session: single-shot
-captures, waveform downloads, measurements, screenshots, protocol decode, anomaly
-search, and bounded local waveform analysis.
+Community-contributed Agent Skills for instrument communication, configuration,
+data parsing, and evidence-aware analysis. The repository currently contains a
+hardware-verified Siglent control Skill and a vendor-neutral parser authoring Skill.
+
+The current catalog is maintained in [`registry.yaml`](registry.yaml); use each
+Skill's `SKILL.md` as its authoritative contract.
 
 ## Supported oscilloscopes
 
@@ -32,7 +34,11 @@ search, and bounded local waveform analysis.
 - **Local, read-only waveform analysis** (NumPy) — `inspect`, `summarize`,
   `events`, `window`, `ringing` over a completed capture.
 
-## Additional skills
+## Skills in This Repository
+
+- [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) —
+  connect to and operate Siglent SDS800X HD oscilloscopes, capture waveforms,
+  preserve raw evidence, and validate downloads.
 
 - [`instrument-parser-authoring`](skills/instrument-parser-authoring/SKILL.md) —
   guide for writing vendor-neutral instrument data parsers from manuals, raw
@@ -56,7 +62,7 @@ folder. Unzip it into an agent's skills directory (for OpenCode, e.g.
 ## Workflows
 
 - **Progressive reference loading** — start from the goal table in
-  [`siglent-sds800xhd-control/SKILL.md`](siglent-sds800xhd-control/SKILL.md) and
+  [`skills/siglent-sds800xhd-control/SKILL.md`](skills/siglent-sds800xhd-control/SKILL.md) and
   load only the one `references/` page that matches the current goal, instead of
   every page up front.
 - **Single-shot capture** — connect once, snapshot config, start with `TRMD SINGLE`
@@ -76,13 +82,15 @@ folder. Unzip it into an agent's skills directory (for OpenCode, e.g.
 
 ## Repository layout
 
-- `siglent-sds800xhd-control/` — the skill source.
-  - `SKILL.md` — behavior contract and safety rules.
-  - `scripts/` — stdlib Python helpers plus the offline unittest suite.
-  - `references/` — progressive-load pages (Chinese); the `SKILL.md` goal table
-    selects which one to read.
-- `dist/siglent-sds800xhd-control.skill` — committed zip deliverable. Rebuild it
-  after any change under the skill folder; it does not track the source by itself.
+- `skills/` — self-contained Skill sources, one directory per Skill.
+  - `skills/siglent-sds800xhd-control/` — the Siglent control Skill.
+  - `skills/instrument-parser-authoring/` — parser authoring guidance and templates.
+  - Each Skill contains its own `SKILL.md`, references, scripts, tests, or assets.
+- `registry.yaml` — machine-readable catalog of active Skills, capabilities, and evidence levels.
+- `CONTRIBUTING.md` — contribution layout, testing, evidence, and manual rules.
+- `dist/*.skill` — committed per-Skill zip deliverables. Rebuild the affected
+  archive after any change under its source directory; archives do not track source
+  changes by themselves.
 - `.specs/` — dated per-feature contracts (constraints + acceptance checklist).
 - `docs/ref/*.pdf` — vendor manuals (untracked); `references/` cites them by page.
 - `docs/superpowers/specs/` — design-intent docs.
@@ -95,17 +103,22 @@ with the working directory set to `scripts/`, because the modules use bare
 intra-directory imports:
 
 ```bash
-cd siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
+cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
 ```
 
 - 44 tests, ~0.2 s. Single module/class/test:
   `python3 -m unittest test_waveform_analysis` or
   `python3 -m unittest test_scope_protocol.TestX.test_y`.
+- Parser template tests:
+  `python3 -m unittest discover -s skills/instrument-parser-authoring/assets/parser-template/tests -p 'test_*.py'`.
 - Validate the skill (frontmatter, structure, references):
-  `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py siglent-sds800xhd-control`
+  `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
+  and run the same command with `skills/instrument-parser-authoring` for the parser Skill.
 - Repackage after validation (validates first; auto-excludes `__pycache__`):
-  `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py siglent-sds800xhd-control dist`
-  then check with `unzip -t dist/siglent-sds800xhd-control.skill`.
+  `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/siglent-sds800xhd-control dist`
+  and `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/instrument-parser-authoring dist`;
+  then check both archives with `unzip -t`.
+- Sanity-check discovery: `npx skills@latest add . --list` should list exactly two Skills.
 - `capture_scope.py` and `discover_scope.py` talk to real hardware (default
   `192.168.10.2:5025`; port `5024` is a legacy shell, never query it).
 
@@ -128,7 +141,7 @@ These are load-bearing; the offline tests enforce parts of them.
 
 - Python 3 + stdlib only for `scope_protocol.py`, `capture_scope.py`,
   `discover_scope.py`.
-- `numpy>=2.0,<3.0` (`siglent-sds800xhd-control/requirements-analysis.txt`) only for
+- `numpy>=2.0,<3.0` (`skills/siglent-sds800xhd-control/requirements-analysis.txt`) only for
   `waveform_analysis.py` / `analyze_waveform.py`.
 - `pyvisa` is optional and only used by `discover_scope.py --usb`.
 - SciPy is deliberately excluded.

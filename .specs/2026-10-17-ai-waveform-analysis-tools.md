@@ -2,7 +2,7 @@
 
 - **Created**: 2026-10-17
 - **Status**: Completed
-- **Target Files/Modules**: `siglent-sds800xhd-control/scripts/`, tests, skill documentation, package output
+- **Target Files/Modules**: `skills/siglent-sds800xhd-control/scripts/`, tests, skill documentation, package output
 
 ## 1. Core Objective
 Design and implement a first local analysis layer that converts large oscilloscope captures into compact, evidence-linked JSON for an AI agent without treating lossy summaries as replacements for raw waveform data.

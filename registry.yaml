@@ -1,0 +1,39 @@
+schema_version: 1
+repository:
+  name: instrument-control-skills
+  description: Community-contributed skills for instrument control, data parsing, and evidence-aware analysis.
+  license: to-be-decided
+
+skills:
+  - name: siglent-sds800xhd-control
+    category: control
+    path: skills/siglent-sds800xhd-control
+    data_kinds:
+      - waveform
+      - screenshot
+      - measurement
+    transports:
+      - raw-tcp
+      - usb-visa
+    support:
+      level: hardware-verified
+      verified_model: Siglent SDS824X HD
+      verified_firmware: 4.8.12.1.1.6.5
+      limitations:
+        - Channel-count, bandwidth, memory-depth, and firmware-dependent behavior must be confirmed on the connected model.
+
+  - name: instrument-parser-authoring
+    category: authoring
+    path: skills/instrument-parser-authoring
+    data_kinds:
+      - waveform
+      - scalar-measurement
+      - spectrum
+      - status-record
+    transports: []
+    support:
+      level: replay-tested
+      verified_model: null
+      verified_firmware: null
+      limitations:
+        - This Skill authors parsers and does not connect to instruments.

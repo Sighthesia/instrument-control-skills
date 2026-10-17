@@ -1,10 +1,13 @@
-# Siglent SDS800X HD SCPI Skill
+# Instrument Control Skills
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-一个 AgentSkill（附带确定性 Python 辅助脚本），通过单一原始 SCPI TCP 会话驱动
-鼎阳（Siglent）SDS800X HD 系列示波器：单次捕获、波形下载、测量、截图、协议解码、
-异常搜索，以及有界的本地波形分析。
+面向仪器通信、配置、数据解析和证据感知分析的社区 Agent Skill 集合。
+当前仓库包含一个已完成实机验证的 Siglent 控制 Skill，以及一个与厂商无关的
+解析器编写指导 Skill。
+
+当前目录由 [`registry.yaml`](registry.yaml) 维护；每个 Skill 的 `SKILL.md`
+是该 Skill 的权威契约。
 
 ## 支持的示波器
 
@@ -27,7 +30,10 @@
 - **本地只读波形分析**（NumPy）—— 针对已完成捕获的 `inspect`、`summarize`、
   `events`、`window`、`ringing`。
 
-## 其他 Skill
+## 仓库中的 Skill
+
+- [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) ——
+  连接和操作 Siglent SDS800X HD 示波器，捕获波形，保存原始证据并验证下载结果。
 
 - [`instrument-parser-authoring`](skills/instrument-parser-authoring/SKILL.md) ——
   指导根据编程手册、原始响应和离线 replay fixture 编写与验证通用仪器数据解析器，
@@ -50,7 +56,7 @@ npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 ## 工作流
 
 - **渐进式参考加载** —— 从
-  [`siglent-sds800xhd-control/SKILL.md`](siglent-sds800xhd-control/SKILL.md)
+  [`skills/siglent-sds800xhd-control/SKILL.md`](skills/siglent-sds800xhd-control/SKILL.md)
   的目标表开始，只加载与当前目标匹配的那一页 `references/`，而不是一次读完所有页面。
 - **单次捕获** —— 只连接一次，先快照配置，用 `TRMD SINGLE` 启动（绝不用 `ARM`），
   轮询 `SAST?` 直到 `Ready`，激励被测件，再轮询直到 `Stop`，随后冻结命令集。
@@ -68,12 +74,14 @@ npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 
 ## 仓库结构
 
-- `siglent-sds800xhd-control/` —— skill 源码。
-  - `SKILL.md` —— 行为契约与安全规则。
-  - `scripts/` —— 标准库 Python 辅助脚本及离线单元测试。
-  - `references/` —— 渐进式加载页面（中文）；由 `SKILL.md` 的目标表决定读取哪一页。
-- `dist/siglent-sds800xhd-control.skill` —— 已提交的 zip 交付物。
-  skill 目录内任何改动后都需重新打包；它本身不会自动跟踪源码。
+- `skills/` —— self-contained Skill 源码，每个 Skill 使用独立目录。
+  - `skills/siglent-sds800xhd-control/` —— Siglent 控制 Skill。
+  - `skills/instrument-parser-authoring/` —— 解析器编写指导和模板。
+  - 每个 Skill 自带自己的 `SKILL.md`、参考资料、脚本、测试或资源。
+- `registry.yaml` —— 当前 Skill、能力和验证等级的机器可读目录。
+- `CONTRIBUTING.md` —— 贡献目录、测试、证据和手册规则。
+- `dist/*.skill` —— 每个 Skill 对应的已提交 zip 交付物。对应源码目录发生改动后，
+  必须重新打包受影响的 archive；archive 不会自动跟踪源码变化。
 - `.specs/` —— 带日期的逐功能契约（约束 + 验收清单）。
 - `docs/ref/*.pdf` —— 厂商手册（未跟踪）；`references/` 按页码引用。
 - `docs/superpowers/specs/` —— 设计意图文档。
@@ -85,17 +93,22 @@ npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 因为模块使用同目录的裸导入：
 
 ```bash
-cd siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
+cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
 ```
 
 - 44 个测试，约 0.2 s。运行单个模块/类/用例：
   `python3 -m unittest test_waveform_analysis` 或
   `python3 -m unittest test_scope_protocol.TestX.test_y`。
+- 解析器模板测试：
+  `python3 -m unittest discover -s skills/instrument-parser-authoring/assets/parser-template/tests -p 'test_*.py'`。
 - 校验 skill（frontmatter、结构、引用）：
-  `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py siglent-sds800xhd-control`
+  `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
+  以及对 `skills/instrument-parser-authoring` 执行同一命令。
 - 校验通过后重新打包（会先校验；自动排除 `__pycache__`）：
-  `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py siglent-sds800xhd-control dist`
-  然后用 `unzip -t dist/siglent-sds800xhd-control.skill` 检查。
+  `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/siglent-sds800xhd-control dist`
+  以及 `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/instrument-parser-authoring dist`；
+  然后分别用 `unzip -t` 检查两个 archive。
+- 发现自检：`npx skills@latest add . --list` 应恰好列出两个 Skill。
 - `capture_scope.py` 与 `discover_scope.py` 会连接真实硬件（默认
   `192.168.10.2:5025`；`5024` 端口是旧式 shell，切勿用于查询）。
 
@@ -116,7 +129,7 @@ cd siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'te
 ## 依赖
 
 - `scope_protocol.py`、`capture_scope.py`、`discover_scope.py` 仅需 Python 3 + 标准库。
-- `numpy>=2.0,<3.0`（`siglent-sds800xhd-control/requirements-analysis.txt`）
+- `numpy>=2.0,<3.0`（`skills/siglent-sds800xhd-control/requirements-analysis.txt`）
   仅用于 `waveform_analysis.py` / `analyze_waveform.py`。
 - `pyvisa` 为可选依赖，仅 `discover_scope.py --usb` 使用。
 - 有意不引入 SciPy。
