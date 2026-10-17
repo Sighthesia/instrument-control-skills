@@ -1,5 +1,7 @@
 # Siglent SDS800X HD SCPI Skill
 
+[English](README.md) · [简体中文](README.zh-CN.md)
+
 An AgentSkill — plus deterministic Python helpers — that drives a Siglent
 SDS800X HD series oscilloscope over a single raw SCPI TCP session: single-shot
 captures, waveform downloads, measurements, screenshots, protocol decode, anomaly
