@@ -23,6 +23,7 @@ Load only the reference matching the current debugging goal. Do not read every c
 
 | Goal or observation | Read this reference |
 |---|---|
+| Automatically discover a scope, verify USB/LAN identity, configure the basic connection, or choose a storage transfer path | [Connection and storage guidance](references/connection-and-storage.md) |
 | Identify the scope, find a signal, auto-range, inspect trigger/acquisition state, or evaluate voltage/timing/jitter | [Signal discovery and measurement](references/signal-discovery-and-measurement.md) |
 | Inspect waveform shape visually, fetch a screenshot, or download samples for external analysis | [Screenshot and waveform data](references/screenshot-and-waveform.md) |
 | Diagnose UART/I2C/SPI/CAN/LIN or another supported serial bus | [Protocol decode](references/protocol-decode.md) |
@@ -175,6 +176,7 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 ## Bundled Resources
 
 - `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators.
+- `scripts/discover_scope.py`: read-only USBTMC/VISA and LAN `*IDN?` discovery; it never changes scope state or mounts storage.
 - `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
 - `scripts/scope_protocol.py`: also exposes `configure_left_aligned_trigger` and `configure_memory_depth` for new captures; both preserve the no-`ARM` workflow.
@@ -182,6 +184,7 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 - `scripts/analyze_waveform.py`: bounded JSON CLI with `inspect`, `summarize`, `events`, and `window` subcommands.
 - `scripts/test_waveform_analysis.py`: synthetic capture tests for integrity, relocation, BYTE/WORD behavior, statistics, M4 bounds, event chunk boundaries, cursors, scan budgets, and window limits.
 - Task-specific command references under `references/`: load only the page selected by the goal table above. `programming-guide.md` records waveform implementation notes and is not a general command catalog.
+- `references/connection-and-storage.md`: discovery, connection configuration boundaries, USBTMC limitations, network storage, and direct binary transfer choices.
 
 The protocol module exposes the handover API names: `scope_connect`, `scope_identify`, `scope_snapshot_configuration`, `scope_prepare_capture`, `scope_arm_single`, `scope_wait_ready`, `scope_wait_stop`, `scope_read_immutable_frame`, `scope_read_segment`, `scope_read_descriptor`, `scope_validate_frame`, `scope_restore_run_mode`, and `scope_disconnect`. `scope_arm_single` sends only `TRMD SINGLE`, never `ARM`. Descriptor reads remain an explicit post-download action.
 - `references/programming-guide.md`: command semantics and manual page references used by this skill.
