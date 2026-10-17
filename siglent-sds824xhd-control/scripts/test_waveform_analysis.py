@@ -8,6 +8,7 @@ from pathlib import Path
 
 from waveform_analysis import (
     AnalysisError,
+    analyze_ringing,
     bound_json,
     find_events,
     get_window,
@@ -197,6 +198,66 @@ class WaveformAnalysisTests(unittest.TestCase):
             report = find_events(capture, low=2, high=8, chunk_points=3)
             self.assertEqual(report["detector"]["status"], "insufficient_evidence")
             self.assertIn("insufficient_period_evidence", report["coverage"]["limitations"])
+
+    def test_time_ranged_window_resolves_display_time_to_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, list(range(20)))
+            capture = load_capture(root, "C1")
+            origin = capture["time_origin_s"]
+            window = get_window(capture, start_time_s=origin + 3e-6, end_time_s=origin + 8e-6)
+            self.assertEqual(window["window"]["start_sample"], 3)
+            self.assertEqual(window["window"]["end_sample_exclusive"], 8)
+            self.assertEqual(window["window"]["codes"], [3, 4, 5, 6, 7])
+            self.assertEqual(window["window"]["resolved_start_time_s"], origin + 3e-6)
+            self.assertEqual(window["window"]["resolved_end_time_s"], origin + 8e-6)
+
+    def test_window_rejects_mixed_sample_and_time_selectors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, list(range(20)))
+            capture = load_capture(root, "C1")
+            with self.assertRaises(AnalysisError) as context:
+                get_window(capture, 3, 2, start_time_s=capture["time_origin_s"], end_time_s=capture["time_origin_s"] + 2e-6)
+            self.assertEqual(context.exception.code, "LIMIT_INVALID")
+
+    def test_time_ranged_event_scan_reports_limited_coverage(self):
+        values = [0] * 3 + [10] * 3 + [0] * 3 + [10] * 3 + [0] * 3
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            capture = load_capture(root, "C1")
+            origin = capture["time_origin_s"]
+            report = find_events(capture, low=2, high=8, start_time_s=origin + 3e-6, end_time_s=origin + 12e-6, limit=10)
+            self.assertEqual(report["coverage"]["scanned_start"], 3)
+            self.assertEqual(report["coverage"]["scanned_end_exclusive"], 12)
+            self.assertFalse(report["coverage"]["full_record_scanned"])
+            self.assertTrue(report["events"]["items"])
+
+    def test_ringing_reports_edge_overshoot_and_frequency(self):
+        values = [0] * 8 + [10, 24, 4, 19, 7, 15, 9, 12, 10, 10, 10, 10]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            capture = load_capture(root, "C1")
+            origin = capture["time_origin_s"]
+            report = analyze_ringing(capture, start_time_s=origin, end_time_s=origin + len(values) * 1e-6)
+            self.assertEqual(report["ringing"]["status"], "evidence_found")
+            self.assertGreater(report["ringing"]["positive_overshoot"], 0)
+            self.assertIsNotNone(report["ringing"]["frequency_hz"])
+            self.assertTrue(report["coverage"]["capture_right_boundary"])
+            self.assertIn("analysis_window_touches_capture_boundary", report["coverage"]["limitations"])
+
+    def test_ringing_rejects_too_small_window_and_flags_insufficient_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10])
+            capture = load_capture(root, "C1")
+            with self.assertRaises(AnalysisError) as context:
+                analyze_ringing(capture, start=0, count=8)
+            self.assertEqual(context.exception.code, "INSUFFICIENT_DATA")
+            report = analyze_ringing(capture, start=0, count=12)
+            self.assertEqual(report["ringing"]["status"], "insufficient_evidence")
 
     def test_bounds_and_invalid_window(self):
         with tempfile.TemporaryDirectory() as directory:

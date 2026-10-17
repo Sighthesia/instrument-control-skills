@@ -131,9 +131,14 @@ python3 scripts/analyze_waveform.py inspect --capture /path/to/capture --channel
 python3 scripts/analyze_waveform.py summarize --capture /path/to/capture --channel C4 --preview-buckets 256
 python3 scripts/analyze_waveform.py events --capture /path/to/capture --channel C4 --threshold-codes 20 35 --limit 100
 python3 scripts/analyze_waveform.py window --capture /path/to/capture --channel C4 --start 123456 --count 512
+python3 scripts/analyze_waveform.py events --capture /path/to/capture --channel C4 --threshold-codes 20 35 --start-time 2.01795 --end-time 2.01805 --limit 20
+python3 scripts/analyze_waveform.py ringing --capture /path/to/capture --channel C4 --start-time 2.01795 --end-time 2.01805
+python3 scripts/analyze_waveform.py window --capture /path/to/capture --channel C4 --start-time 2.01795 --end-time 2.01805
 ```
 
-The analyzer validates the complete frame, merged file size, SHA-256, segment ranges, width, byte order, and sampling metadata before reading samples through NumPy `memmap`. It scans large records in bounded chunks and returns compact JSON rather than raw arrays. `summarize` reports exact integer-code statistics and an M4 preview labeled `visualization_only_lossy`; the preview must not be used as a substitute for event detection. `events` scans original-resolution samples and returns bounded pages with a stateless cursor. `window` is the escalation path for inspecting samples around an event.
+The analyzer validates the complete frame, merged file size, SHA-256, segment ranges, width, byte order, and sampling metadata before reading samples through NumPy `memmap`. It scans large records in bounded chunks and returns compact JSON rather than raw arrays. `summarize` reports exact integer-code statistics and an M4 preview labeled `visualization_only_lossy`; the preview must not be used as a substitute for event detection. `events` scans original-resolution samples and returns bounded pages with a stateless cursor; `--start-time/--end-time` limits the scan to a relative display-time range. `window` is the escalation path for inspecting samples around an event and accepts either sample indices or a half-open time range. `ringing` analyzes one bounded local window and reports heuristic edge overshoot, undershoot, residual crossings, frequency, and decay when enough evidence exists. It does not return a full local array, so call `window` separately when the AI needs the raw samples.
+
+All analysis times are relative to the waveform display origin reported in `sampling.origin_s`, not wall-clock time. The time range is half-open: `[start-time, end-time)`. Do not combine time arguments with sample-index arguments. `ringing` marks windows touching the capture boundary, edges without enough pre-context, and ring-down that remains above noise at the window end; those flags prevent a local estimate from being mistaken for proof that the physical event ended.
 
 WORD captures retain raw signed little-endian codes. Unless an independent calibration JSON is supplied, WORD analysis reports `OBSERVED_UNVERIFIED` and emits code-domain values only; a 16-bit transport container is not automatically treated as a 16-bit voltage-calibrated ADC result. BYTE voltage conversion uses descriptor VDIV, probe factor, offset, and codes/div after cross-checking the captured panel snapshot; a mismatch is reported as a calibration limitation rather than used to produce voltage fields. Analysis output defaults to stdout and must be written outside the raw capture directory with `--out`.
 
@@ -180,9 +185,9 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 - `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
 - `scripts/scope_protocol.py`: also exposes `configure_left_aligned_trigger` and `configure_memory_depth` for new captures; both preserve the no-`ARM` workflow.
-- `scripts/waveform_analysis.py`: read-only manifest validation, BYTE/WORD memory-mapped access, exact bounded summaries, M4 visualization preview, threshold/runt/long-interval events, and raw window extraction.
-- `scripts/analyze_waveform.py`: bounded JSON CLI with `inspect`, `summarize`, `events`, and `window` subcommands.
-- `scripts/test_waveform_analysis.py`: synthetic capture tests for integrity, relocation, BYTE/WORD behavior, statistics, M4 bounds, event chunk boundaries, cursors, scan budgets, and window limits.
+- `scripts/waveform_analysis.py`: read-only manifest validation, BYTE/WORD memory-mapped access, exact bounded summaries, M4 visualization preview, time-ranged threshold/runt/long-interval events, raw window extraction, and bounded ringing screening.
+- `scripts/analyze_waveform.py`: bounded JSON CLI with `inspect`, `summarize`, `events`, `window`, and `ringing` subcommands.
+- `scripts/test_waveform_analysis.py`: synthetic capture tests for integrity, relocation, BYTE/WORD behavior, statistics, M4 bounds, event chunk boundaries, cursors, scan budgets, sample/time windows, ringing estimates, and window limits.
 - Task-specific command references under `references/`: load only the page selected by the goal table above. `programming-guide.md` records waveform implementation notes and is not a general command catalog.
 - `references/connection-and-storage.md`: discovery, connection configuration boundaries, USBTMC limitations, network storage, and direct binary transfer choices.
 

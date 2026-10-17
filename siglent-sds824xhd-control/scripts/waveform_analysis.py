@@ -566,7 +566,46 @@ def _crossing_time(left: float, right: float, threshold: float, left_index: int,
     return origin + (left_index + fraction) * interval
 
 
-def _scan_edges(capture: dict[str, Any], low: float, high: float, *, domain: str, chunk_points: int, budget: int) -> tuple[list[dict[str, Any]], bool, int]:
+def _resolve_time_range(capture: dict[str, Any], start_time_s: Optional[float], end_time_s: Optional[float]) -> tuple[int, int]:
+    if start_time_s is None or end_time_s is None:
+        raise AnalysisError("LIMIT_INVALID", "Both start_time_s and end_time_s are required")
+    if not math.isfinite(start_time_s) or not math.isfinite(end_time_s) or start_time_s >= end_time_s:
+        raise AnalysisError("LIMIT_INVALID", "Time range must be finite and start_time_s < end_time_s")
+    origin = capture["time_origin_s"]
+    interval = capture["sample_interval_s"]
+    record_end = origin + capture["points"] * interval
+    tolerance = max(interval * 1e-9, 1e-15)
+    if start_time_s < origin - tolerance or end_time_s > record_end + tolerance:
+        raise AnalysisError(
+            "WINDOW_OUT_OF_RANGE",
+            f"Requested time range [{start_time_s}, {end_time_s}) exceeds [{origin}, {record_end})",
+        )
+
+    def sample_index(time_s: float) -> int:
+        raw = (time_s - origin) / interval
+        nearest = round(raw)
+        if abs(raw - nearest) <= 1e-9:
+            raw = float(nearest)
+        return max(0, min(capture["points"], int(math.ceil(raw))))
+
+    start = sample_index(start_time_s)
+    end = sample_index(end_time_s)
+    if end <= start:
+        raise AnalysisError("WINDOW_TOO_SMALL", "Time range does not contain a complete sample")
+    return start, end
+
+
+def _scan_edges(
+    capture: dict[str, Any],
+    low: float,
+    high: float,
+    *,
+    domain: str,
+    chunk_points: int,
+    budget: int,
+    scan_start: int = 0,
+    scan_end: Optional[int] = None,
+) -> tuple[list[dict[str, Any]], bool, int]:
     if not math.isfinite(low) or not math.isfinite(high) or low >= high:
         raise AnalysisError("LIMIT_INVALID", "Thresholds must be finite and low < high")
     if domain not in ("code", "voltage"):
@@ -583,14 +622,24 @@ def _scan_edges(capture: dict[str, Any], low: float, high: float, *, domain: str
     if chunk_points <= 1 or budget <= 0:
         raise AnalysisError("LIMIT_INVALID", "chunk_points must exceed 1 and scan budget must be positive")
 
+    if scan_end is None:
+        scan_end = capture["points"]
+    if scan_start < 0 or scan_end > capture["points"] or scan_start >= scan_end:
+        raise AnalysisError("WINDOW_OUT_OF_RANGE", "Event scan range is outside the captured record")
+
     samples = capture["samples"]
     edges: list[dict[str, Any]] = []
-    state: Optional[str] = None
+    previous_code: Optional[float] = float(samples[scan_start - 1]) if scan_start > 0 else None
+    if previous_code is not None and previous_code <= low:
+        state: Optional[str] = "low"
+    elif previous_code is not None and previous_code >= high:
+        state = "high"
+    else:
+        state = None
     scanned_edges = 0
     truncated = False
-    previous_code: Optional[float] = None
-    for block_start in range(0, capture["points"], chunk_points):
-        block_end = min(block_start + chunk_points, capture["points"])
+    for block_start in range(scan_start, scan_end, chunk_points):
+        block_end = min(block_start + chunk_points, scan_end)
         values = np.asarray(samples[block_start:block_end], dtype=np.int32)
         if not values.size:
             continue
@@ -661,7 +710,7 @@ def _scan_edges(capture: dict[str, Any], low: float, high: float, *, domain: str
             )
             scanned_edges += 1
             if scanned_edges >= budget:
-                truncated = absolute_index < capture["points"] - 1
+                truncated = absolute_index < scan_end - 1
                 return edges, truncated, scanned_edges
             state = next_state
             previous_code = right_value
@@ -703,6 +752,8 @@ def find_events(
     max_events_scanned: int = DEFAULT_EVENT_SCAN_BUDGET,
     limit: int = DEFAULT_EVENT_PAGE,
     cursor: Optional[str] = None,
+    start_time_s: Optional[float] = None,
+    end_time_s: Optional[float] = None,
 ) -> dict[str, Any]:
     if limit <= 0 or limit > MAX_EVENT_PAGE or max_events_scanned <= 0 or max_events_scanned > MAX_EVENT_SCAN_BUDGET:
         raise AnalysisError("LIMIT_INVALID", f"limit must be 1..{MAX_EVENT_PAGE}; scan budget must be 1..{MAX_EVENT_SCAN_BUDGET}")
@@ -713,8 +764,22 @@ def find_events(
     if not math.isfinite(period_tolerance) or period_tolerance < 0 or period_tolerance > 1:
         raise AnalysisError("LIMIT_INVALID", "period_tolerance must be between 0 and 1")
 
+    if (start_time_s is None) != (end_time_s is None):
+        raise AnalysisError("LIMIT_INVALID", "Both start_time_s and end_time_s are required for a time-limited scan")
+    if start_time_s is None:
+        scan_start, scan_end = 0, capture["points"]
+    else:
+        scan_start, scan_end = _resolve_time_range(capture, start_time_s, end_time_s)
+
     edges, scan_truncated, scanned_edges = _scan_edges(
-        capture, low, high, domain=domain, chunk_points=chunk_points, budget=max_events_scanned
+        capture,
+        low,
+        high,
+        domain=domain,
+        chunk_points=chunk_points,
+        budget=max_events_scanned,
+        scan_start=scan_start,
+        scan_end=scan_end,
     )
     events = []
     previous_rising: Optional[dict[str, Any]] = None
@@ -789,14 +854,34 @@ def find_events(
         "detector": {
             "id": "threshold_edge_v1",
             "status": period_status,
-            "parameters": {"low": low, "high": high, "domain": domain, "min_pulse_s": min_pulse_s, "expected_period_s": expected, "period_tolerance": period_tolerance, "chunk_points": chunk_points, "max_events_scanned": max_events_scanned},
+            "parameters": {"low": low, "high": high, "domain": domain, "min_pulse_s": min_pulse_s, "expected_period_s": expected, "period_tolerance": period_tolerance, "chunk_points": chunk_points, "max_events_scanned": max_events_scanned, "start_time_s": start_time_s, "end_time_s": end_time_s},
         },
         "events": {"total": len(events), "returned": len(page), "items": page, "next_cursor": next_cursor, "scan_truncated": scan_truncated, "page_truncated": len(candidates) > len(page), "total_is_lower_bound": scan_truncated, "scanned_edges": scanned_edges},
-        "coverage": {"scanned_start": 0, "scanned_end_exclusive": capture["points"], "full_record_scanned": not scan_truncated, "limitations": (["transition_density_exceeds_budget"] if scan_truncated else []) + (["insufficient_period_evidence"] if period_status == "insufficient_evidence" else [])},
+        "coverage": {"scanned_start": scan_start, "scanned_end_exclusive": scan_end, "scanned_start_time_s": capture["time_origin_s"] + scan_start * capture["sample_interval_s"], "scanned_end_time_s": capture["time_origin_s"] + scan_end * capture["sample_interval_s"], "full_record_scanned": scan_start == 0 and scan_end == capture["points"] and not scan_truncated, "limitations": (["transition_density_exceeds_budget"] if scan_truncated else []) + (["insufficient_period_evidence"] if period_status == "insufficient_evidence" else [])},
     }
 
 
-def get_window(capture: dict[str, Any], start: int, count: int, *, max_points: int = DEFAULT_WINDOW_POINTS) -> dict[str, Any]:
+def get_window(
+    capture: dict[str, Any],
+    start: Optional[int] = None,
+    count: Optional[int] = None,
+    *,
+    start_time_s: Optional[float] = None,
+    end_time_s: Optional[float] = None,
+    max_points: int = DEFAULT_WINDOW_POINTS,
+) -> dict[str, Any]:
+    if start_time_s is not None or end_time_s is not None:
+        if start is not None or count is not None:
+            raise AnalysisError("LIMIT_INVALID", "Use either sample indices or a time range, not both")
+        start, end = _resolve_time_range(capture, start_time_s, end_time_s)
+        count = end - start
+        requested_start_time = start_time_s
+        requested_end_time = end_time_s
+    else:
+        if start is None or count is None:
+            raise AnalysisError("LIMIT_INVALID", "Sample window requires start and count")
+        requested_start_time = capture["time_origin_s"] + start * capture["sample_interval_s"]
+        requested_end_time = capture["time_origin_s"] + (start + count) * capture["sample_interval_s"]
     if start < 0 or count <= 0 or count > max_points or max_points > MAX_WINDOW_POINTS:
         raise AnalysisError("LIMIT_INVALID", f"window must have start >= 0 and count in 1..{min(max_points, MAX_WINDOW_POINTS)}")
     if start + count > capture["points"]:
@@ -808,7 +893,16 @@ def get_window(capture: dict[str, Any], start: int, count: int, *, max_points: i
         "capture": _capture_envelope(capture),
         "integrity": capture["integrity"],
         "sampling": _sampling_envelope(capture),
-        "window": {"start_sample": start, "count": count, "end_sample_exclusive": start + count, "codes": codes},
+        "window": {
+            "start_sample": start,
+            "count": count,
+            "end_sample_exclusive": start + count,
+            "start_time_s": requested_start_time,
+            "end_time_s": requested_end_time,
+            "resolved_start_time_s": capture["time_origin_s"] + start * capture["sample_interval_s"],
+            "resolved_end_time_s": capture["time_origin_s"] + (start + count) * capture["sample_interval_s"],
+            "codes": codes,
+        },
     }
     if capture["calibration"]["status"] == "VALID":
         result["window"]["volts"] = [_calibrated(code, capture) for code in codes]
@@ -816,6 +910,176 @@ def get_window(capture: dict[str, Any], start: int, count: int, *, max_points: i
         result["window"]["value_domain"] = "code"
         result["window"]["limitations"] = ["voltage scaling is not independently verified"]
     return result
+
+
+def analyze_ringing(
+    capture: dict[str, Any],
+    *,
+    start: Optional[int] = None,
+    count: Optional[int] = None,
+    start_time_s: Optional[float] = None,
+    end_time_s: Optional[float] = None,
+    max_points: int = DEFAULT_WINDOW_POINTS,
+) -> dict[str, Any]:
+    """Estimate edge overshoot and ring-down from one bounded local window.
+
+    This is a screening measurement, not a substitute for a scope bandwidth
+    or probe-quality assessment. The raw window remains available through the
+    ``window`` tool when the estimate needs review.
+    """
+
+    _require_numpy()
+    if start_time_s is not None or end_time_s is not None:
+        if start is not None or count is not None:
+            raise AnalysisError("LIMIT_INVALID", "Use either sample indices or a time range, not both")
+        start, end = _resolve_time_range(capture, start_time_s, end_time_s)
+        count = end - start
+        requested_start_time = start_time_s
+        requested_end_time = end_time_s
+    else:
+        if start is None or count is None:
+            raise AnalysisError("LIMIT_INVALID", "Ringing analysis requires a sample window or time range")
+        requested_start_time = capture["time_origin_s"] + start * capture["sample_interval_s"]
+        requested_end_time = capture["time_origin_s"] + (start + count) * capture["sample_interval_s"]
+    if start < 0 or count <= 0 or count > max_points or max_points > MAX_WINDOW_POINTS:
+        raise AnalysisError("LIMIT_INVALID", f"ringing window must have start >= 0 and count in 1..{min(max_points, MAX_WINDOW_POINTS)}")
+    if start + count > capture["points"]:
+        raise AnalysisError("WINDOW_OUT_OF_RANGE", f"Requested [{start}, {start + count}) exceeds {capture['points']} samples")
+    if count < 12:
+        raise AnalysisError("INSUFFICIENT_DATA", "Ringing analysis requires at least 12 samples")
+
+    raw = np.asarray(capture["samples"][start : start + count], dtype=np.float64)
+    calibrated = capture["calibration"]["status"] == "VALID"
+    values = raw * capture["calibration"]["code_scale_v"] - capture["calibration"]["effective_offset_v"] if calibrated else raw
+    unit = "V" if calibrated else "code"
+    value_domain = "voltage" if calibrated else "code"
+
+    baseline_count = max(2, min(values.size // 4, 64))
+    baseline = float(np.median(values[:baseline_count]))
+    final_count = max(2, min(values.size // 4, 64))
+    final_level = float(np.median(values[-final_count:]))
+    step = final_level - baseline
+    pre_values = values[:baseline_count]
+    pre_residual = pre_values - baseline
+    mad = float(np.median(np.abs(pre_residual - np.median(pre_residual)))) if pre_residual.size else 0.0
+    noise_floor = max(4.0 * 1.4826 * mad, abs(step) * 0.005, 1.0 if not calibrated else abs(step) * 0.001)
+    midpoint = baseline + step * 0.5
+    if step > 0:
+        crossings = np.flatnonzero((values[:-1] < midpoint) & (values[1:] >= midpoint)) + 1
+    elif step < 0:
+        crossings = np.flatnonzero((values[:-1] > midpoint) & (values[1:] <= midpoint)) + 1
+    else:
+        crossings = np.asarray([], dtype=np.int64)
+    if crossings.size:
+        edge_relative = int(crossings[0])
+        edge_detection = "first_baseline_to_final_midpoint_crossing"
+    else:
+        differences = np.abs(np.diff(values))
+        edge_relative = int(np.argmax(differences)) + 1
+        edge_detection = "largest_absolute_adjacent_sample_difference_fallback"
+    edge_sample = start + edge_relative
+    post_values = values[edge_relative:]
+    post_residual = post_values - final_level
+    post_max = float(np.max(post_values))
+    post_min = float(np.min(post_values))
+    if step >= 0:
+        overshoot = max(0.0, post_max - final_level)
+        undershoot = max(0.0, final_level - post_min)
+    else:
+        overshoot = max(0.0, final_level - post_min)
+        undershoot = max(0.0, post_max - final_level)
+
+    peak_indices: list[int] = []
+    if post_residual.size >= 3:
+        derivative = np.diff(post_residual)
+        turns = np.flatnonzero((derivative[:-1] >= 0) != (derivative[1:] >= 0)) + 1
+        peak_indices = [int(index) for index in turns if abs(float(post_residual[index])) >= noise_floor]
+    peak_amplitudes = [abs(float(post_residual[index])) for index in peak_indices]
+    crossing_indices = np.flatnonzero(post_residual[:-1] * post_residual[1:] < 0) + 1 if post_residual.size >= 2 else np.asarray([], dtype=np.int64)
+    crossing_indices = [int(index) for index in crossing_indices]
+    period_s = None
+    frequency_hz = None
+    if len(crossing_indices) >= 3:
+        half_period_samples = float(np.median(np.diff(np.asarray(crossing_indices, dtype=np.float64))))
+        if half_period_samples > 0:
+            period_s = 2.0 * half_period_samples * capture["sample_interval_s"]
+            frequency_hz = 1.0 / period_s
+
+    decay_tau_s = None
+    decay_status = "insufficient_evidence"
+    if len(peak_amplitudes) >= 3:
+        peak_times = np.asarray([index * capture["sample_interval_s"] for index in peak_indices], dtype=np.float64)
+        log_amplitudes = np.log(np.asarray(peak_amplitudes, dtype=np.float64))
+        slope, _intercept = np.polyfit(peak_times, log_amplitudes, 1)
+        if math.isfinite(float(slope)) and slope < 0:
+            decay_tau_s = -1.0 / float(slope)
+            decay_status = "estimated_exponential_envelope"
+    tail_sample_count = max(2, min(post_residual.size, post_residual.size // 10))
+    tail_above_noise = bool(np.median(np.abs(post_residual[-tail_sample_count:])) > noise_floor)
+    capture_left_boundary = start == 0
+    capture_right_boundary = start + count >= capture["points"]
+    edge_near_left = edge_relative < 4
+    edge_near_right = edge_relative >= count - 4
+    limitations = ["heuristic_local_edge_and_ringdown_estimate", "sampling_and_probe_bandwidth_limit_physical_ringing_claims"]
+    if edge_near_left:
+        limitations.append("insufficient_pre_edge_context")
+    if edge_near_right or tail_above_noise:
+        limitations.append("ringing_tail_may_be_truncated_by_analysis_window")
+    if capture_left_boundary or capture_right_boundary:
+        limitations.append("analysis_window_touches_capture_boundary")
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "tool": "ringing",
+        "capture": _capture_envelope(capture),
+        "integrity": capture["integrity"],
+        "sampling": _sampling_envelope(capture),
+        "calibration": capture["calibration"],
+        "value_domain": value_domain,
+        "unit": unit,
+        "window": {
+            "start_sample": start,
+            "count": count,
+            "end_sample_exclusive": start + count,
+            "start_time_s": requested_start_time,
+            "end_time_s": requested_end_time,
+            "resolved_start_time_s": capture["time_origin_s"] + start * capture["sample_interval_s"],
+            "resolved_end_time_s": capture["time_origin_s"] + (start + count) * capture["sample_interval_s"],
+        },
+        "edge": {
+            "sample": edge_sample,
+            "time_s": capture["time_origin_s"] + edge_sample * capture["sample_interval_s"],
+            "relative_sample": edge_relative,
+            "step_amplitude": step,
+            "baseline": baseline,
+            "final_level": final_level,
+            "detection": edge_detection,
+        },
+        "ringing": {
+            "status": "evidence_found" if len(crossing_indices) >= 3 or len(peak_amplitudes) >= 3 else "insufficient_evidence",
+            "positive_overshoot": overshoot,
+            "negative_undershoot": undershoot,
+            "overshoot_fraction_of_step": overshoot / abs(step) if step else None,
+            "post_max": post_max,
+            "post_min": post_min,
+            "noise_floor": noise_floor,
+            "zero_crossings": len(crossing_indices),
+            "significant_peaks": len(peak_amplitudes),
+            "period_s": period_s,
+            "frequency_hz": frequency_hz,
+            "decay_tau_s": decay_tau_s,
+            "decay_status": decay_status,
+            "tail_above_noise": tail_above_noise,
+        },
+        "coverage": {
+            "capture_left_boundary": capture_left_boundary,
+            "capture_right_boundary": capture_right_boundary,
+            "edge_near_left_boundary": edge_near_left,
+            "edge_near_right_boundary": edge_near_right,
+            "ringing_tail_reaches_window_end": tail_above_noise,
+            "limitations": limitations,
+        },
+    }
 
 
 def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:

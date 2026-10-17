@@ -1,5 +1,7 @@
 # Anomaly Search and Mask Testing
 
+For long motor captures, use the local analyzer's time-bounded workflow before exporting any edge list to an AI context: `events --start-time/--end-time` locates a bounded set of switching edges, `ringing` screens one selected edge window, and `window` returns the corresponding raw samples. These local tools retain the complete-capture SHA-256 and report when a selected window may truncate the ring-down.
+
 Load this reference when the symptom is intermittent runt/glitch/pulse-width/interval/slope behavior or a compliance/mask failure. These features require setup before reading results; do not enable or reconfigure them while preserving an immutable stopped frame.
 
 ## Search Results

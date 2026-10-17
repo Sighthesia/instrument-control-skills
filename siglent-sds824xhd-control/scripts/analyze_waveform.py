@@ -17,6 +17,7 @@ from waveform_analysis import (
     DEFAULT_PREVIEW_BUCKETS,
     DEFAULT_WINDOW_POINTS,
     AnalysisError,
+    analyze_ringing,
     bound_json,
     error_envelope,
     find_events,
@@ -60,12 +61,24 @@ def build_parser() -> argparse.ArgumentParser:
     events.add_argument("--max-events-scanned", type=int, default=DEFAULT_EVENT_SCAN_BUDGET)
     events.add_argument("--limit", type=int, default=DEFAULT_EVENT_PAGE)
     events.add_argument("--cursor")
+    events.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float, help="optional relative display-time scan start")
+    events.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float, help="optional relative display-time scan end (exclusive)")
 
     window = commands.add_parser("window", help="retrieve a bounded raw sample window")
     _add_capture_args(window)
-    window.add_argument("--start", type=int, required=True)
-    window.add_argument("--count", type=int, default=DEFAULT_WINDOW_POINTS)
+    window.add_argument("--start", type=int, help="first sample index; use with --count")
+    window.add_argument("--count", type=int, help="number of samples; defaults to the bounded window size for sample-index mode")
+    window.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float, help="relative display-time window start; use with --end-time-s")
+    window.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float, help="relative display-time window end (exclusive); use with --start-time-s")
     window.add_argument("--max-window-points", type=int, default=DEFAULT_WINDOW_POINTS)
+
+    ringing = commands.add_parser("ringing", help="bounded switching-edge overshoot and ring-down screening")
+    _add_capture_args(ringing)
+    ringing.add_argument("--start", type=int, help="first sample index; use with --count")
+    ringing.add_argument("--count", type=int, help="number of samples; use with --start")
+    ringing.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float, help="relative display-time window start; use with --end-time-s")
+    ringing.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float, help="relative display-time window end (exclusive); use with --start-time-s")
+    ringing.add_argument("--max-window-points", type=int, default=DEFAULT_WINDOW_POINTS)
     return parser
 
 
@@ -158,9 +171,30 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
             max_events_scanned=args.max_events_scanned,
             limit=args.limit,
             cursor=args.cursor,
+            start_time_s=args.start_time_s,
+            end_time_s=args.end_time_s,
         )
     if args.command == "window":
-        return get_window(capture, args.start, args.count, max_points=args.max_window_points)
+        sample_count = args.count
+        if args.start_time_s is None and args.end_time_s is None and sample_count is None:
+            sample_count = DEFAULT_WINDOW_POINTS
+        return get_window(
+            capture,
+            args.start,
+            sample_count,
+            start_time_s=args.start_time_s,
+            end_time_s=args.end_time_s,
+            max_points=args.max_window_points,
+        )
+    if args.command == "ringing":
+        return analyze_ringing(
+            capture,
+            start=args.start,
+            count=args.count,
+            start_time_s=args.start_time_s,
+            end_time_s=args.end_time_s,
+            max_points=args.max_window_points,
+        )
     raise AnalysisError("LIMIT_INVALID", f"Unknown command {args.command}")
 
 
