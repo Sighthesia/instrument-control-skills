@@ -151,6 +151,8 @@ class ProtocolTests(unittest.TestCase):
         points = decode_analog_byte(bytes([30, 255]), descriptor)
         self.assertEqual(points[0][2], 20.0)
         self.assertAlmostEqual(points[1][2], -20.0 / 30.0)
+        panel_points = decode_analog_byte(bytes([30]), descriptor, panel_vdiv=5.0, panel_offset=0.0)
+        self.assertEqual(panel_points[0][2], 5.0)
 
     def test_numeric_response_understands_scope_units(self):
         self.assertEqual(numeric_response("5.00 MSa/s"), 5_000_000.0)

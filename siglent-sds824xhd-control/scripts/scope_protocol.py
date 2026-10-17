@@ -446,7 +446,16 @@ def waveform_time_origin(descriptor: dict[str, Any]) -> float:
     return float(descriptor["horizontal_offset"] - descriptor["timebase_s"] * 5)
 
 
-def decode_analog_byte(payload: bytes, descriptor: dict[str, Any], *, first_point: int = 0) -> list[tuple[int, float, float]]:
+def decode_analog_byte(
+    payload: bytes,
+    descriptor: dict[str, Any],
+    *,
+    first_point: int = 0,
+    panel_vdiv: Optional[float] = None,
+    panel_offset: Optional[float] = None,
+) -> list[tuple[int, float, float]]:
+    """Decode byte samples, preferring live panel VDIV/OFST when supplied."""
+
     if descriptor.get("data_width_bytes") != 1:
         raise ScopeProtocolError("byte decoder requires an 8-bit descriptor")
     codes_per_div = float(descriptor["code_per_div"])
@@ -454,8 +463,8 @@ def decode_analog_byte(payload: bytes, descriptor: dict[str, Any], *, first_poin
         raise ScopeProtocolError("invalid zero code_per_div in descriptor")
     interval = float(descriptor["sample_interval"])
     origin = waveform_time_origin(descriptor)
-    vdiv = float(descriptor["vdiv_with_probe"])
-    offset = float(descriptor["offset_with_probe"])
+    vdiv = float(panel_vdiv if panel_vdiv is not None else descriptor["vdiv_with_probe"])
+    offset = float(panel_offset if panel_offset is not None else descriptor["offset_with_probe"])
     return [
         (first_point + index, origin + (first_point + index) * interval, (value - 256 if value > 127 else value) * vdiv / codes_per_div - offset)
         for index, value in enumerate(payload)
@@ -565,7 +574,7 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
         "interval": _unpack(payload, 136, "<i"),
         "vdiv": _unpack(payload, 156, "<f"),
         "offset": _unpack(payload, 160, "<f"),
-        "code_per_div": _unpack(payload, 164, "<f"),
+        "vertical_code_field": _unpack(payload, 164, "<f"),
         "adc_bit": _unpack(payload, 172, "<h"),
         "sample_interval": _unpack(payload, 176, "<f"),
         "horizontal_offset": _unpack(payload, 180, "<d"),
@@ -587,6 +596,15 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
     result["offset_with_probe"] = result["offset"] * result["probe"]
     if result["comm_type"] not in (0, 1):
         raise ScopeProtocolError(f"unknown WAVEDESC COMM_TYPE: {result['comm_type']}")
+    # SDS824X HD firmware reports MAX_VALUE=7680 at this legacy descriptor
+    # offset, while the handover confirms codes_per_div=30. Older descriptors
+    # may put codes_per_div directly here, so preserve both interpretations.
+    if abs(result["vertical_code_field"]) > 256:
+        result["max_value"] = result["vertical_code_field"]
+        result["code_per_div"] = result["vertical_code_field"] / 256.0
+    else:
+        result["code_per_div"] = result["vertical_code_field"]
+        result["max_value"] = result["vertical_code_field"] * 256.0
     result["data_width_bytes"] = 1 if result["comm_type"] == 0 else 2
     return result
 
