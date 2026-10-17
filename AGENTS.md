@@ -1,36 +1,69 @@
 # AGENTS.md
 
-Agent Skills repository (no package manager, no build system): markdown Skills plus pure-Python offline parsers/tests. Each Skill's `SKILL.md` is its authoritative contract. See `README.md` (bilingual with `README.zh-CN.md`) for the full contributing guide — this file only lists what is easy to get wrong.
+Maintenance-focused guidance for this repository: a collection of Agent Skills
+(one `skills/<skill-name>/` directory each) for instrument control and offline
+data analysis. No build system, no package manager; tests are plain `unittest`.
+Each Skill's `SKILL.md` is its authoritative contract. Prefer word-for-word
+reuses of this guidance over rephrasing — the phrasing is part of the contract.
 
-## Repo layout
+## Skill anatomy
 
-- `skills/<skill-name>/` — one Skill per directory; directory name must equal the frontmatter `name`.
-  - `siglent-sds800xhd-control/` — Siglent SDS800X HD oscilloscope control (hardware-verified on SDS824X HD); `references/` are loaded lazily per goal, do not read them all, and do not paste unrelated commands into the active workflow.
-  - `write-new-instrument-control/` — authoring guide + parser templates/examples; use as template source for new Skills.
-- `docs/ref/` — vendor manuals (do not commit complete manuals elsewhere).
-- `.specs/`, `docs/superpowers/specs/` — design specs.
-
-## Tests (all offline — never touch hardware)
-
-Siglent tests only import with cwd = `scripts/` (bare intra-directory imports):
-
-```bash
-cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
-python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'
-python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
+```
+skills/<skill-name>/
+├── SKILL.md        # frontmatter `name` must equal the directory name; the contract
+├── references/     # load lazily per goal, never read all up front
+├── scripts/        # pure Python; bare intra-directory imports
+└── assets/         # templates, fixtures, expected results, and their tests
 ```
 
-## Hardware safety (siglent Skill)
+## Writing a new Skill
 
-- `capture_scope.py` and `discover_scope.py` connect to real hardware (default `192.168.10.2:5025`). Offline tests must not connect, scan networks, or enumerate VISA resources.
-- SCPI TCP port is `5025`; port `5024` is a legacy shell — never query it, and never parse its banner as a query result.
-- Never send `ARM` (use `TRMD SINGLE`); never merge a failed/retried read into a "complete" capture; a valid capture needs the observed `Ready -> Stop` transition. Full rules in the Skill.
+1. Model the directory on the parser templates, authoring references, and
+   examples already shipped in this repository; do not invent a new layout.
+2. Set the frontmatter `name` equal to the directory name; register the Skill in
+   both `README.md` and `README.zh-CN.md` and keep the two in sync.
+3. Keep instrument commands and state rules inside the Skill; preserve raw
+   responses verbatim; never claim `hardware-verified` without a real response.
+4. Separate framing, metadata, payload extraction, normalization, and validation;
+   report `COMPLETE` / `INCOMPLETE` / `INVALID` / `UNVERIFIED` / `UNSUPPORTED`
+   and never silently pad, truncate, interpolate, or guess missing calibration.
+5. Label evidence conservatively: `documented` < `replay-tested` <
+   `hardware-verified` = `firmware-scoped`. Labels describe evidence, not
+   feature count.
+6. Offline tests must not connect to hardware, scan a network, or enumerate VISA
+   resources; include binary-safe fixtures, expected results, and negative cases.
 
-## Conventions
+## Consistency checks (after every change)
 
-- New Skills: add the directory under `skills/`, then add it to the table in both READMEs (update both `README.md` and `README.zh-CN.md`).
-- Report integrity status `COMPLETE` / `INCOMPLETE` / `INVALID` / `UNVERIFIED` / `UNSUPPORTED`; never silently pad, truncate, interpolate, or guess missing calibration.
-- Evidence labels are conservative: `documented` < `replay-tested` < `hardware-verified` = `firmware-scoped`; never claim a model/firmware is verified without a real response.
-- `dist/` and `artifacts/` are local-only (git-ignored); packaging is manual:
-  `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>`.
-- Check CLI discovery after changes: `npx skills@latest add . --list` must list exactly two Skills.
+Run all of the following before committing; the last two catch drift that
+inspection alone misses:
+
+```bash
+# 1. Validate every changed Skill (schema, frontmatter, layout)
+python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
+
+# 2. Run each Skill's offline tests; cwd matters because of bare imports
+cd skills/<skill-name>/scripts && python3 -m unittest discover -s . -p 'test_*.py'
+python3 -m unittest discover -s skills/<skill-name>/assets/<component>/tests -p 'test_*.py'
+
+# 3. CLI discovery must list exactly the directories under skills/
+npx skills@latest add . --list
+```
+
+- `README.md` and `README.zh-CN.md` must describe the same Skill set and rules
+  in the same order; treat any divergence as a bug.
+- Evidence labels, integrity statuses, and safety rules must be worded the same
+  way across Skills; copy phrasing from an existing Skill rather than rewriting.
+- Never commit complete vendor manuals; keep them only in `docs/ref/`,
+  which documents — do not copy — their contents into Skill references.
+- `dist/`, `artifacts/`, and `__pycache__/` are local-only (git-ignored);
+  packaging is manual via `package_skill.py` (it validates first and excludes
+  `__pycache__/`).
+
+## Gotchas
+
+- Scripts that talk to real hardware do so only when run directly; never import
+  or invoke them from tests, and never merge a failed or retried read into a
+  "complete" file.
+- Design specs live in `.specs/` and `docs/superpowers/specs/` (date-prefixed
+  markdown); check them before changing behavior that looks arbitrary.
