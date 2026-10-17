@@ -37,6 +37,49 @@ evidence levels; each Skill's `SKILL.md` is its authoritative contract.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the Skill layout, control/parser rules,
-evidence levels, manual and copyright policy, offline test requirements, and the
-pre-submit verification checklist.
+Add a Skill as one directory under `skills/<skill-name>/` containing `SKILL.md` and,
+when needed, `references/`, `scripts/`, and `assets/`. The directory name must match
+the `name` in the frontmatter, and the Skill must be registered in `registry.yaml`.
+
+- Keep instrument commands and state rules inside the device Skill, preserve raw
+  responses, and never claim a model or firmware is verified without a real response.
+- Separate framing, metadata, payload extraction, normalization, and validation.
+  Report `COMPLETE`, `INCOMPLETE`, `INVALID`, `UNVERIFIED`, or `UNSUPPORTED`; never
+  silently pad, truncate, interpolate, or guess missing calibration.
+- Offline tests must not connect to hardware, scan a network, or enumerate VISA
+  resources. Include binary-safe fixtures, expected results, and negative cases.
+- Label evidence conservatively: `documented`, `replay-tested`, `hardware-verified`,
+  `firmware-scoped`. Labels describe evidence, not feature count.
+- Do not commit complete vendor manuals, `artifacts/`, or `__pycache__/`; before
+  submitting, update `registry.yaml`, both READMEs, and the affected `.skill` archive.
+
+### Commands
+
+The Siglent control tests are fully offline and only import correctly with the
+working directory set to `scripts/`, because the modules use bare intra-directory
+imports:
+
+```bash
+cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
+```
+
+Parser template tests and the five parser examples with the offline safety guard:
+
+```bash
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
+```
+
+Validate a Skill, rebuild its archive (packaging validates first and excludes
+`__pycache__/`), then confirm CLI discovery and archive integrity:
+
+```bash
+python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
+python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/<skill-name> dist
+npx skills@latest add . --list   # must list exactly two Skills
+unzip -t dist/<skill-name>.skill
+```
+
+`capture_scope.py` and `discover_scope.py` talk to real hardware (default
+`192.168.10.2:5025`; port `5024` is a legacy shell, never query it). Never send `ARM`,
+and never merge a failed or retried read into a "complete" file.

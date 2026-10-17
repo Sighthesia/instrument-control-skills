@@ -34,5 +34,47 @@ Siglent Skill 覆盖发现与连接、信号测量、截图与波形捕获、协
 
 ## 贡献指南
 
-Skill 目录结构、控制/解析规则、证据等级、手册与版权政策、离线测试要求以及提交前
-验证清单，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+新增 Skill 时，在 `skills/<skill-name>/` 下建立一个目录，包含 `SKILL.md`，并按需包含
+`references/`、`scripts/`、`assets/`。目录名必须与 frontmatter 中的 `name` 一致，
+并在 `registry.yaml` 中登记。
+
+- 仪器命令与状态规则保留在设备 Skill 内；保留原始响应；没有真实响应就不得声称某型号
+  或固件“已验证”。
+- 分离 framing、metadata、payload 提取、归一化和校验。返回 `COMPLETE`、`INCOMPLETE`、
+  `INVALID`、`UNVERIFIED` 或 `UNSUPPORTED`；绝不静默补齐、截断、插值或猜测缺失校准。
+- 离线测试不得连接硬件、扫描网络或枚举 VISA 资源；需包含二进制安全的夹具、期望结果
+  和反例。
+- 证据等级从保守取值：`documented`、`replay-tested`、`hardware-verified`、
+  `firmware-scoped`。等级描述的是证据，而非功能数量。
+- 不要提交完整的厂商手册、`artifacts/` 或 `__pycache__/`；提交前更新 `registry.yaml`、
+  双语 README 和受影响的 `.skill` 包。
+
+### 命令
+
+Siglent 控制测试完全离线，且只有在工作目录为 `scripts/` 时才能正确导入，因为模块使用
+同目录的裸导入：
+
+```bash
+cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
+```
+
+解析器模板测试与五类解析范例（含离线安全检查）：
+
+```bash
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
+```
+
+校验 Skill、重新打包（打包会先校验并自动排除 `__pycache__/`），再确认 CLI 发现与 archive
+完整性：
+
+```bash
+python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
+python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/<skill-name> dist
+npx skills@latest add . --list   # 应恰好列出两个 Skill
+unzip -t dist/<skill-name>.skill
+```
+
+`capture_scope.py` 与 `discover_scope.py` 会连接真实硬件（默认 `192.168.10.2:5025`；
+`5024` 端口是旧式 shell，切勿用于查询）。绝不发送 `ARM`，也绝不把失败或重试的读取拼成
+“完整”文件。
