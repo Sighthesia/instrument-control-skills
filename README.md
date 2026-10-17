@@ -3,8 +3,8 @@
 [English](README.md) · [简体中文](README.zh-CN.md)
 
 Agent Skills for operating instruments and analyzing the data they return:
-connecting and configuring instruments, parsing their responses, validating
-data integrity, and replaying captures offline.
+connecting and configuring instruments, parsing their responses, and
+validating data integrity.
 
 ## Install
 
