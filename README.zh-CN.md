@@ -18,11 +18,13 @@ skills 目录（OpenCode 例如 `~/.config/opencode/skills/`）。
 
 ## 贡献指南
 
-每个 Skill 是 `skills/<skill-name>/` 下的一个目录。目录名必须与 frontmatter
-中的 `name` 一致。每个 Skill 的 `SKILL.md` 是该 Skill 的权威契约。
+为新型号仪器添加 Skill 时，从本仓库自带的编写指南
+[`skills/write-new-instrument-control/SKILL.md`](skills/write-new-instrument-control/SKILL.md)
+入手。它完整地走一遍编写路径：界定仪器边界、从编程手册收集可引用的证据、
+划分响应格式、把解析拆分为多个阶段、产出带完整性报告的数据 artifact，以及
+编写离线回放测试。
 
-- 离线测试不得连接硬件、扫描网络或枚举 VISA 资源。
-- 连接真实硬件的脚本只在被直接运行时才会连接硬件；离线测试不得导入或调用它们。
-- 不要提交完整的厂商手册。
+指南本身不连接真实硬件，基于合成夹具做回放测试。新设备 Skill 的实机验证
+需要在真实仪器上单独完成。
 
 提交时保持 `README.md` 与 `README.zh-CN.md` 同步。

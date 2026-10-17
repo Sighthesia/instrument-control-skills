@@ -19,14 +19,15 @@ agent's skills directory (for OpenCode, e.g. `~/.config/opencode/skills/`).
 
 ## Contributing
 
-Each Skill is one directory under `skills/<skill-name>/`. The directory name
-must match the `name` in the frontmatter. Each Skill's `SKILL.md` is the
-authoritative contract for that Skill.
+To add a Skill for a new instrument, start with
+[`skills/write-new-instrument-control/SKILL.md`](skills/write-new-instrument-control/SKILL.md),
+the authoring guide shipped in this repository. It walks through the whole
+authoring path: define the instrument boundary, collect cited evidence from the
+programming manual, classify response formats, split parsing into stages,
+produce data artifacts with integrity reports, and write offline replay tests.
 
-- Offline tests must not connect to hardware, scan a network, or enumerate VISA
-  resources.
-- Scripts that talk to real hardware connect only when run directly; do not
-  import or invoke them from tests.
-- Do not commit complete vendor manuals.
+The guide itself does not connect to real hardware; it is replay-tested against
+synthetic fixtures. Hardware verification of a new device Skill must be done on
+the real instrument separately.
 
 Keep `README.md` and `README.zh-CN.md` in sync when submitting.
