@@ -31,7 +31,8 @@ skills/<skill-name>/
    `hardware-verified` = `firmware-scoped`. Labels describe evidence, not
    feature count.
 6. Offline tests must not connect to hardware, scan a network, or enumerate VISA
-   resources; include binary-safe fixtures, expected results, and negative cases.
+   resources. Replay fixtures and integrity reports are recommended, not
+   required; binary protocols get binary-safe fixtures.
 
 ## Consistency checks (after every change)
 
