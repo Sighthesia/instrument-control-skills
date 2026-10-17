@@ -1,0 +1,38 @@
+{
+  "schema_version": "integrity-report-v1",
+  "status": "UNVERIFIED",
+  "checks": [
+    {
+      "name": "replace-with-applicable-check",
+      "status": "not_checked",
+      "evidence": {},
+      "reason": "Replace this entry with a concrete check and evidence."
+    }
+  ],
+  "reasons": [
+    "replace-with-concrete-reason-or-empty-list"
+  ],
+  "evidence": {
+    "raw_path": "replace-with-raw-artifact-path",
+    "raw_sha256": "replace-with-sha256"
+  },
+  "provenance": {
+    "instrument": {
+      "vendor": "replace",
+      "model": "replace",
+      "firmware": null
+    },
+    "operation": "replace-with-command-or-acquisition",
+    "parser": "replace-with-parser-name-and-version",
+    "manual": {
+      "title": "replace-with-official-manual",
+      "revision": "replace-with-revision",
+      "url": "https://example.invalid/manual",
+      "location": "page-or-section"
+    },
+    "support_level": "documented"
+  },
+  "limitations": [
+    "replace-with-known-limitation"
+  ]
+}

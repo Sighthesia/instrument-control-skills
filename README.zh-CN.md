@@ -4,7 +4,7 @@
 
 面向仪器通信、配置、数据解析和证据感知分析的社区 Agent Skill 集合。
 当前仓库包含一个已完成实机验证的 Siglent 控制 Skill，以及一个与厂商无关的
-解析器编写指导 Skill。
+解析器编写指导 Skill 和一个与厂商无关的测量数据完整性 Skill。
 
 当前目录由 [`registry.yaml`](registry.yaml) 维护；每个 Skill 的 `SKILL.md`
 是该 Skill 的权威契约。
@@ -38,6 +38,9 @@
 - [`instrument-parser-authoring`](skills/instrument-parser-authoring/SKILL.md) ——
   指导根据编程手册、原始响应和离线 replay fixture 编写与验证通用仪器数据解析器，
   并明确区分 framing、元数据、载荷提取、标准化、完整性校验和 provenance。
+
+- [`measurement-data-integrity`](skills/measurement-data-integrity/SKILL.md) ——
+  在分析前使用证据优先的方法判断波形、标量、频谱或事件数据是完整、无效、不完整还是未验证。
 
 ## 安装
 
@@ -77,6 +80,7 @@ npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 - `skills/` —— self-contained Skill 源码，每个 Skill 使用独立目录。
   - `skills/siglent-sds800xhd-control/` —— Siglent 控制 Skill。
   - `skills/instrument-parser-authoring/` —— 解析器编写指导和模板。
+  - `skills/measurement-data-integrity/` —— 完整性方法、参考资料和报告模板。
   - 每个 Skill 自带自己的 `SKILL.md`、参考资料、脚本、测试或资源。
 - `registry.yaml` —— 当前 Skill、能力和验证等级的机器可读目录。
 - `CONTRIBUTING.md` —— 贡献目录、测试、证据和手册规则。
@@ -101,6 +105,7 @@ cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s .
   `python3 -m unittest test_scope_protocol.TestX.test_y`。
 - 解析器模板测试：
   `python3 -m unittest discover -s skills/instrument-parser-authoring/assets/parser-template/tests -p 'test_*.py'`。
+- measurement integrity Skill 仅包含文档和报告模板，没有运行时测试套件。
 - 校验 skill（frontmatter、结构、引用）：
   `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
   以及对 `skills/instrument-parser-authoring` 执行同一命令。
@@ -108,7 +113,7 @@ cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s .
   `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/siglent-sds800xhd-control dist`
   以及 `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/instrument-parser-authoring dist`；
   然后分别用 `unzip -t` 检查两个 archive。
-- 发现自检：`npx skills@latest add . --list` 应恰好列出两个 Skill。
+- 发现自检：`npx skills@latest add . --list` 应恰好列出三个 Skill。
 - `capture_scope.py` 与 `discover_scope.py` 会连接真实硬件（默认
   `192.168.10.2:5025`；`5024` 端口是旧式 shell，切勿用于查询）。
 
