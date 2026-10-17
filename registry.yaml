@@ -22,9 +22,9 @@ skills:
       limitations:
         - Channel-count, bandwidth, memory-depth, and firmware-dependent behavior must be confirmed on the connected model.
 
-  - name: instrument-parser-authoring
+  - name: write-new-instrument-control
     category: authoring
-    path: skills/instrument-parser-authoring
+    path: skills/write-new-instrument-control
     data_kinds:
       - waveform
       - scalar-measurement
@@ -36,20 +36,5 @@ skills:
       verified_model: null
       verified_firmware: null
       limitations:
-        - This Skill authors parsers and does not connect to instruments.
-
-  - name: measurement-data-integrity
-    category: integrity
-    path: skills/measurement-data-integrity
-    data_kinds:
-      - waveform
-      - scalar-measurement
-      - spectrum
-      - status-record
-    transports: []
-    support:
-      level: documented
-      verified_model: null
-      verified_firmware: null
-      limitations:
-        - This Skill evaluates evidence and does not acquire, decode, or calibrate instrument data by itself.
+        - This Skill guides creation of instrument-control Skills but does not connect to instruments itself.
+        - Hardware-specific behavior remains documented or replay-tested until real evidence is supplied.

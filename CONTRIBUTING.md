@@ -39,7 +39,7 @@ guess missing calibration.
 
 Parser contributions should include binary-safe fixtures, expected results, and
 negative cases for truncation, malformed headers, and declared-length mismatch.
-Use `instrument-parser-authoring` as the authoring guide and template source.
+Use `write-new-instrument-control` as the authoring guide and template source.
 
 ## Evidence Levels
 

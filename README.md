@@ -4,8 +4,8 @@
 
 Community-contributed Agent Skills for instrument communication, configuration,
 data parsing, and evidence-aware analysis. The repository currently contains a
-hardware-verified Siglent control Skill, a vendor-neutral parser authoring Skill,
-and a vendor-neutral measurement integrity Skill.
+hardware-verified Siglent control Skill and a vendor-neutral Skill for writing new
+instrument-control Skills, parsers, and integrity workflows.
 
 The current catalog is maintained in [`registry.yaml`](registry.yaml); use each
 Skill's `SKILL.md` as its authoritative contract.
@@ -41,14 +41,9 @@ Skill's `SKILL.md` as its authoritative contract.
   connect to and operate Siglent SDS800X HD oscilloscopes, capture waveforms,
   preserve raw evidence, and validate downloads.
 
-- [`instrument-parser-authoring`](skills/instrument-parser-authoring/SKILL.md) —
-  guide for writing vendor-neutral instrument data parsers from manuals, raw
-  responses, and offline replay fixtures. It separates framing, metadata,
-  payload extraction, normalization, integrity validation, and provenance.
-
-- [`measurement-data-integrity`](skills/measurement-data-integrity/SKILL.md) —
-  evidence-first method for deciding whether waveform, scalar, spectrum, or event
-  data is complete, invalid, incomplete, or unverified before analysis.
+- [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) —
+  guide for creating a new instrument-control Skill from manuals and evidence,
+  including framing, parsing, integrity validation, provenance, and replay tests.
 
 ## Install
 
@@ -60,9 +55,10 @@ npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 
 ### Offline / manual
 
-The committed archive `dist/siglent-sds800xhd-control.skill` is a zip of the skill
-folder. Unzip it into an agent's skills directory (for OpenCode, e.g.
-`~/.config/opencode/skills/`).
+The committed archives `dist/siglent-sds800xhd-control.skill` and
+`dist/write-new-instrument-control.skill` are zips of their respective Skill
+folders. Unzip the needed archive into an agent's skills directory (for OpenCode,
+e.g. `~/.config/opencode/skills/`).
 
 ## Workflows
 
@@ -89,8 +85,7 @@ folder. Unzip it into an agent's skills directory (for OpenCode, e.g.
 
 - `skills/` — self-contained Skill sources, one directory per Skill.
   - `skills/siglent-sds800xhd-control/` — the Siglent control Skill.
-- `skills/instrument-parser-authoring/` — parser authoring guidance and templates.
-- `skills/measurement-data-integrity/` — integrity method, references, and report template.
+  - `skills/write-new-instrument-control/` — new control Skill authoring, parser templates, and integrity guidance.
   - Each Skill contains its own `SKILL.md`, references, scripts, tests, or assets.
 - `registry.yaml` — machine-readable catalog of active Skills, capabilities, and evidence levels.
 - `CONTRIBUTING.md` — contribution layout, testing, evidence, and manual rules.
@@ -116,16 +111,15 @@ cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s .
   `python3 -m unittest test_waveform_analysis` or
   `python3 -m unittest test_scope_protocol.TestX.test_y`.
 - Parser template tests:
-  `python3 -m unittest discover -s skills/instrument-parser-authoring/assets/parser-template/tests -p 'test_*.py'`.
-- The measurement integrity Skill is documentation-only and has no runtime test suite.
+  `python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'`.
 - Validate the skill (frontmatter, structure, references):
   `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
-  and run the same command with `skills/instrument-parser-authoring` for the parser Skill.
+  and run the same command with `skills/write-new-instrument-control` for the authoring Skill.
 - Repackage after validation (validates first; auto-excludes `__pycache__`):
   `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/siglent-sds800xhd-control dist`
-  and `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/instrument-parser-authoring dist`;
+  and `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/write-new-instrument-control dist`;
   then check both archives with `unzip -t`.
-- Sanity-check discovery: `npx skills@latest add . --list` should list exactly three Skills.
+- Sanity-check discovery: `npx skills@latest add . --list` should list exactly two Skills.
 - `capture_scope.py` and `discover_scope.py` talk to real hardware (default
   `192.168.10.2:5025`; port `5024` is a legacy shell, never query it).
 
