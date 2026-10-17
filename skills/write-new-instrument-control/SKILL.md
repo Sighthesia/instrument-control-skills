@@ -1,6 +1,6 @@
 ---
 name: write-new-instrument-control
-description: Guide the creation of a new instrument-control Skill from programming manuals, raw ASCII or binary responses, metadata, and replay fixtures. Use when adding support for a new oscilloscope, multimeter, power supply, analyzer, or other instrument, especially when hardware is unavailable and communication, parsing, data integrity, provenance, and offline tests must be explicit.
+description: Guide the creation of a new instrument-control Skill from programming manuals, raw ASCII or binary responses, and metadata. Use when adding support for a new oscilloscope, multimeter, power supply, analyzer, or other instrument, especially when hardware is unavailable and communication, parsing, data integrity, and provenance must be explicit.
 ---
 
 # Write New Instrument Control
@@ -42,11 +42,10 @@ Keep commands and state rules inside the new device Skill.
    segment ranges, checksums, timestamps, units, configuration, and source status
    where available. Return `COMPLETE`, `INCOMPLETE`, `INVALID`, `UNVERIFIED`, or
    `UNSUPPORTED`; never silently pad, truncate, interpolate, or infer.
-7. **Add tests where practical**: keep any offline tests free of hardware,
-   network access, and VISA enumeration; binary protocols get binary fixtures,
-   and `assets/parser-template/tests/` shows the structure. Replay tests and
-   integrity reports are recommended, not required.
-8. **Declare support**: label manual-only, replay-tested, hardware-verified, and
+7. **Verify on hardware when available**: exercise the workflow on the real
+   instrument and record model, firmware, and interface, optionally with
+   screenshots.
+8. **Declare support**: label manual-only (`documented`), hardware-verified, and
    firmware/interface-scoped claims separately. Include known limitations and the
    exact evidence used.
 
@@ -147,10 +146,9 @@ Use the most conservative applicable label:
 
 | Level | Meaning |
 |---|---|
-| `documented` | Implementation follows a cited official manual; no replay or hardware evidence is claimed. |
-| `replay-tested` | Preserved responses, expected results, and negative cases pass offline. |
+| `documented` | Implementation follows a cited official manual; no hardware evidence is claimed. |
 | `hardware-verified` | The parser or control workflow was exercised against a real instrument response. |
 | `firmware-scoped` | Hardware evidence records exact model, firmware, interface, and test date. |
 
 These labels describe evidence, not feature breadth. A broad implementation can
-remain `documented` or `replay-tested`.
+remain `documented`.

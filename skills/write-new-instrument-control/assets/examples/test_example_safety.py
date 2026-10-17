@@ -17,7 +17,7 @@ class ExampleSafetyTests(unittest.TestCase):
             metadata = json.loads((example / "example.json").read_text(encoding="utf-8"))
             self.assertTrue(metadata["synthetic"], example)
             self.assertFalse(metadata["hardware_io"], example)
-            self.assertIn(metadata["support_level"], {"documented", "replay-tested"})
+            self.assertIn(metadata["support_level"], {"documented"})
 
     def test_example_sources_have_no_hardware_transport(self):
         for path in EXAMPLES.rglob("*.py"):

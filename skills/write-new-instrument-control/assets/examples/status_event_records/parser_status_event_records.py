@@ -71,7 +71,7 @@ def validate(artifact: dict[str, Any], raw: bytes) -> dict[str, Any]:
     if not timestamp_ok:
         reasons.append("timestamp_invalid_or_out_of_order")
     status = "COMPLETE" if not reasons else "INCOMPLETE" if "end_marker_missing" in reasons else "INVALID"
-    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "event_count": len(events)}, {"example": "status_event_records", "support_level": "replay-tested"})
+    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "event_count": len(events)}, {"example": "status_event_records", "support_level": "documented"})
 
 
 def parse(raw: bytes) -> dict[str, Any]:

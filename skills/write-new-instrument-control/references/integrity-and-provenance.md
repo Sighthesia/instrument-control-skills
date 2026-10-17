@@ -33,8 +33,7 @@ not needed to reproduce parsing.
 
 ## Evidence levels
 
-`documented` means the implementation follows a cited manual. `replay-tested`
-means preserved responses and negative cases pass offline. `hardware-verified`
+`documented` means the implementation follows a cited manual. `hardware-verified`
 requires a real response. `firmware-scoped` additionally records exact model,
 firmware, interface, and test date. Do not upgrade a label because a parser is
 syntactically plausible.

@@ -74,7 +74,7 @@ def validate(artifact: dict[str, Any], raw: bytes) -> dict[str, Any]:
     if not ranges_ok:
         reasons.append("segment_gap_overlap_or_short_payload")
     status = "COMPLETE" if not reasons else "INVALID"
-    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "segment_count": len(segments), "point_count": expected_start}, {"example": "segmented_binary_records", "support_level": "replay-tested"})
+    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "segment_count": len(segments), "point_count": expected_start}, {"example": "segmented_binary_records", "support_level": "documented"})
 
 
 def parse(raw: bytes) -> dict[str, Any]:

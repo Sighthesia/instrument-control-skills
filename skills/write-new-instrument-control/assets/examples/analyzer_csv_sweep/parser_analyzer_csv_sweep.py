@@ -63,7 +63,7 @@ def validate(artifact: dict[str, Any], raw: bytes) -> dict[str, Any]:
     if not unique:
         reasons.append("duplicate_frequency_point")
     status = "COMPLETE" if not reasons else "INVALID"
-    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "point_count": len(axis)}, {"example": "analyzer_csv_sweep", "support_level": "replay-tested"})
+    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "point_count": len(axis)}, {"example": "analyzer_csv_sweep", "support_level": "documented"})
 
 
 def parse(raw: bytes) -> dict[str, Any]:

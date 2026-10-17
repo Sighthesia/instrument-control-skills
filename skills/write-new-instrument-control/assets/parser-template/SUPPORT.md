@@ -1,7 +1,6 @@
 # Parser Support Record
 
 - Parser status: `documented`
-- Replay tests: replace with `replay-tested` after the fixture suite passes
 - Hardware verification: `false`
 - Verified model/firmware/interface: not yet verified
 - Manual source: replace with the official programming manual URL, revision, and page/section

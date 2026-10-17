@@ -4,7 +4,7 @@
   "data_kind": "scalar-measurement",
   "response_format": "line-oriented CSV-like text",
   "synthetic": true,
-  "support_level": "replay-tested",
+  "support_level": "documented",
   "purpose": "Show scalar value, unit, function, status, and sequence evidence.",
   "hardware_io": false
 }

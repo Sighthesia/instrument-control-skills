@@ -44,7 +44,7 @@ def validate(artifact: dict[str, Any], raw: bytes) -> dict[str, Any]:
     reasons: list[str] = []
     if artifact["status"] == "UNSUPPORTED":
         checks.append(check("measurement_status", "fail", {"status": artifact["status"]}))
-        return report("UNSUPPORTED", checks, ["instrument_reported_unsupported"], {"raw_sha256": sha256(raw)}, {"example": "multimeter_scalar_text", "support_level": "replay-tested"})
+        return report("UNSUPPORTED", checks, ["instrument_reported_unsupported"], {"raw_sha256": sha256(raw)}, {"example": "multimeter_scalar_text", "support_level": "documented"})
     if artifact["status"] in {"OK", "VALID"}:
         checks.append(check("measurement_status", "pass", {"status": artifact["status"]}))
     else:
@@ -60,7 +60,7 @@ def validate(artifact: dict[str, Any], raw: bytes) -> dict[str, Any]:
     if not count_check:
         reasons.append("reading_count_not_one")
     status = "COMPLETE" if not reasons else "UNVERIFIED" if "unit_missing" not in reasons else "INCOMPLETE"
-    return report(status, checks, reasons, {"raw_sha256": sha256(raw)}, {"example": "multimeter_scalar_text", "support_level": "replay-tested"}, ["acquisition_sequence_completeness=UNVERIFIED"])
+    return report(status, checks, reasons, {"raw_sha256": sha256(raw)}, {"example": "multimeter_scalar_text", "support_level": "documented"}, ["acquisition_sequence_completeness=UNVERIFIED"])
 
 
 def parse(raw: bytes) -> dict[str, Any]:

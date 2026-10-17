@@ -21,15 +21,13 @@ that are not needed for reproducible parsing.
 
 ## Evidence levels
 
-- `documented`: claim follows an official manual but has no preserved replay or
-  hardware evidence.
-- `replay-tested`: preserved responses and negative cases pass offline.
+- `documented`: claim follows an official manual but has no hardware evidence.
 - `hardware-verified`: a real instrument response was checked.
 - `firmware-scoped`: the real check records exact model, firmware, interface, and
   date.
 
 Use the lowest level that supports the particular claim. A parser can be
-`replay-tested` while a voltage calibration remains `UNVERIFIED`.
+`documented` while a voltage calibration remains `UNVERIFIED`.
 
 ## Calibration binding
 

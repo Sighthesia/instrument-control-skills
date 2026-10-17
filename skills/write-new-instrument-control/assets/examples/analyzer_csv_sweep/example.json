@@ -4,7 +4,7 @@
   "data_kind": "spectrum",
   "response_format": "CSV with independent frequency axis",
   "synthetic": true,
-  "support_level": "replay-tested",
+  "support_level": "documented",
   "purpose": "Show column, numeric, axis-order, and duplicate-point validation.",
   "hardware_io": false
 }

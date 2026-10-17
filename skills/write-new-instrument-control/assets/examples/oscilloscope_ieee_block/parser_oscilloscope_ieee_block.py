@@ -86,7 +86,7 @@ def validate(artifact: dict[str, Any], raw: bytes, frame: dict[str, Any]) -> dic
         checks.append(check("trailing_bytes_absent", "fail", {"trailing_bytes": len(frame["trailing"])}))
         reasons.append("trailing_bytes_present")
         status = "UNVERIFIED" if status == "COMPLETE" else status
-    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "payload_bytes": len(payload), "trailing_bytes": len(frame["trailing"])}, {"example": "oscilloscope_ieee_block", "support_level": "replay-tested"}, ["calibration_status=UNVERIFIED"])
+    return report(status, checks, reasons, {"raw_sha256": sha256(raw), "payload_bytes": len(payload), "trailing_bytes": len(frame["trailing"])}, {"example": "oscilloscope_ieee_block", "support_level": "documented"}, ["calibration_status=UNVERIFIED"])
 
 
 def parse(raw: bytes) -> dict[str, Any]:

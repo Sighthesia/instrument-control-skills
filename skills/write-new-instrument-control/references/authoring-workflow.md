@@ -52,4 +52,4 @@ must preserve the raw fixture and expected-result comparison.
 
 Include the parser, tests, fixture provenance, manual citation, manifest, and
 `SUPPORT.md`. A parser based only on a manual can be useful, but label it
-`documented` until replay or hardware evidence exists.
+`documented` until hardware evidence exists.

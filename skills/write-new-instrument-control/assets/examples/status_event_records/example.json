@@ -4,7 +4,7 @@
   "data_kind": "status-record",
   "response_format": "JSON-lines event records with explicit end marker",
   "synthetic": true,
-  "support_level": "replay-tested",
+  "support_level": "documented",
   "purpose": "Show sequence, timestamp, required-field, and end-marker checks.",
   "hardware_io": false
 }

@@ -27,9 +27,8 @@ skills/<skill-name>/
 4. Separate framing, metadata, payload extraction, normalization, and validation;
    report `COMPLETE` / `INCOMPLETE` / `INVALID` / `UNVERIFIED` / `UNSUPPORTED`
    and never silently pad, truncate, interpolate, or guess missing calibration.
-5. Label evidence conservatively: `documented` < `replay-tested` <
-   `hardware-verified` = `firmware-scoped`. Labels describe evidence, not
-   feature count.
+5. Label evidence conservatively: `documented` < `hardware-verified` =
+   `firmware-scoped`. Labels describe evidence, not feature count.
 6. Verification is performed on the real instrument and cites the model,
    firmware, and interface exercised. Supporting evidence such as screenshots
    may be recorded in the Skill, but is not mandatory.
