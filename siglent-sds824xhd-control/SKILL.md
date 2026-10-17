@@ -107,6 +107,40 @@ Use `scripts/scope_protocol.py` for all byte parsing.
 - A payload may contain `#`, NUL, CR, or LF; never split it on lines.
 - A timeout, missing marker, non-decimal length, or short payload fails closed.
 
+## Local AI Waveform Analysis
+
+Use the bundled read-only analyzer after a capture has produced a complete `manifest.json`. It never reconnects to or writes the oscilloscope and it never replaces the raw `waveform.bin` evidence:
+
+```text
+python3 scripts/analyze_waveform.py inspect --capture /path/to/capture --channel C4
+python3 scripts/analyze_waveform.py summarize --capture /path/to/capture --channel C4 --preview-buckets 256
+python3 scripts/analyze_waveform.py events --capture /path/to/capture --channel C4 --threshold-codes 20 35 --limit 100
+python3 scripts/analyze_waveform.py window --capture /path/to/capture --channel C4 --start 123456 --count 512
+```
+
+The analyzer validates the complete frame, merged file size, SHA-256, segment ranges, width, byte order, and sampling metadata before reading samples through NumPy `memmap`. It scans large records in bounded chunks and returns compact JSON rather than raw arrays. `summarize` reports exact integer-code statistics and an M4 preview labeled `visualization_only_lossy`; the preview must not be used as a substitute for event detection. `events` scans original-resolution samples and returns bounded pages with a stateless cursor. `window` is the escalation path for inspecting samples around an event.
+
+WORD captures retain raw signed little-endian codes. Unless an independent calibration JSON is supplied, WORD analysis reports `OBSERVED_UNVERIFIED` and emits code-domain values only; a 16-bit transport container is not automatically treated as a 16-bit voltage-calibrated ADC result. BYTE voltage conversion uses descriptor VDIV, probe factor, offset, and codes/div after cross-checking the captured panel snapshot; a mismatch is reported as a calibration limitation rather than used to produce voltage fields. Analysis output defaults to stdout and must be written outside the raw capture directory with `--out`.
+
+An independent WORD calibration file must bind evidence to the exact merged waveform SHA-256 and use this minimum shape:
+
+```json
+{
+  "channels": {
+    "C4": {
+      "word_scale_verified": true,
+      "capture_sha256": "<merged waveform SHA-256>",
+      "word_codes_per_div": 7680,
+      "vdiv_v_per_div": 5.0,
+      "offset_v": 0.0,
+      "evidence": "known DC reference and BYTE/WORD comparison"
+    }
+  }
+}
+```
+
+The analyzer rejects stale or incomplete evidence back to code-domain output. It does not infer WORD voltage scaling from `code_per_div * 256` alone.
+
 ## Waveform Decode and Validation
 
 For modern `WAVeform:PREamble?`, parse the documented little-endian fields in `scripts/scope_protocol.py`. Keep at least `wave_array_1`, `wave_array_count`, `start`, `interval`, `vdiv`, `offset`, `code_per_div`, `adc_bit`, `sample_interval`, `delay`, `tdiv`, and `probe`.
@@ -129,9 +163,12 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 - `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators.
 - `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
+- `scripts/waveform_analysis.py`: read-only manifest validation, BYTE/WORD memory-mapped access, exact bounded summaries, M4 visualization preview, threshold/runt/long-interval events, and raw window extraction.
+- `scripts/analyze_waveform.py`: bounded JSON CLI with `inspect`, `summarize`, `events`, and `window` subcommands.
+- `scripts/test_waveform_analysis.py`: synthetic capture tests for integrity, relocation, BYTE/WORD behavior, statistics, M4 bounds, event chunk boundaries, cursors, scan budgets, and window limits.
 - Task-specific command references under `references/`: load only the page selected by the goal table above. `programming-guide.md` records waveform implementation notes and is not a general command catalog.
 
 The protocol module exposes the handover API names: `scope_connect`, `scope_identify`, `scope_snapshot_configuration`, `scope_prepare_capture`, `scope_arm_single`, `scope_wait_ready`, `scope_wait_stop`, `scope_read_immutable_frame`, `scope_read_segment`, `scope_read_descriptor`, `scope_validate_frame`, `scope_restore_run_mode`, and `scope_disconnect`. `scope_arm_single` sends only `TRMD SINGLE`, never `ARM`. Descriptor reads remain an explicit post-download action.
 - `references/programming-guide.md`: command semantics and manual page references used by this skill.
 
-Run `python3 scripts/test_scope_protocol.py` before relying on a modified parser. On firmware `4.8.12.1.1.6.5`, C4 passed both transport checks: the historical BYTE run returned `25,000,000` bytes; the automatic WORD run selected WORD from `nominal_bits=16`, read back `COMM_TYPE=1`/LSB and `WAV:INT=1`, and returned `25,000,000` points / `50,000,000` bytes over five segments. Both had a calculated `5.000000058 s` span and no `ARM`, `STOP`, `TRMD`, or `WFSU` writes. WORD voltage scaling remains explicitly unverified.
+Run `python3 scripts/test_scope_protocol.py` and `python3 scripts/test_waveform_analysis.py` before relying on modified transport or analysis code. On firmware `4.8.12.1.1.6.5`, C4 passed both transport checks: the historical BYTE run returned `25,000,000` bytes; the automatic WORD run selected WORD from `nominal_bits=16`, read back `COMM_TYPE=1`/LSB and `WAV:INT=1`, and returned `25,000,000` points / `50,000,000` bytes over five segments. Both had a calculated `5.000000058 s` span and no `ARM`, `STOP`, `TRMD`, or `WFSU` writes. The analyzer accepts the historical BYTE artifact and reports verified BYTE voltage fields; it intentionally keeps WORD voltage scaling `OBSERVED_UNVERIFIED` until an independent calibration artifact is supplied.
