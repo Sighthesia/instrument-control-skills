@@ -2,149 +2,41 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Community-contributed Agent Skills for instrument communication, configuration,
-data parsing, and evidence-aware analysis. The repository currently contains a
-hardware-verified Siglent control Skill and a vendor-neutral Skill for writing new
-instrument-control Skills, parsers, and integrity workflows.
-
-The current catalog is maintained in [`registry.yaml`](registry.yaml); use each
-Skill's `SKILL.md` as its authoritative contract.
-
-## Supported oscilloscopes
-
-- SDS800X HD series (one shared platform and command set): **SDS802X HD**,
-  **SDS804X HD**, **SDS812X HD**, **SDS814X HD**, **SDS822X HD**, **SDS824X HD** —
-  2 or 4 channels, 70/100/200 MHz, 50 or 100 Mpts.
-- Every behavior here was hardware-verified on an **SDS824X HD**, firmware
-  `4.8.12.1.1.6.5`. Channel-count-, bandwidth-, and depth-dependent features must
-  be confirmed on the connected model before being reported as verified.
-
-## Supported operations
-
-- **Discovery and connection** — read-only USB (USBTMC/VISA) and LAN `*IDN?`
-  discovery, identity verification, storage/transfer-path selection.
-- **Signal discovery and measurement** — find a signal, auto-range, inspect trigger
-  and acquisition state, measure voltage/timing/jitter.
-- **Screenshot and waveform capture** — single-shot captures, screenshots, segmented
-  BYTE/WORD waveform downloads.
-- **Protocol decode** — UART/I2C/SPI/CAN/LIN and other supported serial buses.
-- **Anomaly search and mask testing** — runts, glitches, timing violations, mask
-  failures.
-- **Counter, cursor, and history** — frequency/period statistics, cursor deltas,
-  history timestamps.
-- **Local, read-only waveform analysis** (NumPy) — `inspect`, `summarize`,
-  `events`, `window`, `ringing` over a completed capture.
-
-## Skills in This Repository
-
-- [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) —
-  connect to and operate Siglent SDS800X HD oscilloscopes, capture waveforms,
-  preserve raw evidence, and validate downloads.
-
-- [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) —
-  guide for creating a new instrument-control Skill from manuals and evidence,
-  including framing, parsing, integrity validation, provenance, and replay tests.
+Agent Skills that guide an AI agent to operate instruments and analyze the data
+they return: connection and configuration, response framing and parsing, integrity
+validation, provenance, and offline replay tests.
 
 ## Install
 
-### With the skills CLI (recommended)
+With the skills CLI (recommended):
 
 ```bash
 npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 ```
 
-### Offline / manual
+Offline / manual: the committed archives `dist/siglent-sds800xhd-control.skill` and
+`dist/write-new-instrument-control.skill` are zips of their Skill folders. Unzip the
+needed archive into an agent's skills directory (for OpenCode, e.g.
+`~/.config/opencode/skills/`).
 
-The committed archives `dist/siglent-sds800xhd-control.skill` and
-`dist/write-new-instrument-control.skill` are zips of their respective Skill
-folders. Unzip the needed archive into an agent's skills directory (for OpenCode,
-e.g. `~/.config/opencode/skills/`).
+## Supported instruments
 
-## Workflows
+| Skill | Instruments | Transports | Evidence |
+|---|---|---|---|
+| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Siglent SDS800X HD series — SDS802X HD, SDS804X HD, SDS812X HD, SDS814X HD, SDS822X HD, SDS824X HD (2 or 4 channels; 70/100/200 MHz; 50 or 100 Mpts) | LAN (raw TCP), USB (USBTMC/VISA) | Hardware-verified on SDS824X HD, firmware `4.8.12.1.1.6.5` |
+| [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | Any instrument being added by a new Skill; does not connect to hardware itself | — | Replay-tested with synthetic fixtures |
 
-- **Progressive reference loading** — start from the goal table in
-  [`skills/siglent-sds800xhd-control/SKILL.md`](skills/siglent-sds800xhd-control/SKILL.md) and
-  load only the one `references/` page that matches the current goal, instead of
-  every page up front.
-- **Single-shot capture** — connect once, snapshot config, start with `TRMD SINGLE`
-  (never `ARM`), poll `SAST?` to `Ready`, stimulate the DUT, poll to `Stop`, then
-  freeze the command set. Full-length transfer uses the segmented path in
-  `capture_scope.py` (`WAV:SOURce` -> width/byte-order -> `WAV:INTerval` ->
-  `WAV:STARt`/`WAV:POINt` -> `WAV:DATA?`), and only validates into one merged
-  `waveform.bin` after every segment passes.
-- **Immutable stopped frame** — read every channel's `WF? DAT2` first, save raw
-  payloads, and only afterwards optionally issue `WF? DESC`. No state writes.
-- **Configured repetitive capture** — explicitly labeled `configured_capture`; may
-  use `WFSU` before a new capture, never after `Stop`. Optional left-aligned trigger
-  strategy (`--left-aligned-trigger`) for trigger-following bursts.
-- **Analysis pipeline** — capture -> `inspect` -> `summarize` -> `events`
-  (optionally time-ranged) -> `ringing` -> `window`. Raw `waveform.bin` stays the
-  authoritative evidence; summaries/previews are lossy aids.
+The Siglent Skill covers discovery and connection, signal measurement, screenshot
+and waveform capture, protocol decode, anomaly/mask testing, counter/cursor/history
+reads, and local read-only waveform analysis (NumPy). Channel-count-, bandwidth-,
+and memory-depth-dependent behavior must be confirmed on the connected model before
+being reported as verified.
 
-## Repository layout
+`registry.yaml` is the machine-readable catalog of Skills, capabilities, and
+evidence levels; each Skill's `SKILL.md` is its authoritative contract.
 
-- `skills/` — self-contained Skill sources, one directory per Skill.
-  - `skills/siglent-sds800xhd-control/` — the Siglent control Skill.
-- `skills/write-new-instrument-control/` — new control Skill authoring, parser templates, and integrity guidance.
-  - Each Skill contains its own `SKILL.md`, references, scripts, tests, or assets.
-- `registry.yaml` — machine-readable catalog of active Skills, capabilities, and evidence levels.
-- `CONTRIBUTING.md` — contribution layout, testing, evidence, and manual rules.
-- `dist/*.skill` — committed per-Skill zip deliverables. Rebuild the affected
-  archive after any change under its source directory; archives do not track source
-  changes by themselves.
-- `.specs/` — dated per-feature contracts (constraints + acceptance checklist).
-- `docs/ref/*.pdf` — vendor manuals (untracked); `references/` cites them by page.
-- `docs/superpowers/specs/` — design-intent docs.
-- `artifacts/` — raw captures (untracked).
+## Contributing
 
-## Development
-
-Tests are fully offline (synthetic fixtures, no scope) and only import correctly
-with the working directory set to `scripts/`, because the modules use bare
-intra-directory imports:
-
-```bash
-cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
-```
-
-- 44 tests, ~0.2 s. Single module/class/test:
-  `python3 -m unittest test_waveform_analysis` or
-  `python3 -m unittest test_scope_protocol.TestX.test_y`.
-- Parser template tests:
-  `python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'`.
-- Five parser examples and the offline safety guard:
-  `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
-- Validate the skill (frontmatter, structure, references):
-  `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control`
-  and run the same command with `skills/write-new-instrument-control` for the authoring Skill.
-- Repackage after validation (validates first; auto-excludes `__pycache__`):
-  `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/siglent-sds800xhd-control dist`
-  and `python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/write-new-instrument-control dist`;
-  then check both archives with `unzip -t`.
-- Sanity-check discovery: `npx skills@latest add . --list` should list exactly two Skills.
-- `capture_scope.py` and `discover_scope.py` talk to real hardware (default
-  `192.168.10.2:5025`; port `5024` is a legacy shell, never query it).
-
-## Safety invariants
-
-These are load-bearing; the offline tests enforce parts of them.
-
-- Never send `ARM`. Single-shot start is `TRMD SINGLE`, and a valid capture requires
-  the observed `Ready -> Stop` transition.
-- Immutable stopped-frame reads send no `STOP`/`TRMD`/`RUN`/`ARM`/`WFSU`, config
-  writes, or TCP reconnect. Read every channel's `WF? DAT2` before any `WF? DESC`.
-- Keep `immutable_capture` vs `configured_capture` explicit; never silently restore
-  instrument state.
-- IEEE 488.2 binary blocks: find `#`, read the length-of-length digit then the exact
-  payload; never split a payload on lines or retry a failed read into a "complete" file.
-- BYTE vs WORD provenance is recorded. WORD voltage stays `OBSERVED_UNVERIFIED`
-  unless a capture-SHA-bound calibration artifact is supplied.
-
-## Dependencies
-
-- Python 3 + stdlib only for `scope_protocol.py`, `capture_scope.py`,
-  `discover_scope.py`.
-- `numpy>=2.0,<3.0` (`skills/siglent-sds800xhd-control/requirements-analysis.txt`) only for
-  `waveform_analysis.py` / `analyze_waveform.py`.
-- `pyvisa` is optional and only used by `discover_scope.py --usb`.
-- SciPy is deliberately excluded.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the Skill layout, control/parser rules,
+evidence levels, manual and copyright policy, offline test requirements, and the
+pre-submit verification checklist.

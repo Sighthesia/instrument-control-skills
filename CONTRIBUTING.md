@@ -76,4 +76,33 @@ Before submitting a change:
 4. Run `npx skills@latest add . --list` and confirm discovery.
 5. Update `registry.yaml`, relevant README language versions, and limitations.
 
-Do not commit `artifacts/` or `__pycache__/`.
+### Commands
+
+Siglent control tests (44 tests, ~0.2 s). They are fully offline and only import
+correctly with the working directory set to `scripts/`, because the modules use
+bare intra-directory imports:
+
+```bash
+cd skills/siglent-sds800xhd-control/scripts && python3 -m unittest discover -s . -p 'test_*.py'
+```
+
+Parser template tests and the five parser examples with the offline safety guard:
+
+```bash
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/parser-template/tests -p 'test_*.py'
+python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
+```
+
+Validate, then repackage (packaging validates first and auto-excludes `__pycache__`):
+
+```bash
+python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
+python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/<skill-name> dist
+npx skills@latest add . --list   # must list exactly two Skills
+unzip -t dist/<skill-name>.skill
+```
+
+`capture_scope.py` and `discover_scope.py` talk to real hardware (default
+`192.168.10.2:5025`; port `5024` is a legacy shell, never query it). Never send
+`ARM`; invalid or retried reads must never be merged into a "complete" file. Do not
+commit `artifacts/` or `__pycache__/`.
