@@ -10,6 +10,8 @@ from scope_protocol import (
     ScopeProtocolError,
     BufferedSocket,
     Segment,
+    decide_waveform_width,
+    read_wav_segment,
     parse_ieee_block,
     parse_wavedesc,
     decode_analog_byte,
@@ -64,6 +66,72 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(parsed["timebase_s"], 0.5)
         self.assertEqual(parsed["data_width_bytes"], 1)
         self.assertEqual(parsed["vdiv_with_probe"], 20.0)
+        self.assertEqual(parsed["byte_order"], "LSB")
+        self.assertEqual(parsed["descriptor_length"], 0)
+
+    def test_word_wavedesc_and_width_decision(self):
+        raw = bytearray(346)
+        raw[:8] = b"WAVEDESC"
+        struct.pack_into("<i", raw, 36, 346)
+        struct.pack_into("<h", raw, 32, 1)
+        struct.pack_into("<h", raw, 34, 0)
+        struct.pack_into("<i", raw, 60, 20)
+        struct.pack_into("<i", raw, 116, 10)
+        struct.pack_into("<i", raw, 136, 1)
+        struct.pack_into("<h", raw, 172, 12)
+        struct.pack_into("<h", raw, 324, 28)
+        parsed = parse_wavedesc(bytes(raw))
+        self.assertEqual(parsed["data_width_bytes"], 2)
+        self.assertEqual(parsed["wave_array_1_bytes"], 20)
+        self.assertEqual(parsed["byte_order"], "LSB")
+        self.assertEqual(decide_waveform_width(parsed, "auto")["width_command"], "WORD")
+        self.assertEqual(decide_waveform_width(parsed, "byte")["precision"], "lossy_8bit")
+        self.assertEqual(decide_waveform_width(parsed, "auto")["voltage_decode"], "unverified_for_WORD")
+
+        initial_byte_descriptor = dict(parsed, comm_type=0, data_width_bytes=1)
+        self.assertEqual(decide_waveform_width(initial_byte_descriptor, "auto")["width_command"], "WORD")
+
+        eight_bit_descriptor = dict(parsed, comm_type=0, data_width_bytes=1, nominal_bits=8)
+        self.assertEqual(decide_waveform_width(eight_bit_descriptor, "auto")["width_command"], "BYTE")
+
+    def test_word_segment_payload_is_two_bytes_per_point(self):
+        from scope_protocol import IEEEBlock, ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self, payload):
+                super().__init__("example.invalid")
+                self.stopped = True
+                self.capture_mode = "configured_capture"
+                self.payload = payload
+
+            def write(self, command, **kwargs):
+                return None
+
+            def query_ascii(self, command, **kwargs):
+                return {"WAV:STAR?": "10", "WAV:POIN?": "3"}[command]
+
+            def query_block(self, command, **kwargs):
+                return IEEEBlock(b"", b"#", self.payload)
+
+        preamble = {"data_width_bytes": 2}
+        block_result = read_wav_segment(FakeScope(b"\x00\x01" * 3), 10, 3, preamble)
+        self.assertEqual(len(block_result.payload), 6)
+        with self.assertRaises(ScopeProtocolError):
+            read_wav_segment(FakeScope(b"\x01" * 3), 10, 3, preamble)
+        with self.assertRaises(ScopeProtocolError):
+            read_wav_segment(FakeScope(b"\x00" * 5), 10, 3, preamble)
+
+    def test_invalid_word_descriptor_fields_fail(self):
+        raw = bytearray(346)
+        raw[:8] = b"WAVEDESC"
+        struct.pack_into("<h", raw, 32, 1)
+        struct.pack_into("<h", raw, 34, 2)
+        struct.pack_into("<i", raw, 60, 20)
+        struct.pack_into("<i", raw, 116, 10)
+        struct.pack_into("<h", raw, 172, 12)
+        struct.pack_into("<h", raw, 324, 28)
+        with self.assertRaises(ScopeProtocolError):
+            parse_wavedesc(bytes(raw))
 
     def test_segment_validation_detects_gap_and_short_payload(self):
         segments = [
@@ -73,6 +141,25 @@ class ProtocolTests(unittest.TestCase):
         report = validate_segments(segments, expected_points=10, sample_interval_s=1.0, time_origin_s=-2.0)
         self.assertEqual(report["status"], "INVALID")
         self.assertTrue(report["reasons"])
+
+    def test_word_segment_report_counts_payload_bytes(self):
+        report = validate_segments(
+            [Segment(0, 3, 6, 2, 1e-6, 0.0, "word")],
+            expected_points=3,
+            expected_payload_bytes=6,
+            sample_interval_s=1e-6,
+            time_origin_s=0.0,
+        )
+        self.assertEqual(report["status"], "COMPLETE")
+        self.assertEqual(report["downloaded_payload_bytes"], 6)
+        mismatch = validate_segments(
+            [Segment(0, 3, 3, 2, 1e-6, 0.0, "short")],
+            expected_points=3,
+            expected_payload_bytes=6,
+            sample_interval_s=1e-6,
+            time_origin_s=0.0,
+        )
+        self.assertEqual(mismatch["status"], "INVALID")
 
     def test_25m_record_rejects_5m_download(self):
         report = validate_frame(
@@ -124,6 +211,7 @@ class ProtocolTests(unittest.TestCase):
         scope._check_allowed("WAV:STAR 0")
         with self.assertRaises(ScopeProtocolError):
             scope._check_allowed("WFSU SP,1,NP,0,FP,0")
+        scope._check_allowed("WAV:BYT LSB")
 
     def test_descriptor_query_is_gated_until_selected_dat2_reads_complete(self):
         from scope_protocol import ScopeSession
@@ -172,14 +260,32 @@ class ProtocolTests(unittest.TestCase):
             second = channel_dir / "segment-000001.bin"
             first.write_bytes(b"abc")
             second.write_bytes(b"def")
+            first_hash = hashlib.sha256(b"abc").hexdigest()
+            second_hash = hashlib.sha256(b"def").hexdigest()
             output = merge_segment_payloads(
                 root,
                 channel,
-                [{"payload": str(first)}, {"payload": str(second)}],
+                [
+                    {"payload": str(first), "actual_payload_bytes": 3, "sha256": first_hash},
+                    {"payload": str(second), "actual_payload_bytes": 3, "sha256": second_hash},
+                ],
                 "waveform.bin",
             )
             self.assertEqual(output.read_bytes(), b"abcdef")
             self.assertFalse((channel_dir / "waveform.bin.partial").exists())
+            second.write_bytes(b"bad")
+            with self.assertRaises(ScopeProtocolError):
+                merge_segment_payloads(
+                    root,
+                    channel,
+                    [
+                        {"payload": str(first), "actual_payload_bytes": 3, "sha256": first_hash},
+                        {"payload": str(second), "actual_payload_bytes": 3, "sha256": second_hash},
+                    ],
+                    "waveform-bad.bin",
+                )
+            self.assertFalse((channel_dir / "waveform-bad.bin").exists())
+            self.assertFalse((channel_dir / "waveform-bad.bin.partial").exists())
 
 
 if __name__ == "__main__":

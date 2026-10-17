@@ -222,7 +222,7 @@ class ScopeSession:
         normalized = command.strip().upper()
         if self.stopped and not explicit_release:
             query_only = normalized.endswith("?") and ";" not in normalized
-            waveform_transfer_write = self.capture_mode == "configured_capture" and normalized.startswith(("WAV:SOUR ", "WAV:WIDT ", "WAV:INT ", "WAV:STAR ", "WAV:POIN ")) and ";" not in normalized
+            waveform_transfer_write = self.capture_mode == "configured_capture" and normalized.startswith(("WAV:SOUR ", "WAV:WIDT ", "WAV:BYT ", "WAV:INT ", "WAV:STAR ", "WAV:POIN ")) and ";" not in normalized
             legacy_waveform_query = ":WF? DAT2" in normalized or ":WF? DESC" in normalized
             if not (query_only or waveform_transfer_write or legacy_waveform_query):
                 raise ScopeProtocolError(f"command forbidden after Stop: {command}")
@@ -380,8 +380,29 @@ def scope_read_segment(scope: ScopeSession, channel: str, start: int, count: int
     if scope.capture_mode != "configured_capture":
         raise ScopeProtocolError("modern WAV segment reads require explicit configured_capture mode")
     scope.write(f"WAV:SOUR {channel}", allow_after_stop=True)
-    scope.write("WAV:WIDT BYTE", allow_after_stop=True)
     scope.write("WAV:INT 1", allow_after_stop=True)
+    scope.write("WAV:STAR 0", allow_after_stop=True)
+    scope.write("WAV:POIN 0", allow_after_stop=True)
+    initial = parse_wavedesc(scope.query_block("WAV:PRE?", allow_after_stop=True).payload)
+    selection = decide_waveform_width(initial, "auto")
+    scope.write(f"WAV:WIDT {selection['width_command']}", allow_after_stop=True)
+    if selection["bytes_per_point"] == 2:
+        scope.write("WAV:BYT LSB", allow_after_stop=True)
+        if scope.query_ascii("WAV:BYT?", allow_after_stop=True).strip().upper() != "LSB":
+            raise ScopeProtocolError("scope did not accept WAV:BYT LSB")
+    preamble = parse_wavedesc(scope.query_block("WAV:PRE?", allow_after_stop=True).payload)
+    if preamble["data_width_bytes"] != selection["bytes_per_point"]:
+        raise ScopeProtocolError("scope WAVEDESC width differs from requested width")
+    return read_wav_segment(scope, start, count, preamble)
+
+
+def read_wav_segment(scope: ScopeSession, start: int, count: int, preamble: dict[str, Any]) -> IEEEBlock:
+    """Read one segment using the width and byte order already verified in preamble."""
+
+    if start < 0 or count <= 0:
+        raise ScopeProtocolError("segment start must be non-negative and count must be positive")
+    bytes_per_point = int(preamble["data_width_bytes"])
+    expected_bytes = count * bytes_per_point
     scope.write(f"WAV:STAR {start}", allow_after_stop=True)
     scope.write(f"WAV:POIN {count}", allow_after_stop=True)
     selected_start = int(float(scope.query_ascii("WAV:STAR?", allow_after_stop=True)))
@@ -389,8 +410,10 @@ def scope_read_segment(scope: ScopeSession, channel: str, start: int, count: int
     if (selected_start, selected_count) != (start, count):
         raise ScopeProtocolError(f"scope selected {selected_start},{selected_count}; expected {start},{count}")
     block = scope.query_block("WAV:DATA?", allow_after_stop=True)
-    if len(block.payload) != count:
-        raise ScopeProtocolError(f"segment {start} declared {count}, received {len(block.payload)} bytes")
+    if len(block.payload) != expected_bytes:
+        raise ScopeProtocolError(
+            f"segment {start}: expected {expected_bytes} bytes ({count} points x {bytes_per_point} B), got {len(block.payload)}"
+        )
     return block
 
 
@@ -563,15 +586,24 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
         result["horizontal_offset"] = result["horiz_offset"]
         return result
 
+    if len(payload) < 346:
+        raise ScopeProtocolError(f"WAVEDESC is shorter than 346 bytes: {len(payload)}")
     description = payload[0:16].split(b"\0", 1)[0].decode("ascii", errors="replace")
+    if not description.startswith("WAVEDESC"):
+        raise ScopeProtocolError(f"invalid WAVEDESC description: {description!r}")
+    descriptor_length = _unpack(payload, 36, "<i")
+    if descriptor_length not in (0, 346):
+        raise ScopeProtocolError(f"unexpected WAVEDESC length: {descriptor_length}")
     timebase_index = _unpack(payload, 324, "<h")
     result: dict[str, Any] = {
         "description": description,
+        "descriptor_length": descriptor_length,
         "comm_type": _unpack(payload, 32, "<h"),
+        "comm_order": _unpack(payload, 34, "<h"),
         "wave_array_1_bytes": _unpack(payload, 60, "<i"),
         "wave_array_count": _unpack(payload, 116, "<i"),
         "start": _unpack(payload, 132, "<i"),
-        "interval": _unpack(payload, 136, "<i"),
+        "sparsing_factor": _unpack(payload, 136, "<i"),
         "vdiv": _unpack(payload, 156, "<f"),
         "offset": _unpack(payload, 160, "<f"),
         "vertical_code_field": _unpack(payload, 164, "<f"),
@@ -589,6 +621,8 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
     result["timebase_s"] = TIMEBASE_ENUM[timebase_index]
     result["array_count"] = result["wave_array_count"]
     result["data_length"] = result["wave_array_1_bytes"]
+    result["interval"] = result["sparsing_factor"]
+    result["nominal_bits"] = result["adc_bit"]
     result["horiz_interval"] = result["sample_interval"]
     result["horiz_offset"] = result["horizontal_offset"]
     result["trigger_position"] = None
@@ -596,6 +630,9 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
     result["offset_with_probe"] = result["offset"] * result["probe"]
     if result["comm_type"] not in (0, 1):
         raise ScopeProtocolError(f"unknown WAVEDESC COMM_TYPE: {result['comm_type']}")
+    if result["comm_order"] not in (0, 1):
+        raise ScopeProtocolError(f"unknown WAVEDESC COMM_ORDER: {result['comm_order']}")
+    result["byte_order"] = "MSB" if result["comm_order"] == 1 else "LSB"
     # SDS824X HD firmware reports MAX_VALUE=7680 at this legacy descriptor
     # offset, while the handover confirms codes_per_div=30. Older descriptors
     # may put codes_per_div directly here, so preserve both interpretations.
@@ -606,7 +643,29 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
         result["code_per_div"] = result["vertical_code_field"]
         result["max_value"] = result["vertical_code_field"] * 256.0
     result["data_width_bytes"] = 1 if result["comm_type"] == 0 else 2
+    if result["wave_array_1_bytes"] != result["wave_array_count"] * result["data_width_bytes"]:
+        raise ScopeProtocolError(
+            f"WAVEDESC byte/point mismatch: {result['wave_array_1_bytes']} bytes for {result['wave_array_count']} points at {result['data_width_bytes']} B/point"
+        )
     return result
+
+
+def decide_waveform_width(preamble: dict[str, Any], requested: str = "auto") -> dict[str, Any]:
+    if requested not in ("auto", "byte", "word"):
+        raise ScopeProtocolError(f"unsupported waveform width: {requested}")
+    nominal_bits = int(preamble.get("nominal_bits", preamble.get("adc_bit", 0)))
+    if requested == "auto":
+        width = 2 if nominal_bits > 8 or preamble.get("comm_type") == 1 else 1
+    else:
+        width = 1 if requested == "byte" else 2
+    return {
+        "requested": requested,
+        "bytes_per_point": width,
+        "width_command": "WORD" if width == 2 else "BYTE",
+        "precision": "lossy_8bit" if width == 1 and nominal_bits > 8 else ("word_container_unscaled" if width == 2 else "8bit"),
+        "nominal_bits": nominal_bits,
+        "voltage_decode": "unverified_for_WORD" if width == 2 else "signed_8bit",
+    }
 
 
 @dataclass
@@ -644,6 +703,7 @@ def validate_segments(
     expected_points: Optional[int],
     sample_interval_s: float,
     time_origin_s: float,
+    expected_payload_bytes: Optional[int] = None,
 ) -> dict[str, Any]:
     ordered = sorted(segments, key=lambda item: item.start)
     reasons: list[str] = []
@@ -673,8 +733,11 @@ def validate_segments(
             reasons.append(f"segment {segment.start}: {segment.error}")
         cursor = max(cursor, segment.end_exclusive)
         total += segment.actual_points
+    downloaded_bytes = sum(segment.payload_length for segment in ordered)
     if expected_points is not None and total != expected_points:
         reasons.append(f"downloaded {total} points, descriptor expects {expected_points}")
+    if expected_payload_bytes is not None and downloaded_bytes != expected_payload_bytes:
+        reasons.append(f"downloaded {downloaded_bytes} bytes, expected {expected_payload_bytes}")
     if any(not segment.valid for segment in ordered):
         reasons.append("one or more segments are invalid")
     valid = not reasons and (expected_points is None or cursor == expected_points)
@@ -682,6 +745,8 @@ def validate_segments(
         "status": "COMPLETE" if valid else "INVALID",
         "expected_points": expected_points,
         "downloaded_points": total,
+        "expected_payload_bytes": expected_payload_bytes,
+        "downloaded_payload_bytes": downloaded_bytes,
         "sample_interval_s": sample_interval_s,
         "downloaded_duration_s": total * sample_interval_s,
         "time_origin_s": time_origin_s,
@@ -701,6 +766,11 @@ def validate_frame(
     trigger_relative_s: Optional[float] = None,
     downloaded_duration_s: Optional[float] = None,
     segment_report: Optional[dict[str, Any]] = None,
+    bytes_per_point: Optional[int] = None,
+    expected_payload_bytes: Optional[int] = None,
+    downloaded_payload_bytes: Optional[int] = None,
+    byte_order: Optional[str] = None,
+    nominal_bits: Optional[int] = None,
 ) -> dict[str, Any]:
     reasons: list[str] = []
     expected = wavedesc_points if wavedesc_points is not None else scope_points
@@ -708,6 +778,12 @@ def validate_frame(
         reasons.append(f"screen record {scope_points} differs from WAVEDESC {wavedesc_points}")
     if expected is not None and downloaded_points != expected:
         reasons.append(f"downloaded {downloaded_points} points, expected {expected}")
+    if downloaded_payload_bytes is None and segment_report is not None:
+        downloaded_payload_bytes = segment_report.get("downloaded_payload_bytes")
+    if expected_payload_bytes is None and segment_report is not None:
+        expected_payload_bytes = segment_report.get("expected_payload_bytes")
+    if expected_payload_bytes is not None and downloaded_payload_bytes != expected_payload_bytes:
+        reasons.append(f"downloaded {downloaded_payload_bytes} bytes, expected {expected_payload_bytes}")
     if scope_duration_s is not None and sample_interval_s is not None and expected is not None:
         expected_duration = expected * sample_interval_s
         if abs(scope_duration_s - expected_duration) > max(1e-12, abs(expected_duration) * 1e-6):
@@ -724,6 +800,7 @@ def validate_frame(
         "scope_record": {"points": scope_points, "duration_s": scope_duration_s},
         "wavedesc_record": {"points": wavedesc_points, "sample_interval_s": sample_interval_s},
         "downloaded": {"points": downloaded_points, "duration_s": downloaded_duration_s},
+        "waveform_format": {"bytes_per_point": bytes_per_point, "expected_payload_bytes": expected_payload_bytes, "downloaded_payload_bytes": downloaded_payload_bytes, "byte_order": byte_order, "nominal_bits": nominal_bits},
         "expected_duration_s": (expected * sample_interval_s) if expected is not None and sample_interval_s is not None else None,
         "trigger_relative_s": trigger_relative_s,
         "reasons": reasons,

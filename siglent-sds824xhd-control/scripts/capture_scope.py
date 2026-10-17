@@ -19,6 +19,8 @@ from scope_protocol import (
     ScopeProtocolError,
     ScopeSession,
     Segment,
+    decide_waveform_width,
+    read_wav_segment,
     scope_assume_existing_stop,
     scope_prepare_capture,
     parse_wavedesc,
@@ -93,13 +95,9 @@ def read_modern_segment(
     count: int,
     preamble: dict,
 ) -> tuple[Segment, dict]:
-    scope.write(f"WAV:STAR {start}", allow_after_stop=True)
-    scope.write(f"WAV:POIN {count}", allow_after_stop=True)
-    actual_start = int(float(scope.query_ascii("WAV:STAR?", allow_after_stop=True)))
-    actual_count = int(float(scope.query_ascii("WAV:POIN?", allow_after_stop=True)))
-    if actual_start != start or actual_count != count:
-        raise ScopeProtocolError(f"scope selected {actual_start},{actual_count}; expected {start},{count}")
-    block = scope.query_block("WAV:DATA?", allow_after_stop=True)
+    block = read_wav_segment(scope, start, count, preamble)
+    actual_start = start
+    actual_count = count
     payload_path, raw_path, prefix_path = write_block_artifact(root, channel, stem, block)
     time_origin = preamble["horizontal_offset"] - preamble["timebase_s"] * 5
     segment = Segment(
@@ -118,6 +116,8 @@ def read_modern_segment(
         "scope_start": actual_start,
         "scope_points": actual_count,
         "actual_payload_bytes": len(block.payload),
+        "bytes_per_point": preamble["data_width_bytes"],
+        "byte_offset": start * preamble["data_width_bytes"],
         "actual_points": segment.actual_points,
         "time_start_s": segment.time_start_s,
         "time_end_s": segment.time_end_s,
@@ -134,11 +134,34 @@ def read_modern_segment(
 def merge_segment_payloads(root: Path, channel: str, segment_files: list[dict], output_name: str) -> Path:
     output_path = root / channel / output_name
     partial_path = output_path.with_suffix(output_path.suffix + ".partial")
-    with partial_path.open("wb") as output:
-        for segment in segment_files:
-            output.write(Path(segment["payload"]).read_bytes())
-    partial_path.replace(output_path)
+    digest = hashlib.sha256()
+    try:
+        with partial_path.open("wb") as output:
+            for segment in segment_files:
+                payload_path = Path(segment["payload"])
+                expected_size = int(segment["actual_payload_bytes"])
+                if payload_path.stat().st_size != expected_size:
+                    raise ScopeProtocolError(f"segment file size changed: {payload_path}")
+                segment_digest = hashlib.sha256()
+                with payload_path.open("rb") as source:
+                    while chunk := source.read(1024 * 1024):
+                        output.write(chunk)
+                        digest.update(chunk)
+                        segment_digest.update(chunk)
+                if segment_digest.hexdigest() != segment["sha256"]:
+                    raise ScopeProtocolError(f"segment SHA-256 mismatch: {payload_path}")
+        expected_total = sum(int(segment["actual_payload_bytes"]) for segment in segment_files)
+        if partial_path.stat().st_size != expected_total:
+            raise ScopeProtocolError(f"merged file size mismatch: expected {expected_total}, got {partial_path.stat().st_size}")
+        partial_path.replace(output_path)
+    except Exception:
+        partial_path.unlink(missing_ok=True)
+        raise
+    merge_segment_payloads.last_sha256 = digest.hexdigest()
     return output_path
+
+
+merge_segment_payloads.last_sha256 = None
 
 
 def run_modern_probes(
@@ -170,6 +193,7 @@ def run_modern_probes(
             expected_points=count,
             sample_interval_s=preamble["sample_interval"],
             time_origin_s=preamble["horizontal_offset"] - preamble["timebase_s"] * 5,
+            expected_payload_bytes=count * preamble["data_width_bytes"],
         )
         metadata["validation"] = report
         save_json(root / channel / f"probe-{index:02d}-{count}.json", metadata)
@@ -188,6 +212,7 @@ def read_modern_channel(
     scope_record_duration_s=None,
     trigger_relative_s=None,
     probe_points: Optional[list[int]] = None,
+    requested_width: str = "auto",
 ) -> dict:
     channel_snapshot = {}
     for suffix, key in (("VDIV?", "vdiv"), ("OFST?", "offset")):
@@ -195,21 +220,43 @@ def read_modern_channel(
     for command, key in (("SARA?", "sample_rate"), ("TDIV?", "timebase"), ("TRDL?", "trigger_delay"), ("WFSU?", "waveform_setup")):
         channel_snapshot[key] = scope.query_ascii(command, allow_after_stop=True)
     scope.write(f"WAV:SOUR {channel}", allow_after_stop=True)
-    scope.write("WAV:WIDT BYTE", allow_after_stop=True)
     scope.write("WAV:INT 1", allow_after_stop=True)
     scope.write("WAV:STAR 0", allow_after_stop=True)
     scope.write("WAV:POIN 0", allow_after_stop=True)
+    initial_preamble_block = scope.query_block("WAV:PRE?", allow_after_stop=True)
+    initial_preamble = parse_wavedesc(initial_preamble_block.payload)
+    width_selection = decide_waveform_width(initial_preamble, requested_width)
+    scope.write(f"WAV:WIDT {width_selection['width_command']}", allow_after_stop=True)
+    width_readback = scope.query_ascii("WAV:WIDT?", allow_after_stop=True).strip().upper()
+    if width_readback != width_selection["width_command"]:
+        raise ScopeProtocolError(f"requested WAV:WIDT {width_selection['width_command']}, scope returned {width_readback!r}")
+    if width_selection["bytes_per_point"] == 2:
+        scope.write("WAV:BYT LSB", allow_after_stop=True)
+        byte_order_readback = scope.query_ascii("WAV:BYT?", allow_after_stop=True).strip().upper()
+        if byte_order_readback != "LSB":
+            raise ScopeProtocolError(f"requested WAV:BYT LSB, scope returned {byte_order_readback!r}")
+    else:
+        byte_order_readback = "N/A"
+    sparsing_readback = int(float(scope.query_ascii("WAV:INT?", allow_after_stop=True)))
+    if sparsing_readback != 1:
+        raise ScopeProtocolError(f"requested WAV:INT 1, scope returned {sparsing_readback}")
     preamble_block = scope.query_block("WAV:PRE?", allow_after_stop=True)
     preamble = parse_wavedesc(preamble_block.payload)
     expected_points = preamble["wave_array_count"]
-    if preamble["data_width_bytes"] != 1:
-        raise ScopeProtocolError("modern capture requested BYTE but preamble reports non-byte data")
-    if preamble["wave_array_1_bytes"] != expected_points:
+    bytes_per_point = width_selection["bytes_per_point"]
+    if preamble["data_width_bytes"] != bytes_per_point:
         raise ScopeProtocolError(
-            f"BYTE preamble reports {expected_points} points but {preamble['wave_array_1_bytes']} data bytes"
+            f"requested {width_selection['width_command']} ({bytes_per_point} B/point), WAVEDESC reports {preamble['data_width_bytes']} B/point"
         )
+    if bytes_per_point == 2 and preamble["byte_order"] != "LSB":
+        raise ScopeProtocolError(f"requested LSB WORD transfer, WAVEDESC reports {preamble['byte_order']}")
+    if preamble["wave_array_1_bytes"] != expected_points * bytes_per_point:
+        raise ScopeProtocolError(f"WAVEDESC reports {expected_points} points but {preamble['wave_array_1_bytes']} bytes at {bytes_per_point} B/point")
     max_points_text = scope.query_ascii("WAV:MAXP?", allow_after_stop=True)
-    max_points = int(float(max_points_text))
+    max_points_value = numeric_response(max_points_text)
+    if max_points_value is None or max_points_value <= 0:
+        raise ScopeProtocolError(f"invalid WAV:MAXP? response: {max_points_text!r}")
+    max_points = int(max_points_value)
     probes = run_modern_probes(scope, root, channel, preamble, max_points, probe_points or [])
     step = min(segment_points, max_points) if max_points > 0 else segment_points
     segments: list[Segment] = []
@@ -231,6 +278,7 @@ def read_modern_channel(
         expected_points=expected_points,
         sample_interval_s=preamble["sample_interval"],
         time_origin_s=preamble["horizontal_offset"] - preamble["timebase_s"] * 5,
+        expected_payload_bytes=expected_points * bytes_per_point,
     )
     frame_report = validate_frame(
         scope_points=scope_record_points,
@@ -241,6 +289,11 @@ def read_modern_channel(
         downloaded_duration_s=segment_report["downloaded_duration_s"],
         trigger_relative_s=trigger_relative_s,
         segment_report=segment_report,
+        bytes_per_point=bytes_per_point,
+        expected_payload_bytes=expected_points * bytes_per_point,
+        downloaded_payload_bytes=segment_report["downloaded_payload_bytes"],
+        byte_order=preamble["byte_order"],
+        nominal_bits=preamble["nominal_bits"],
     )
     preamble_path = root / channel / "preamble.payload.bin"
     preamble_path.write_bytes(preamble_block.payload)
@@ -248,13 +301,13 @@ def read_modern_channel(
     preamble_prefix_path = root / channel / "preamble.prefix.bin"
     preamble_raw_path.write_bytes(preamble_block.raw)
     preamble_prefix_path.write_bytes(preamble_block.prefix)
-    result = {"channel": channel, "mode": scope.capture_mode, "preamble": preamble, "preamble_payload": str(preamble_path), "preamble_raw_response": str(preamble_raw_path), "preamble_prefix": str(preamble_prefix_path), "segments": segment_files, "segment_report": segment_report, "frame_report": frame_report}
+    result = {"channel": channel, "mode": scope.capture_mode, "preamble": preamble, "waveform_format": {**width_selection, "width_readback": width_readback, "wav_max_point": max_points, "maxpoint_unit": "points", "sparsing_readback": sparsing_readback, "byte_order": preamble["byte_order"], "byte_order_readback": byte_order_readback, "expected_payload_bytes": expected_points * bytes_per_point}, "preamble_payload": str(preamble_path), "preamble_raw_response": str(preamble_raw_path), "preamble_prefix": str(preamble_prefix_path), "segments": segment_files, "segment_report": segment_report, "frame_report": frame_report}
     result["probes"] = probes
     if segment_report["status"] == "COMPLETE":
         merged_path = merge_segment_payloads(root, channel, segment_files, "waveform.bin")
         result["merged_waveform"] = str(merged_path)
         result["merged_waveform_bytes"] = merged_path.stat().st_size
-        result["merged_waveform_sha256"] = hashlib.sha256(merged_path.read_bytes()).hexdigest()
+        result["merged_waveform_sha256"] = merge_segment_payloads.last_sha256
     return result
 
 
@@ -324,6 +377,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scope-record-duration", type=float, default=None)
     parser.add_argument("--trigger-relative-s", type=float, default=None)
     parser.add_argument("--segment-points", type=int, default=5_000_000)
+    parser.add_argument("--wav-width", choices=("auto", "byte", "word"), default="auto", help="WAV transfer width; auto selects WORD when descriptor nominal bits exceed 8")
     parser.add_argument("--probe-points", default="10000,1000000", help="comma-separated preflight WAV probe sizes; use empty string to disable")
     parser.add_argument("--prepare", action="store_true", help="write the handover's capture configuration")
     parser.add_argument("--trigger", action="store_true", help="issue TRMD SINGLE and wait Ready -> Stop")
@@ -405,7 +459,7 @@ def main() -> int:
             if trigger_relative is None:
                 trigger_relative = numeric_response(snapshot.get("trigger_delay"))
             for channel in args.channels:
-                manifest["results"].append(read_modern_channel(scope, args.out, channel, args.segment_points, scope_points, scope_duration, trigger_relative, probe_points))
+                manifest["results"].append(read_modern_channel(scope, args.out, channel, args.segment_points, scope_points, scope_duration, trigger_relative, probe_points, args.wav_width))
         else:
             results = [read_legacy_channel(scope, args.out, channel, args.read_descriptors) for channel in args.channels]
             manifest["results"].extend(results)

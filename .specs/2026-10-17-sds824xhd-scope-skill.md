@@ -27,6 +27,8 @@ Create an agent skill and deterministic helper scripts for operating the Siglent
 - [x] **AC-08**: Validate skill structure and run the complete local test suite; document any hardware-only verification boundary.
 - [x] **AC-09**: Modern WAV segmented capture supports a staged hardware probe and full-range download without `ARM`, `STOP`, `WFSU`, reconnect, or implicit restore after `Ready -> Stop`.
 - [x] **AC-10**: The modern path writes one complete merged raw waveform only after all requested segments pass exact range and payload validation; a failed probe or segment leaves the result non-complete.
+- [x] **AC-11**: Modern WAV capture selects BYTE/WORD from the actual descriptor, explicitly controls and verifies byte order, and validates payload bytes as `points * bytes_per_point`.
+- [x] **AC-12**: WORD mode preserves raw 2-byte samples and reports width, nominal bits, byte order, expected/downloaded bytes, and precision without reclassifying the historical BYTE capture.
 
 ## 4. Edge Cases & Boundary Conditions
 - TCP startup banner and `>>` prompt; arbitrary ASCII and NUL bytes before binary marker.

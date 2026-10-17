@@ -8,7 +8,8 @@ The programming guide's section 5.23 (PDF pages 411-422) defines the preferred b
 
 ```text
 WAV:SOURce <C1|C2|C3|C4>
-WAV:WIDTh BYTE
+WAV:WIDTh WORD   # required when the preamble nominal bits exceed 8
+WAV:BYTeorder LSB
 WAV:INTerval 1
 WAV:STARt <zero-based point>
 WAV:POINt <point count>
@@ -17,9 +18,9 @@ WAV:PREamble?
 WAV:MAXPoint?
 ```
 
-The guide says `WAV:MAXPoint?` returns the per-transfer maximum and that `START` plus `POINT` controls a slice. The official Python example on PDF pages 479-482 sets the start for each slice, reads `WAV:DATA?`, and concatenates exact binary-block payloads. The implementation in this skill improves that example by retaining every prefix/header/payload and validating ranges before concatenation. This documents the protocol path, not a claim that firmware 4.8.12.1.1.6.5 has already passed a full 25 Mpts transfer with this script.
+The guide says `WAV:MAXPoint?` returns the per-transfer maximum in points and that `START` plus `POINT` controls a slice. The official Python example on PDF pages 479-482 sets the start for each slice, reads `WAV:DATA?`, and concatenates exact binary-block payloads. The implementation in this skill retains every prefix/header/payload and validates both point ranges and `points * bytes_per_point` before concatenation.
 
-The path has now been verified on firmware `4.8.12.1.1.6.5` with the current stopped C4 frame. The script read `10,000` and `1,000,000` point probes, then ranges `0`, `5,000,000`, `10,000,000`, `15,000,000`, and `20,000,000`, each for `5,000,000` points. All payload lengths matched, the ranges were contiguous, and the merged output was `25,000,000` bytes.
+The path has now been verified on firmware `4.8.12.1.1.6.5` with the current stopped C4 frame in both historical BYTE and WORD transport modes. WORD used `COMM_TYPE=1`, `COMM_ORDER=LSB`, five `5,000,000`-point segments of `10,000,000` bytes each, and a merged output of `50,000,000` bytes. This verifies raw transfer completeness and byte order; it does not by itself calibrate WORD voltage scaling or prove 16 effective ADC bits.
 
 `WAV:PREamble?` returns an IEEE binary block. For an analog waveform, the documented little-endian offsets are:
 
