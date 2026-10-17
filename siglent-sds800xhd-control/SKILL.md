@@ -1,11 +1,11 @@
 ---
-name: siglent-sds824xhd-control
-description: Control and capture waveforms from a Siglent SDS824X HD/SDS800X HD over one explicit raw SCPI TCP session. Use for single-shot captures, waveform downloads, signal measurements, screenshots, protocol decode, anomaly search, and progressive task-specific SCPI command discovery.
+name: siglent-sds800xhd-control
+description: Control and capture waveforms from a Siglent SDS800X HD series oscilloscope (verified on SDS824X HD) over one explicit raw SCPI TCP session. Use for single-shot captures, waveform downloads, signal measurements, screenshots, protocol decode, anomaly search, and progressive task-specific SCPI command discovery.
 ---
 
-# Siglent SDS824X HD Control
+# Siglent SDS800X HD Control
 
-Use this skill whenever an AI needs to operate the Siglent SDS824X HD, capture a stopped frame, download waveform data, decode it, or diagnose a mismatch between screen record length and downloaded files.
+Use this skill whenever an AI needs to operate an SDS800X HD series oscilloscope, capture a stopped frame, download waveform data, decode it, or diagnose a mismatch between screen record length and downloaded files. The series shares one platform and command set; every behavior here was verified on an SDS824X HD. Capabilities that depend on channel count, bandwidth, or memory depth (2 vs 4 channels, 50 vs 100 Mpts) must be confirmed against the connected model.
 
 ## Non-negotiable Safety Rules
 
@@ -44,7 +44,8 @@ Start with the matching reference's read-only snapshot. Use a setup/enable comma
 
 ## Hardware Profile
 
-- Target: `Siglent SDS824X HD`, IP `192.168.10.2`, SCPI TCP `5025`.
+- Supported series: `SDS800X HD` — SDS802X HD, SDS804X HD, SDS812X HD, SDS814X HD, SDS822X HD, SDS824X HD (2- or 4-channel, 70/100/200 MHz, 50 or 100 Mpts).
+- Verified target: `Siglent SDS824X HD`, IP `192.168.10.2`, SCPI TCP `5025`, firmware `4.8.12.1.1.6.5`.
 - Port `5024` is a legacy shell-like channel. It may begin with `Welcome to the SCPI instrument 'Siglent SDS824X HD'` and `>>`; never parse either as a query result.
 - Channel mapping: `C1=ENABLE`, `C2=nFAULT`, `C3=HOC`, `C4=P4.1/CMP`.
 - Typical setup: C1/C2/C4 `VDIV 2`, C3 `VDIV 5`, all `OFST 0`, probe `10`; edge trigger on C1 rising at `2.5 V`; `TRMD SINGLE`; `500 ms/div`; `5.00 MSa/s`; `25.0 Mpts`; about `-2 s` trigger delay.

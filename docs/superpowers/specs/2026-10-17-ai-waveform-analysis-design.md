@@ -50,7 +50,7 @@ The parser exposes descriptor `vdiv`, `probe`, `offset`, `code_per_div`, and `ma
 - `scripts/analyze_waveform.py`: CLI with `inspect`, `summarize`, `events`, and `window` commands; JSON to stdout or an explicitly named output file.
 - `scripts/test_waveform_analysis.py`: synthetic BYTE/WORD fixtures and deterministic tests for integrity, units, bounds, and chunk boundaries.
 - `SKILL.md`: add the local analysis workflow and explain that full raw files remain local.
-- `dist/siglent-sds824xhd-control.skill`: rebuild after validation.
+- `dist/siglent-sds800xhd-control.skill`: rebuild after validation.
 
 ### Bounded Processing
 

@@ -2,7 +2,7 @@
 
 - **Created**: 2026-10-17
 - **Status**: Completed
-- **Target Files/Modules**: `siglent-sds824xhd-control/SKILL.md`, `siglent-sds824xhd-control/references/`, `dist/siglent-sds824xhd-control.skill`
+- **Target Files/Modules**: `siglent-sds800xhd-control/SKILL.md`, `siglent-sds800xhd-control/references/`, `dist/siglent-sds800xhd-control.skill`
 
 ## 1. Core Objective
 Enable an AI agent to discover relevant SDS800X HD SCPI commands progressively by debugging task, while keeping unrelated commands out of the active context and distinguishing read-only queries from state-changing setup.
@@ -41,4 +41,4 @@ Enable an AI agent to discover relevant SDS800X HD SCPI commands progressively b
 ## 5. Execution & Verification Log
 - [x] Initial scaffolding
 - [x] Implementation
-- [x] Automated tests / manual verification: `python3 -m unittest discover -s siglent-sds824xhd-control/scripts -p 'test_*.py'` (18 passed); `unzip -t dist/siglent-sds824xhd-control.skill` passed; target read-only command probe completed on SDS824X HD firmware `4.8.12.1.1.6.5`.
+- [x] Automated tests / manual verification: `python3 -m unittest discover -s siglent-sds800xhd-control/scripts -p 'test_*.py'` (18 passed); `unzip -t dist/siglent-sds800xhd-control.skill` passed; target read-only command probe completed on SDS824X HD firmware `4.8.12.1.1.6.5`.

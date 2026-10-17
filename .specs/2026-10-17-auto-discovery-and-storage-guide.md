@@ -2,7 +2,7 @@
 
 - **Created**: 2026-10-17
 - **Status**: Completed
-- **Target Files/Modules**: `siglent-sds824xhd-control/references/connection-and-storage.md`, `siglent-sds824xhd-control/scripts/discover_scope.py`, `siglent-sds824xhd-control/SKILL.md`, `siglent-sds824xhd-control/scripts/test_discover_scope.py`
+- **Target Files/Modules**: `siglent-sds800xhd-control/references/connection-and-storage.md`, `siglent-sds800xhd-control/scripts/discover_scope.py`, `siglent-sds800xhd-control/SKILL.md`, `siglent-sds800xhd-control/scripts/test_discover_scope.py`
 
 ## 1. Core Objective
 将 SDS800X HD 的 USB/LAN 自动发现、身份握手、基础连接配置，以及示波器文件/波形传输方案整理为可执行的工程指导，并提供不改变既有采集安全约束的最小 Python 示例。
