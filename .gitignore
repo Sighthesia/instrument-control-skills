@@ -1,0 +1,7 @@
+# Local, manually managed outputs
+dist/
+artifacts/
+
+# Python caches
+__pycache__/
+*.py[cod]

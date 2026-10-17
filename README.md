@@ -14,10 +14,9 @@ With the skills CLI (recommended):
 npx skills@latest add Sighthesia/SDS800XHD_SCPI_Skill
 ```
 
-Offline / manual: the committed archives `dist/siglent-sds800xhd-control.skill` and
-`dist/write-new-instrument-control.skill` are zips of their Skill folders. Unzip the
-needed archive into an agent's skills directory (for OpenCode, e.g.
-`~/.config/opencode/skills/`).
+Offline / manual: copy or symlink the Skill directory, e.g.
+`skills/siglent-sds800xhd-control/`, into an agent's skills directory (for OpenCode,
+e.g. `~/.config/opencode/skills/`).
 
 ## Supported instruments
 
@@ -32,26 +31,28 @@ reads, and local read-only waveform analysis (NumPy). Channel-count-, bandwidth-
 and memory-depth-dependent behavior must be confirmed on the connected model before
 being reported as verified.
 
-`registry.yaml` is the machine-readable catalog of Skills, capabilities, and
-evidence levels; each Skill's `SKILL.md` is its authoritative contract.
+This table is the catalog of Skills; each Skill's `SKILL.md` is its authoritative
+contract.
 
 ## Contributing
 
 Add a Skill as one directory under `skills/<skill-name>/` containing `SKILL.md` and,
 when needed, `references/`, `scripts/`, and `assets/`. The directory name must match
-the `name` in the frontmatter, and the Skill must be registered in `registry.yaml`.
+the `name` in the frontmatter, and the Skill must be added to the table above.
 
 - Keep instrument commands and state rules inside the device Skill, preserve raw
   responses, and never claim a model or firmware is verified without a real response.
 - Separate framing, metadata, payload extraction, normalization, and validation.
   Report `COMPLETE`, `INCOMPLETE`, `INVALID`, `UNVERIFIED`, or `UNSUPPORTED`; never
-  silently pad, truncate, interpolate, or guess missing calibration.
+  silently pad, truncate, interpolate, or guess missing calibration. Use
+  `write-new-instrument-control` as the authoring guide and template source.
 - Offline tests must not connect to hardware, scan a network, or enumerate VISA
   resources. Include binary-safe fixtures, expected results, and negative cases.
 - Label evidence conservatively: `documented`, `replay-tested`, `hardware-verified`,
   `firmware-scoped`. Labels describe evidence, not feature count.
-- Do not commit complete vendor manuals, `artifacts/`, or `__pycache__/`; before
-  submitting, update `registry.yaml`, both READMEs, and the affected `.skill` archive.
+- Do not commit complete vendor manuals. `dist/`, `artifacts/`, and `__pycache__/`
+  are local and git-ignored: build packages by hand when needed, and update both
+  READMEs before submitting.
 
 ### Commands
 
@@ -70,14 +71,13 @@ python3 -m unittest discover -s skills/write-new-instrument-control/assets/parse
 python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'
 ```
 
-Validate a Skill, rebuild its archive (packaging validates first and excludes
-`__pycache__/`), then confirm CLI discovery and archive integrity:
+Validate a Skill, then optionally build a local package (packaging validates first
+and excludes `__pycache__/`), and confirm CLI discovery:
 
 ```bash
 python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
-python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/<skill-name> dist
+python3 ~/.agents/skills/skill-creator/scripts/package_skill.py skills/<skill-name> dist   # dist/ is local only
 npx skills@latest add . --list   # must list exactly two Skills
-unzip -t dist/<skill-name>.skill
 ```
 
 `capture_scope.py` and `discover_scope.py` talk to real hardware (default
