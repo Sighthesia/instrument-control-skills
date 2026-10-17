@@ -1,0 +1,39 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "replace-with-vendor-model-parser",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "Replace",
+    "model": "Replace",
+    "firmware": null,
+    "serial": null
+  },
+  "source": {
+    "operation": "replace-with-command-or-acquisition",
+    "transport": "replace-with-transport",
+    "manual": {
+      "title": "Official programming manual",
+      "revision": "replace-with-revision",
+      "url": "https://example.invalid/manual",
+      "location": "page or section"
+    }
+  },
+  "data": {
+    "kind": "scalar-measurement",
+    "raw_path": "fixtures/valid-response.bin",
+    "raw_sha256": "replace-after-capturing-fixture"
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": false,
+    "known_limitations": [
+      "Replace this entry with a concrete limitation."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": []
+  }
+}

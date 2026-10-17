@@ -1,0 +1,17 @@
+{
+  "kind": "scalar-measurement",
+  "unit": "V",
+  "values": [1.234, 1.235],
+  "declared_count": 2,
+  "integrity": {
+    "status": "COMPLETE",
+    "reasons": [],
+    "declared_count": 2,
+    "actual_count": 2
+  },
+  "metadata": {
+    "kind": "scalar",
+    "unit": "V",
+    "count": "2"
+  }
+}

@@ -27,6 +27,12 @@
 - **本地只读波形分析**（NumPy）—— 针对已完成捕获的 `inspect`、`summarize`、
   `events`、`window`、`ringing`。
 
+## 其他 Skill
+
+- [`instrument-parser-authoring`](skills/instrument-parser-authoring/SKILL.md) ——
+  指导根据编程手册、原始响应和离线 replay fixture 编写与验证通用仪器数据解析器，
+  并明确区分 framing、元数据、载荷提取、标准化、完整性校验和 provenance。
+
 ## 安装
 
 ### 使用 skills CLI（推荐）

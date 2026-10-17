@@ -32,6 +32,13 @@ search, and bounded local waveform analysis.
 - **Local, read-only waveform analysis** (NumPy) — `inspect`, `summarize`,
   `events`, `window`, `ringing` over a completed capture.
 
+## Additional skills
+
+- [`instrument-parser-authoring`](skills/instrument-parser-authoring/SKILL.md) —
+  guide for writing vendor-neutral instrument data parsers from manuals, raw
+  responses, and offline replay fixtures. It separates framing, metadata,
+  payload extraction, normalization, integrity validation, and provenance.
+
 ## Install
 
 ### With the skills CLI (recommended)
