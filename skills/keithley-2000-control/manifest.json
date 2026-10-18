@@ -1,0 +1,52 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "keithley2000-scalar",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "Keithley Instruments",
+    "model": "Model 2000",
+    "firmware": null,
+    "serial": null
+  },
+  "source": {
+    "operation": "single scalar ASCII reading or error-queue response",
+    "transport": "offline saved bytes; no transport driver included",
+    "manual": {
+      "title": "Model 2000 Multimeter User's Manual",
+      "revision": "2000-900-01 Rev. J / August 2010",
+      "url": "https://download.tek.com/manual/2000-900_J-Aug2010_User.pdf",
+      "location": "PDF physical pages 134-137, 159-162, 168-169, 190-194"
+    }
+  },
+  "data": {
+    "kind": "scalar-measurement",
+    "raw_path": "assets/fixtures/valid-reading.txt",
+    "raw_sha256": "a017168a649ee36c4a0f74866e448647b5d27402c288aba2999f1b9d6f84d2fd",
+    "raw_provenance": "Synthetic fixture following the manual's documented ASCII example; not a real instrument capture."
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": false,
+    "known_limitations": [
+      "No instrument transport or hardware verification is included.",
+      "The parser accepts one ASCII scalar line and one error-queue line only.",
+      "Multi-reading, binary, and scanner responses are unsupported.",
+      "Calibration, fuse continuity, and acquisition freshness are not inferred."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "pass",
+        "evidence": {
+          "synthetic": true,
+          "hardware_capture": false
+        }
+      }
+    ]
+  }
+}

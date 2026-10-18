@@ -10,6 +10,7 @@
 | 仪器类型 | Skill | 仪器系列 | 能力 | 验证情况 |
 |---|---|---|---|---|
 | 示波器 | [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Siglent SDS800X HD 系列 —— SDS802X HD、SDS804X HD、SDS812X HD、SDS814X HD、SDS822X HD、SDS824X HD（2 或 4 通道；70/100/200 MHz；50 或 100 Mpts） | 发现与连接、信号测量、截图与波形捕获、协议解码、异常/模板（Mask）测试、计数器/光标/历史读取、本地波形分析（NumPy）；LAN（raw TCP）与 USB（USBTMC/VISA） | ✅已验证（SDS824X HD，固件 `4.8.12.1.1.6.5`；与通道数、带宽、存储深度相关的功能须在所连型号上重新确认） |
+| 台式万用表 | [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Keithley Model 2000（6½ 位万用表） | 基于 SCPI 手册的直流/交流电压与电流、二线/四线电阻、频率/周期、热电偶温度、二极管与通断测量；读数命令选择、响应校验，以及带前置条件的触发/缓冲/限值/扫描参考 | 基于 2000-900-01 Rev. J / August 2010 手册标记为 `documented`；未声称实机验证 |
 | 任意仪器（编写指南） | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | 可扩展至任意仪器：示波器、万用表、电源、分析仪等 | 编写指南与解析器模板、示例，用于新建仪器 Skill；不连接硬件 | 编写指南，无设备指令需要实机验证 |
 
 使用 skills CLI 安装：
