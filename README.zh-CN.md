@@ -23,7 +23,8 @@ skills 目录（OpenCode 例如 `~/.config/opencode/skills/`）。
 
 ## 贡献指南
 
-为新型号仪器添加 Skill 时，从本仓库自带的编写指南
+如果你有想要添加的仪器通信方法，也可将其加入。为新型号仪器添加 Skill 时，
+从本仓库自带的编写指南
 [`skills/write-new-instrument-control/SKILL.md`](skills/write-new-instrument-control/SKILL.md)
 入手。它会走一遍编写路径：界定仪器边界、从编程手册收集可引用的证据、划分
 响应格式、把解析拆分为多个阶段。

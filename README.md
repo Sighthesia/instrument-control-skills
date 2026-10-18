@@ -24,7 +24,8 @@ agent's skills directory (for OpenCode, e.g. `~/.config/opencode/skills/`).
 
 ## Contributing
 
-To add a Skill for a new instrument, start with
+If you have an instrument communication method you'd like to add, you're
+welcome to include it here. To add a Skill for a new instrument, start with
 [`skills/write-new-instrument-control/SKILL.md`](skills/write-new-instrument-control/SKILL.md),
 the authoring guide shipped in this repository. It walks through the authoring
 path: define the instrument boundary, collect cited evidence from the
