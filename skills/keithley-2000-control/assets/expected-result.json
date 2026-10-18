@@ -1,0 +1,16 @@
+{
+  "schema_version": "keithley2000-scalar-v1",
+  "kind": "scalar-measurement",
+  "measurement": {
+    "value": 10.0,
+    "unit": "VDC",
+    "function": "VOLTage:DC",
+    "reading_status": "VALID",
+    "channel": 0,
+    "channel_kind": "INTCHAN"
+  },
+  "integrity": {
+    "status": "COMPLETE",
+    "support_level": "documented"
+  }
+}

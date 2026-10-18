@@ -40,8 +40,10 @@ Evidence: *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
    change trigger/function state and invalidate the caller's prior setup.
 5. Query `:SYSTem:ERRor?` after setup and acquisition. Drain the FIFO until
    `0,No error`; preserve all messages in order. The queue holds up to 10
-   messages; a full queue reports `350, Queue Overflow`. Negative codes are
-   SCPI-defined; positive codes are Keithley-defined (PDF 190, 194).
+   messages. Its description reports `350, Queue Overflow`, while Appendix B
+   lists `-350, Queue overflow`; treat either signed code as possible overflow
+   and preserve the actual reply. Negative codes are SCPI-defined; positive
+   codes are Keithley-defined (PDF 190, 194, 209).
 6. Do not automatically clear a pre-existing error queue. Record it first;
    send `*CLS` only when authorized because it clears event/status registers and
    the error queue.
@@ -55,7 +57,7 @@ Evidence: *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
 | `:MEASure:<function>?` | Convenience one-shot measurement | Executes `:ABORt`, `:CONFigure:<function>`, `:READ?`; has the `:CONFigure` side effects above (PDF 137). |
 | `:FETCh?` | Return latest post-processed reading without triggering | Can return the same stale value repeatedly; rapid external triggers can lose readings (PDF 135). |
 | `:SENSe:DATA?` | Return latest raw or REL-adjusted reading in exponent form | No function name; no math result. Pair it with `:FUNCtion?` and configuration metadata (PDF 169). |
-| `:DATA:FRESh?` | Request a fresh reading | Consult the Model 2000 command description and current trigger mode first; do not substitute `:FETCh?` when freshness is required. |
+| `:DATA:FRESh?` | Referenced by the manual as a fresh-reading path | The supplied Rev. J PDF only mentions it in a cross-reference on p.135 and does not provide its command description. Do not rely on it without matching firmware documentation or hardware verification; prefer the documented one-shot `:READ?` path when a new reading is required. |
 
 For continuous or externally triggered measurements, explicitly configure the
 trigger model and select a compatible readout path. `:READ?` is not allowed
@@ -75,16 +77,18 @@ with continuous initiation active; `:INITiate:CONTinuous ON` combined with
 - Do not assume the scalar parser can decode a buffer dump, multiple readings,
   binary transfer, or concatenated response. Preserve raw bytes and report
   `UNSUPPORTED` until framing and field order are explicitly implemented.
-- The Model 2000 manual documents ASCII-only RS-232 behavior for certain
-  transfers; do not enable binary over RS-232 without checking the relevant
-  command/interface constraints and error queue.
+- The manual's Appendix B lists `+808 ASCII only with RS-232` (PDF p.212). Use
+  ASCII responses over RS-232; binary formats described for `:FORMat:DATA` are
+  not supported on that interface.
 
 ## Error and status handling
 
-- Parse error-queue replies as `code,message`, preserving the original text and
-  sign. `0,No error` is the empty-queue sentinel, not an empty response.
-- Treat overload (`OVERFLOW` on the display, or `+9.9E37` in ASCII) as a
-  measurement status, not as a finite value. Treat `350, Queue Overflow` as
+- Parse error-queue replies with `--response-type error-queue` as `code,message`;
+  the complete original bytes are preserved in the artifact and the parsed
+  record retains the line. In automatic mode, only the documented `0,No error`
+  and `±350, Queue Overflow` sentinels are classified as queue records.
+- Treat overload (`OVERFLOW` on the display, or `9.9E37` with optional sign in ASCII) as a
+  measurement status, not as a finite value. Treat `±350, Queue Overflow` as
   evidence that earlier error messages may have been lost.
 - For status-register workflows, consult the manual's status-byte, standard
   event, measurement, operation, and questionable register definitions (PDF

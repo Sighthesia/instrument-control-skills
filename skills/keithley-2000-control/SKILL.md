@@ -86,13 +86,17 @@ send a second query while an earlier response is unread.
 1. Establish the already-configured GPIB or RS-232 session with the host-side
    termination settings required by that interface. RS-232 is a direct
    straight-through DB-9 connection, not a null-modem connection; the manual
-   documents 8N1, software flow control, and a factory baud rate of 4800.
+  documents 8N1, software flow control, and a factory baud rate of 4800. For
+  RS-232, the manual lists `+808 ASCII only with RS-232`; use ASCII responses
+  rather than attempting binary transfers.
 2. Send `*IDN?`; preserve the raw response and record vendor, model, serial,
    firmware, interface, and timestamp.
 3. Confirm with the operator or setup record that the Model 2000 is in SCPI
    language. Do not treat a successful `*IDN?` as language confirmation.
-4. Query `*OPT?`, `:SYSTem:VERSion?`, and `:SYSTem:FRSWitch?` when the workflow
-   needs option-card or front/rear-input evidence. Record each query/response.
+4. Query `*OPT?` when the workflow needs option-card evidence and
+   `:SYSTem:FRSWitch?` when it needs front/rear-input evidence. Optionally query
+   `:SYSTem:VERSion?` to record the SCPI standard revision. Record each
+   query/response.
 5. Clear only the status that the caller authorized. `*CLS` clears status
    registers and the error queue; `*RST` resets measurement state but does not
    clear the error queue. Prefer an explicit configuration sequence over an
@@ -117,7 +121,7 @@ send a second query while an earlier response is unread.
 | Fresh one-shot reading with the instrument selecting the function | `:MEASure:<function>?` | Convenience command performs `ABORt; CONFigure; READ?`; it resets/overrides math, buffer, scan, and continuous-trigger context. |
 | Retrieve the latest post-processed value | `:FETCh?` | Does not trigger; may return the same old reading repeatedly. It can miss readings with rapid external triggers. |
 | Retrieve the latest raw or REL-adjusted value | `:SENSe:DATA?` | Does not return math results or the function name; pair with `:FUNCtion?` and a configuration snapshot. |
-| Require a new value when supported | `:DATA:FRESh?` | Use only after checking the active firmware/manual behavior and the current trigger state. |
+| Require a new value | Prefer an explicit one-shot `:READ?` sequence | The supplied Rev. J PDF mentions `:DATA:FRESh?` only as a cross-reference on p.135; it does not include its command description. Do not rely on it without matching firmware documentation or hardware verification. |
 | Repeated readings | Configure trigger/sample count or continuous initiation, then use the documented fetch/buffer path | Do not combine `:INITiate:CONTinuous ON` with `:READ?` or an unsafe `*OPC?` sequence. |
 
 For each artifact record the command sequence, raw bytes, response order,
@@ -162,24 +166,28 @@ read_frame(raw)              -> line frame, terminator/trailing evidence
 parse_metadata(frame)        -> numeric/status/unit/channel tokens
 extract_payload(metadata)    -> raw reading fields
 normalize(metadata, payload) -> scalar-measurement artifact
-validate(artifact, raw)      -> COMPLETE/INCOMPLETE/INVALID/UNVERIFIED/UNSUPPORTED
+validate(artifact, raw, frame) -> COMPLETE/INCOMPLETE/INVALID/UNVERIFIED/UNSUPPORTED
 ```
 
 The default parser accepts the documented ASCII reading shape produced by
 `:FORMat:DATA ASCII` and `:FORMat:ELEMents` combinations:
 
 - reading only: `+1.000000E+01VDC`
-- reading, channel, units: `+1.000000E+01VDC,0,INTCHAN`
-- an explicit test fixture may use comma-separated `value,unit,function,status,count`
-  metadata to exercise validation without claiming it is a vendor response shape.
+- reading with channel/unit element: `+1.000000E+01VDC, 0INTCHAN` (the channel
+  number and `INTCHAN`/`EXTCHAN` marker form one token).
+- The function and acquisition context are supplied separately; multi-field
+  comma-separated test metadata is not supported by this parser.
 
 It preserves the complete original bytes and SHA-256. It recognizes the
-documented overflow sentinel `+9.9E37` as `OVERFLOW`/`UNVERIFIED`, never as a
-finite measurement. Empty, unterminated, malformed, non-finite, missing-unit,
+documented overflow sentinel `9.9E37` (with optional sign, with or without a
+unit suffix) as `OVERFLOW`/`UNVERIFIED`, never as a finite measurement. Empty,
+unterminated, malformed, non-finite, missing-unit,
 and trailing-byte cases fail closed. CSV/multi-reading responses with ambiguous
 element boundaries and IEEE-754 `SREAL`/`DREAL` responses are not guessed by the
 scalar parser; report `UNSUPPORTED` or use a separately documented framing
-implementation.
+implementation. Automatic error-queue detection recognizes only `0,No error`
+and `±350, Queue Overflow`; pass `--response-type error-queue` to parse other
+error messages.
 
 ## Conditional advanced features
 

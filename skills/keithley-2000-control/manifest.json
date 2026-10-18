@@ -31,8 +31,9 @@
     "hardware_verified": false,
     "known_limitations": [
       "No instrument transport or hardware verification is included.",
-      "The parser accepts one ASCII scalar line and one error-queue line only.",
+      "The parser accepts one ASCII scalar line and one error-queue line only; other error-queue codes require explicit error-queue mode.",
       "Multi-reading, binary, and scanner responses are unsupported.",
+      "Automatic error-queue classification recognizes only documented sentinels; other error-queue lines require explicit error-queue mode.",
       "Calibration, fuse continuity, and acquisition freshness are not inferred."
     ]
   },

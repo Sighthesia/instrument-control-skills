@@ -16,9 +16,10 @@ Examples documented by the manual:
 +9.9E37
 ```
 
-These examples are not complete acquisition records. `function`, query command,
-unit, range, NPLC, filter, trigger context, identity, and acquisition freshness
-must be associated from a separate command/configuration record.
+The overflow token is documented without a unit. These examples are not complete
+acquisition records. `function`, query command, unit, range, NPLC, filter,
+trigger context, identity, and acquisition freshness must be associated from a
+separate command/configuration record.
 
 ## Parser stages
 
@@ -59,8 +60,9 @@ The `:SYSTem:ERRor?` response is a separate artifact, not a reading. The manual
 documents a FIFO of up to 10 entries, negative SCPI error codes, positive
 Keithley message codes, and `0,No error` as the empty queue indication (PDF 190,
 194). Preserve message quoting/spacing and line terminator; do not discard
-positive messages. `350, Queue Overflow` signals potentially lost earlier
-errors.
+positive messages. `350, Queue Overflow` or `-350, Queue Overflow` signals
+potentially lost earlier errors. Automatic classification recognizes only these
+sentinels; use explicit error-queue mode for other codes.
 
 ## Provenance and hardware verification
 

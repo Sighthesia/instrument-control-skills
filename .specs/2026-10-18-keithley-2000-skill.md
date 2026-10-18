@@ -48,6 +48,15 @@
 
 - [x] Initial scaffolding
 - [x] Implementation
-- [x] Automated offline tests: 24 passed; hardware verification not performed
+- [x] Automated offline tests: 36 passed; hardware verification not performed
 - [x] README synchronization
-- [x] Final acceptance audit and commit: `79fd741 feat: add Keithley 2000 multimeter skill`
+- [x] Final acceptance audit and commit
+
+## 6. Review-Fix Addendum
+
+- [x] Correct the documented ASCII channel/unit example; add parser regression tests for documented and unsupported shapes.
+- [x] Remove unsupported multi-field test-format claims and use function/unit context separately.
+- [x] Limit automatic error-queue classification to documented sentinels; parse general messages only in explicit error-queue mode; recognize both `350` and `-350` overflow codes.
+- [x] Correct `:SYSTem:VERSion?`, `:DATA:FRESh?`, RS-232 binary-support attribution, and SUPPORT wording.
+- [x] Add manifest hash and parser CLI/error-queue regression checks; add expected-result fixture for documented ASCII reading.
+- [x] Reran full validation and packaging; committed as a separate review-fix change.

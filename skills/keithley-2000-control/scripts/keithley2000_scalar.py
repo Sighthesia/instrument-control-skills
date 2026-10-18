@@ -113,22 +113,17 @@ def read_frame(raw: bytes) -> Frame:
     return Frame(content=raw[:start], terminator=terminator, trailing=raw[end:])
 
 
-def _is_error_queue_message(message: str) -> bool:
-    """Distinguish error text from the documented ``0INTCHAN`` field."""
+def _is_known_error_queue_sentinel(code: int, message: str) -> bool:
+    """Recognize only documented queue sentinels in automatic mode.
 
-    stripped = message.strip()
-    if not stripped:
-        return False
-    if CHANNEL_RE.fullmatch(stripped):
-        return False
-    unquoted = stripped.strip("\"'").strip()
-    if unquoted.casefold() in {"no error", "queue overflow"}:
-        return True
-    if SCALAR_RE.fullmatch(unquoted):
-        return False
-    if re.match(r"^[+-]?(?:\d|\.\d)", unquoted):
-        return False
-    return any(character.isalpha() for character in unquoted)
+    Other error-queue entries need an explicit ``response_type="error-queue"``
+    so an arbitrary comma-separated line is never mislabeled as a status record.
+    """
+
+    normalized = message.strip().strip("\"'").strip().casefold()
+    return (code == 0 and normalized == "no error") or (
+        abs(code) == 350 and normalized == "queue overflow"
+    )
 
 
 def _is_documented_scalar_channel_pair(line: str) -> bool:
@@ -183,19 +178,17 @@ def parse_metadata(frame: Frame, response_type: str = "auto") -> dict[str, Any]:
             "message": error_match.group("message").strip(),
         }
 
-    if (
-        error_match
-        and response_type == "auto"
-        and not _is_documented_scalar_channel_pair(line)
-        and _is_error_queue_message(error_match.group("message"))
-    ):
-        return {
-            "kind": "status-record",
-            "record_type": "error-queue",
-            "raw_line": line,
-            "code": int(error_match.group("code")),
-            "message": error_match.group("message").strip(),
-        }
+    if error_match and response_type == "auto" and not _is_documented_scalar_channel_pair(line):
+        code = int(error_match.group("code"))
+        message = error_match.group("message").strip()
+        if _is_known_error_queue_sentinel(code, message):
+            return {
+                "kind": "status-record",
+                "record_type": "error-queue",
+                "raw_line": line,
+                "code": code,
+                "message": message,
+            }
 
     if response_type == "error-queue":
         raise ParserError("error-queue response must contain an integer code and message", "INVALID")
@@ -232,7 +225,7 @@ def parse_metadata(frame: Frame, response_type: str = "auto") -> dict[str, Any]:
         raise ParserError("reading token is not numeric", "INVALID") from exc
     if not decimal_value.is_finite():
         raise ParserError("non-finite numeric responses are invalid", "INVALID")
-    if response_unit is None and abs(decimal_value) == OVERFLOW_SENTINEL:
+    if abs(decimal_value) == OVERFLOW_SENTINEL:
         reading_status = "OVERFLOW"
         value: float | None = None
     else:
@@ -442,9 +435,10 @@ def validate(
         record = artifact["record"]
         code = record["code"]
         checks.append(_check("error_queue_record", "pass", {"code": code}))
-        if code == 0:
+        message = str(record.get("message", "")).strip().strip("\"'").strip()
+        if code == 0 and message.casefold() == "no error":
             status = "COMPLETE"
-        elif code == 350:
+        elif abs(code) == 350 and message.casefold() == "queue overflow":
             status = "INCOMPLETE"
             reasons.append("instrument_error_queue_overflow")
         else:
@@ -498,7 +492,14 @@ def parse_response(
         frame = read_frame(raw)
         metadata = parse_metadata(frame, response_type=response_type)
         payload = extract_payload(metadata)
-        artifact = normalize(metadata, payload, context)
+        try:
+            artifact = normalize(metadata, payload, context)
+        except ParserError as exc:
+            failure = _failure(raw, exc.status, str(exc), context)
+            failure["kind"] = metadata["kind"]
+            failure["parsed_metadata"] = metadata
+            failure["parsed_payload"] = payload
+            return failure
         artifact["integrity"] = validate(artifact, raw=raw, frame=frame)
         return artifact
     except ParserError as exc:
