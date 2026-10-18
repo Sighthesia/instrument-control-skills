@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-Agent Skills for operating instruments and analyzing the data they return:
+Some agent skills for operating instruments and analyzing the data they return:
 connecting and configuring instruments, parsing their responses, and
 validating data integrity.
 
