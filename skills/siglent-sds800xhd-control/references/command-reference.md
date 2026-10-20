@@ -1,0 +1,210 @@
+# Command Reference (Fallback Index)
+
+这是一份**兜底索引**：只有当按目标加载的任务参考文档和脚本仍无法回答某个命令问题时才加载它；日常应按 `SKILL.md` 的“Progressive Query Reference”优先读取对应任务页，不要一开始就全表通读。
+本文范围仅限本 Skill 内（`SKILL.md`、`references/*.md`、`scripts/*.py`）**已经记录过**的命令，不复制厂商手册，也不补全手册内容；权威完整命令集是厂商编程手册 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`（仓库内 `docs/ref/`）。
+表中没有出现的任何命令，必须先对照手册核实并标注为 `documented` 后才能使用；`SKILL.md` 的安全规则（禁止 `ARM`、`Ready -> Stop`、Stop 后冻结命令集、二进制完整性）始终优先于本表。
+“Source”列给出记录该命令的文件；括号内页码只在原文明确给出时才有；原文未给出页码的条目在 Notes 中注明“手册未给出独立页码”或“需对手册核实”，使用前应回到手册核对。
+
+## IEEE 488.2 common commands
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `*IDN?` | query | — | 返回厂商、型号、序列号、固件；任何型号相关命令之前必须先执行并保存结果。手册印刷 pp. 13-14；discovery 发送 `*IDN?\n`。 | signal-discovery-and-measurement.md (manual pp. 13-14)<br>connection-and-storage.md<br>SKILL.md<br>scripts/discover_scope.py<br>scripts/scope_protocol.py |
+| `*OPC?` | query | — | 挂起操作完成时返回 `1`；不能证明发生过触发。等待设置写入生效时可作为同步点。手册印刷 pp. 13-14。 | signal-discovery-and-measurement.md (manual pp. 13-14) |
+
+## System / communication
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:SYSTem:COMMunicate:LAN:TYPE?` | query | — | 只读确认 LAN 配置类型。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:TYPE` | set | `STATIC` | 有副作用：仅在明确授权、确认网络规划并能处理连接中断时使用；写入后先回读，再重新发现新地址。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:IPADdress?` | query | — | 只读确认当前 IP。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:IPADdress` | set | 字符串，示例如 `"192.168.1.150"` | 引号/字段写法以目标固件为准；会改变可达地址。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:SMASk?` | query | — | 只读确认子网掩码。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:SMASk` | set | 字符串，示例如 `"255.255.255.0"` | 与 `IPADdress` 同批写入并回读。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:GATeway?` | query | — | 只读确认网关。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:GATeway` | set | 字符串，示例如 `"192.168.1.1"` | 与 `IPADdress` 同批写入并回读。 | connection-and-storage.md |
+| `:SYSTem:COMMunicate:LAN:MAC?` | query | — | 只读确认 MAC 地址。 | connection-and-storage.md |
+| `:SYSTem:NSTorage` | set | `<path>,<user>,<pwd>,...`（完整字段由固件决定）；示意 `"//192.168.1.100/ScopeShare","scope-user","<password>",0,0,1,0,0` | 设置网络存储参数；密码查询以 `***` 返回；不要把密码写入日志/仓库/JSON；字段含义与 SMB/NFS 兼容性由固件决定，不能跨固件硬编码。 | connection-and-storage.md |
+| `:SYSTem:NSTorage:CONNect` | event | — | 短命令形式以设备手册为准；连接前先填好 `NSTorage` 参数。 | connection-and-storage.md |
+| `:SYSTem:NSTorage:STATus?` | query | — | 确认返回 `ON` 或手册规定的已连接状态；先用小截图/小 CSV 验证挂载路径。 | connection-and-storage.md |
+
+## Identity / status / acquisition state
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `TRMD?` | query | — | 返回当前触发/采集模式；快照与采集前记录都用它。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `TRMD` | set | `SINGLE`（新采集）、`AUTO`（显式恢复运行，例如 `scope_restore_run_mode`） | `TRMD SINGLE` 是唯一接受的单次启动操作；Stop 后禁止 `TRMD`；不得自动恢复 `TRMD AUTO`。 | SKILL.md<br>connection-and-storage.md<br>programming-guide.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `SAST?` | query | — | 采集状态：`Ready` -> `Stop` 是有效采集的唯一证据；Stop 前未见过 Ready 不算新采集；轮询超时不得自动重试。快照中记录为 `acquisition_state`。 | SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `STOP` | event | — | Stop 后禁止发送；在不可变读取期间发送会破坏帧证据。`scope_protocol` 将其列入 `FORBIDDEN_AFTER_STOP`。 | SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `RUN` | event | — | Stop 后禁止发送。 | SKILL.md<br>scripts/scope_protocol.py |
+| `ARM` | event | — | **禁止发送**。固件 `4.8.12.1.1.6.5` 上 `ARM` 被明确拒绝；`scope_arm_single` 只发送 `TRMD SINGLE`。 | SKILL.md<br>programming-guide.md<br>scripts/scope_protocol.py |
+| `:TRIGger:STATus?` | query | — | 返回 `Arm`、`Ready`、`Auto`、`Trig'd`、`Stop` 或 `Roll`。手册印刷 pp. 243-244。 | signal-discovery-and-measurement.md (manual pp. 243-244) |
+| `:TRIGger:FREQuency?` | query | — | 硬件频率计数器（Hz）；`0` 表示无有效计数结果，不等于无信号。手册印刷 pp. 243-244。 | signal-discovery-and-measurement.md (manual pp. 243-244) |
+
+## Acquisition / horizontal timebase
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:ACQuire:NUMACq?` | query | — | 已采集帧数；水平/垂直变更等影响采集的操作会使其复位；不是通用平均完成标志。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23) |
+| `:ACQuire:POINts?` / `ACQ:POIN?` | query | — | 当前记录点数（`scope_record_points`）；用于与描述符点数比对判断 `COMPLETE`/`INCOMPLETE`。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py |
+| `:ACQuire:SRATe?` / `SARA?` | query | — | 当前采样率（Sa/s）。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `:ACQuire:MDEPth?` / `ACQ:MDEP?` | query | — | 当前存储深度档位；SDS800X HD 按活动通道数列出 100M/50M/25M。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
+| `ACQ:MDEP` | set | `100M`、`50M`、`25M`（`configure_memory_depth` 仅接受这三档；默认按通道数 1/2/3/4 取 100M/50M/25M/25M） | 必须在 `TRMD SINGLE` 之前写入；写入后回读校验；不可变读取期间禁止。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
+| `:TIMebase:SCALe?` / `TIM:SCAL?` / `TDIV?` | query | — | 主时基（s/div）；左对齐触发策略先读取它计算 `Delay`，写入后再回读校验。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `:TIMebase:DELay?` / `TIM:DEL?` / `TRDL?` | query | — | 水平延迟（s）；`TRDL?` 为旧式字段，延迟符号约定不要与新式 `TIMebase:DELay?` 混用。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `TIM:DEL` | set | 秒，`(5 - margin_div) * Timebase`（`margin_div` 取值 (0, 5]） | 触发跟随窗口策略的显式可选项；只在 `TRMD SINGLE` 之前写，写完回读；与 `--existing-stopped` 不兼容。 | signal-discovery-and-measurement.md<br>SKILL.md<br>scripts/scope_protocol.py |
+| `:TIMebase:REFerence:POSition?` / `TIM:REF:POS?` | query | 0..100（百分比） | 延迟固定展开时的水平参考位置；写入后回读。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py |
+| `TIM:REF:POS` | set | 整数 0..100 | 可选写入；`capture_scope.py --reference-position` 暴露；仅在采集前使用。 | signal-discovery-and-measurement.md<br>SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `TDIV` | set | — | 时基写入；Stop 后禁止（列入 `FORBIDDEN_AFTER_STOP`），会改变采集上下文。 | scripts/scope_protocol.py |
+
+## Trigger
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `TRSE` | set | `EDGE,SR,C1,HT,OFF`（handover 记录的唯一形式） | 设置边沿触发源/类型；必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `C1:TRSL` | set | `POS` | 边沿斜率；必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `C1:TRLV` | set | 电压值，示例 `2.5`（V） | 边沿触发电平；必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `:TRIGger:EDGE:LEVel?` | query | — | 边沿触发阈值（V），只读快照用。手册未给出独立页码。 | signal-discovery-and-measurement.md |
+
+## Channel / vertical
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:CHANnel<n>:SCALe?` | query | `n` = 1..4；长形式 | 每通道 V/div；`C<n>:VDIV?` 为脚本使用的短形式。手册印刷 pp. 25-29。 | signal-discovery-and-measurement.md (manual pp. 25-29) |
+| `:CHANnel<n>:OFFSet?` | query | `n` = 1..4 | 每通道直流偏移；短形式 `C<n>:OFST?`。手册印刷 pp. 25-29。 | signal-discovery-and-measurement.md (manual pp. 25-29) |
+| `:CHANnel<n>:SWITch?` | query | `n` = 1..4 | 通道开关状态。手册印刷 pp. 25-29。 | signal-discovery-and-measurement.md (manual pp. 25-29) |
+| `:CHANnel<n>:COUPling?` | query | `n` = 1..4 | AC/DC/GND 耦合。手册印刷 pp. 25-29。 | signal-discovery-and-measurement.md (manual pp. 25-29) |
+| `:CHANnel<n>:PROBe?` | query | `n` = 1..4 | 探头衰减系数。手册印刷 pp. 25-29。 | signal-discovery-and-measurement.md (manual pp. 25-29) |
+| `C<n>:VDIV?` | query | `n` = 1..4 | 短形式 V/div 回读；旧式读取时与 `OFST?` 一起记录到配置快照。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `C<n>:VDIV` | set | 示例 `C1:VDIV 2`、`C2:VDIV 2`、`C3:VDIV 5`、`C4:VDIV 2` | 写入会改变垂直刻度并改变采集上下文；Stop 后禁止。 | SKILL.md<br>scripts/scope_protocol.py |
+| `C<n>:OFST?` | query | `n` = 1..4 | 短形式偏移回读。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `C<n>:OFST` | set | 示例 `C1:OFST 0` … `C4:OFST 0`（V） | 写入会改变垂直偏移并改变采集上下文；Stop 后禁止。 | SKILL.md<br>scripts/scope_protocol.py |
+| `VDIV` / `OFST`（无通道前缀） | set | — | 在 `FORBIDDEN_AFTER_STOP` 中按前缀禁止；属于垂直配置写入（本表不另立行）。 | scripts/scope_protocol.py |
+
+## Measurement
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:MEASure:SIMPle:SOURce?` | query | — | 简单测量源，例如返回 `C1`；仅在源身份不明确时读取。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:MEASure:SIMPle:VALue?` | query | 必带参数：`PKPK`、`MAX`、`MIN`、`AMPL`、`MEAN`、`RMS`、`PER`、`FREQ`、`PWID`、`NWID`、`DUTY`、`RISE`、`FALL`（以及原文列出的计数/面积类项目）或 `ALL` | 不能静默丢弃参数；`ALL` 查询全部基本测量项，**不保证**为单一标量，必须用保存完整响应的 reader。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:MEASure:ADVanced:P1:TYPE?` | query | `n` = 1..12（P1..P12 槽位） | 先读槽位类型再解释数值。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:MEASure:ADVanced:P1:SOURce1?` | query | `n` = 1..12 | 槽位源通道。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:MEASure:ADVanced:P1:VALue?` | query | `n` = 1..12 | 槽位测量值。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:MEASure:ADVanced:P1:STATistics?` | query | `ALL`、`CURRent`、`MEAN`、`MAXimum`、`MINimum`、`STDev`、`COUNt` | 参数必填；示例 `P1:STATistics? MEAN`。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:MEASure:ADVanced:P1:SHIStory?` | query | 可选计数，示例 `5` | 返回 `Count=n,value...`；是有界的测量统计历史，不必然是墙钟时间线；`n` = 1..12 槽位。手册印刷 pp. 164-183。 | signal-discovery-and-measurement.md (manual pp. 164-183) |
+| `:FORMat:DATA` | set/query | — | 原文只记录其“控制数值精度”作用，用于计数器读数（7 位测量精度、默认 3 位有效数字）；具体参数未在 Skill 内记录，需对手册核实。 | counter-cursor-and-history.md |
+| `AUToset` | event | — | 手册记录的状态改变便利命令；低于 100 Hz 的信号不推荐；仅在明确要求时使用，受控调参应改用有界 V/div、offset、时基与触发电平并回读。 | signal-discovery-and-measurement.md |
+
+## Waveform transfer (modern WAV)
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `WAV:SOURce` / `:WAVeform:SOURce` | set | `C1`、`C2`、`C3`、`C4` | 改变传输视图；在 `Stop` 后属于显式 `configured_capture` 路径，不可变模式禁用。手册印刷 pp. 383-394。 | screenshot-and-waveform.md (manual pp. 383-394)<br>SKILL.md<br>programming-guide.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:PREamble?` / `:WAVeform:PREamble?` | query | — | 返回二进制块（346 字节小端 WAVEDESC），不是 ASCII；解析偏移见 `programming-guide.md`（含 `wave_array_1`、`wave_array_count`、`read_frames`、`sum_frame` 等）。手册印刷 pp. 383-394。 | screenshot-and-waveform.md (manual pp. 383-394)<br>connection-and-storage.md<br>programming-guide.md<br>SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:MAXPoint?` | query | — | 单次传输最大点数；用于选择分段步长。手册 5.23（PDF pp. 411-422）。 | programming-guide.md (manual 5.23, PDF pp. 411-422)<br>connection-and-storage.md<br>scripts/capture_scope.py |
+| `WAV:WIDTh` / `:WAVeform:WIDTh` | set | `WORD`（原文示例；脚本 `--wav-width` 另有 `BYTE`） | 前导码 nominal bits > 8 时必须用 `WORD`；`BYTE` 只用于明确标注为有损的历史对比；写入改变传输视图，不可变模式禁用。手册印刷 pp. 383-394。 | SKILL.md<br>programming-guide.md<br>screenshot-and-waveform.md (manual pp. 383-394)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:WIDT?` | query | — | 宽度回读，脚本与请求值比对。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:BYTeorder` / `:WAVeform:BYTeorder` | set | `LSB`（WORD 传输） | 写完必须读回 `WAV:BYT?` 确认；WORD 电压标定仍未验证。 | SKILL.md<br>programming-guide.md<br>screenshot-and-waveform.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:BYT?` | query | — | 字节序回读（期望 `LSB`）。 | SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:INTerval` / `:WAVeform:INTerval` | set | `1`（抽点间隔 1，不抽点） | 读回 `WAV:INT?` 必须为 1；写入改变传输视图。 | SKILL.md<br>programming-guide.md<br>screenshot-and-waveform.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:INT?` | query | — | 抽点参数回读。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:STARt` / `:WAVeform:STARt` | set | 从 0 起始的点索引 `<zero-based-point>` | 只控制切片起点，不改变记录长度；每段写后回读 `WAV:STAR?` 校验。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>screenshot-and-waveform.md<br>connection-and-storage.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:STAR?` | query | — | 起点回读，必须等于请求值。 | scripts/scope_protocol.py |
+| `WAV:POINt` / `:WAVeform:POINt` | set | 点数 `<count>` | 与 `STARt` 共同定义切片；每段写后回读 `WAV:POIN?` 校验。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>screenshot-and-waveform.md<br>connection-and-storage.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:POIN?` | query | — | 点数回读，必须等于请求值。 | scripts/scope_protocol.py |
+| `WAV:DATA?` / `:WAVeform:DATA?` | query | — | IEEE 488.2 二进制块；BYTE 期望 `count` 字节、WORD 期望 `count * 2` 字节；保留前缀/头/载荷/SHA-256；短载荷即 `INCOMPLETE`/`INVALID`。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>connection-and-storage.md<br>screenshot-and-waveform.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `:WAVeform:SEQuence?` | query | — | 分段采集启用后才有意义；返回 `<value1>,<value2>`，未启用分段时目标返回 `4294967295,1`，**不得**当作有效帧号；按 `PREamble?` 的 `read_frames`/`sum_frame` 计算分片读取次数。手册印刷 pp. 383-394。 | screenshot-and-waveform.md (manual pp. 383-394) |
+| `CHDR` | set | `OFF` | 关闭命令头开启状态命令；在采集准备序列中先于通道/触发设置。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `WFSU?` | query | — | 波形设置回读（`waveform_setup`），快照与旧式读取都记录；Stop 后查询允许。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WFSU` | set | `SP,1,NP,0,FP,0`（handover 记录的唯一形式） | **会替换/刷新已停止帧**；Stop 后的不可变读取中禁止；仅在 `configured_capture` 且 `--wfsu` 显式给出时使用，并逐条记录。 | SKILL.md<br>programming-guide.md<br>connection-and-storage.md<br>scripts/scope_protocol.py<br>scripts/test_scope_protocol.py |
+
+## Waveform transfer (legacy stopped frame)
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `C<n>:WF? DAT2` | query | `n` = 1..4 | 旧式 8 位载荷（`1000` 字节 = `1000` 点）；不可变读取必须先对**所有**请求通道发 `WF? DAT2` 并保存，之后才允许 `WF? DESC`；缺任一通道的 DAT2 时脚本会拒绝 DESC。 | SKILL.md<br>programming-guide.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `C<n>:WF? DESC` | query | `n` = 1..4 | 描述符（WAVEDESC）；只能作为 DAT2 全部完成后的独立诊断步骤；不可作为新的触发证据。 | SKILL.md<br>programming-guide.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+
+## Screenshot / print
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:PRINt?` | query | `PNG`；或 `BMP[,NORMal\|INVerted]` | 返回二进制块，不是 ASCII 标量；必须用保字节二进制 reader，禁止 `readline()`。手册印刷 p. 15；示例 pp. 494-495。 | screenshot-and-waveform.md (manual p. 15, pp. 494-495)<br>connection-and-storage.md |
+
+## Counter
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:COUNter?` | query | — | 计数器开关状态。手册印刷 pp. 31-35。 | counter-cursor-and-history.md (manual pp. 31-35) |
+| `:COUNter:MODE?` | query | 返回 `FREQuency`、`PERiod` 或 `TOTalizer` | 当前值含义取决于模式；只测模拟通道输入。手册印刷 pp. 31-35。 | counter-cursor-and-history.md (manual pp. 31-35) |
+| `:COUNter:SOURce?` | query | — | 计数器源通道。手册印刷 pp. 31-35。 | counter-cursor-and-history.md (manual pp. 31-35) |
+| `:COUNter:CURRent?` | query | — | 当前值；目标实测为 `0.00E+00`（未启用/默认态）。手册印刷 pp. 31-35。 | counter-cursor-and-history.md (manual pp. 31-35) |
+| `:COUNter:STATistics?` | query | — | 统计开关；目标实测返回 `OFF`；仅频率/周期模式有文档统计。手册印刷 pp. 31-35。 | counter-cursor-and-history.md (manual pp. 31-35) |
+| `:COUNter:STATistics:VALue?` | query | — | 格式 `<current>,<mean>,<min>,<max>,<stdev>,<count>`；统计关闭时返回 `OFF`。手册印刷 pp. 31-35。 | counter-cursor-and-history.md (manual pp. 31-35) |
+
+## Cursor
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:CURSor:MODE?` | query | 返回 `TRACk`、`MANual`、`MEASure`；手动模式另有 `X`/`Y`/`XY` 选择 | 光标未启用时查询可能超时，不等于命令不支持。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:X1?` | query | — | 第一个 X 光标位置。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:X2?` | query | — | 第二个 X 光标位置。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:XDELta?` | query | — | 返回 `X2-X1`（s）。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:IXDelta?` | query | — | 返回 `1/(X2-X1)`（Hz）。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:Y1?` | query | — | 第一个 Y 光标位置。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:Y2?` | query | — | 第二个 Y 光标位置。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+| `:CURSor:YDELta?` | query | — | 返回 `Y2-Y1`（通道垂直单位）。手册印刷 pp. 38-45。 | counter-cursor-and-history.md (manual pp. 38-45) |
+
+## History
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:HISTORy:TIME?` | query | — | 返回当前选中历史帧的 `HH:MM:SS.ffffff`，不含日期；无有效历史帧时可能超时，不等于不支持；历史帧选择/回放会改变仪器视图，不可变读取期间禁止。手册印刷 p. 163。 | anomaly-search-and-mask-testing.md (manual p. 163)<br>counter-cursor-and-history.md (manual p. 163) |
+
+## Protocol decode
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:DECode:BUS<n>:PROTocol?` | query | `n` = 1、2；返回 `IIC`、`SPI`、`UART`、`CAN`、`LIN`、`FLEXray`、`CANFd`、`IIS`、`M1553`、`SENT`、`MANchester`、`ARINC429`/`A429`、`USB20` | 可用性取决于型号/选件；原文写作用于 bus 1（`BUS1`）。手册印刷 pp. 71-72。 | protocol-decode.md (manual pp. 71-72) |
+| `:DECode:LIST?` | query | 返回 `OFF`、`D1` 或 `D2` | 当前列表显示选择。手册印刷 pp. 68-70。 | protocol-decode.md (manual pp. 68-70) |
+| `:DECode:LIST:LINE?` | query | 整数 1-7 | UI 显示行数，不是解码帧总数。手册印刷 pp. 68-70。 | protocol-decode.md (manual pp. 68-70) |
+| `:DECode:LIST<n>:RESult?` | query | `n` = 1、2 | 列表/总线 1 或 2 的完整 ASCII 解码表（逗号分隔字段、换行分隔记录、含表头）；事件分析首选；必须用保留全部行的 reader；先解析表头，不假设固定列。手册印刷 pp. 68-70。 | protocol-decode.md (manual pp. 68-70) |
+| `:DECode:BUS<n>:RESult?` | query | `n` = 1、2 | 可见总线摘要（逗号分隔字段、分号分隔帧），事件多时可能不完整；仅作屏幕摘要核对。手册印刷 pp. 71-72。 | protocol-decode.md (manual pp. 71-72) |
+
+协议专用解码设置（协议/源/阈值/速率等）只在手册印刷 pp. 73-148 提及，Skill 未记录具体命令，见“Coverage gaps”。
+
+## Search / anomaly
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:SEARch?` | query | — | 搜索使能状态。手册印刷 pp. 207-235。 | anomaly-search-and-mask-testing.md (manual pp. 207-235) |
+| `:SEARch:MODE?` | query | 返回 `EDGE`、`SLOPe`、`PULSE`、`INTerval` 或 `RUNT` | 必须先确认当前模式与源/极性/阈值/限制再解释计数。手册印刷 pp. 207-235。 | anomaly-search-and-mask-testing.md (manual pp. 207-235) |
+| `:SEARch:COUNT?` | query | — | 当前屏幕内的搜索事件数，不是全历史累计；目标实测返回 `0`。手册印刷 pp. 207-235。 | anomaly-search-and-mask-testing.md (manual pp. 207-235) |
+| `:SEARch:EVENt?` | query | — | 停止采集时当前定位到的事件帧索引；目标实测返回 `0`。手册印刷 pp. 207-235。 | anomaly-search-and-mask-testing.md (manual pp. 207-235) |
+
+## Mask test
+
+| Command | Type | Parameters / range | Notes | Source |
+|---|---|---|---|---|
+| `:MTESt?` | query | — | 掩码测试查询；响应形如 `FAIL,<n>,PASS,<n>,TOTAL,<n>`；必须检查使能状态、源、掩码/测试类型与总数。手册印刷 pp. 190-195。 | anomaly-search-and-mask-testing.md (manual pp. 190-195) |
+| `:MTESt:COUNt?` | query | — | 计数；`TOTAL=0` 表示未评估样本/帧，不等于通过；计数器单独不足以判定 PASS/FAIL。手册印刷 pp. 190-195。 | anomaly-search-and-mask-testing.md (manual pp. 190-195) |
+
+## Coverage gaps
+
+本文件之前，Skill 内没有任何完整命令枚举；现有文档只覆盖发现/连接、采集与传输、测量、解码、搜索/掩码、计数器/光标/历史、截图与 PDF 相关路径。以下子系统手册有覆盖但本 Skill **未记录**具体命令，使用时必须回查 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 并据此标注 `documented`：
+
+- **IEEE 488.2 其余命令**：仅记录了 `*IDN?` 与 `*OPC?`；`*RST`、`*CLS`、`*ESE`/`*ESE?`、`*ESR?`、`*SRE`/`*SRE?`、`*STB?`、`*OPC`、`*TRG`、`*SAV`/`*RCL`、`*TST?` 等均未在 Skill 内出现。
+- **错误队列与状态寄存器**：未记录任何查询（手册印刷 pp. 13-14 页范围只确认了 ID/`*OPC?`）。
+- **系统设置**：`SYSTem` 除 LAN 与 `NSTorage` 外其余子树的命令未记录；`NSTorage` 各字段的完整取值也未记录。
+- **通道/垂直写入**：只记录了 `VDIV`、`OFST`；开关、耦合、带宽限制、探头写入、反相、单位、标签等命令未记录。
+- **时基/采集写入**：只记录了 `ACQ:MDEP`、`TIM:DEL`、`TIM:REF:POS`、`TDIV`；`SARA` 写入、分段/平均/峰值检测等采集模式、`ACQ:MDEP` 之外的记录长度控制未记录。
+- **触发系统**：只记录了边沿触发的一条完整序列；脉宽、欠幅、斜率、超时、视频、串行等触发类型，以及触发释抑/延迟/耦合/输出命令未记录。
+- **测量**：简单测量的完整参数与门限/参考电平设置未记录；高级测量只记录 P1..P12 的五类查询，统计复位/开关与门限设置未记录。
+- **波形传输**：只记录了现代 WAV 与旧式 `C<n>:WF? DAT2/DESC`；`WAV:SOURce` 的数字通道/I2C 等扩展源、历史帧/存储媒介选择（`MEMory`/`SAVE` 类）未记录。
+- **文件与保存**：屏幕/波形保存到 U 盘或网络存储的命令（`SAVE`、`MFUNction` 等）未记录；`NSTorage` 只能覆盖“示波器挂载电脑共享目录”这一条路径。
+- **协议解码**：只记录 5 条总线/列表查询；手册印刷 pp. 73-148 的协议专用设置（I2C/SPI/UART/CAN/LIN 等的源、阈值、位速、帧格式）与解码触发电平未记录。
+- **搜索与掩码**：只记录 4 条搜索查询与 2 条掩码查询；各搜索模式参数、事件导航（上一/下一事件）、掩码生成/编辑/使能与模板来源未记录。
+- **计数器/光标/历史**：只记录计数器 6 条查询、光标 8 条查询；写入/使能命令与历史帧选择/回放命令未记录。
+- **数字通道与选件**：MSO 数字通道、任意波形发生器、频谱/LabNotebook 等选件命令未记录，且数字通道本身为选件，不得假设已安装。
+- **网络与远程控制周边**：VXI-11/Web 控制、凭据与安全设置、固件升级等命令未记录。
