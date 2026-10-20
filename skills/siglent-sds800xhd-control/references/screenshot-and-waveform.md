@@ -5,7 +5,9 @@ Load this reference when the agent needs visual inspection, raw waveform samples
 ## Screenshot
 
 - **Manual-supported SCPI path**: `:PRINt? PNG` or `:PRINt? BMP[,NORMal|INVerted]`. The manual specifies a binary screenshot response. `:PRINt?` is not a scalar ASCII query; use a byte-preserving binary reader.
+- `:PRINt?` cannot hide the on-screen menus. When a menu-free image is needed, use the file path instead: `:SAVe:IMAGe "<path>",<BMP|JPG|PNG>,<ON|OFF>,MOFf` (manual printed p. 203). `MOFf` hides the top and right menus, `MON` keeps them; `invert ON` gives a light background for printing. Paths are `local/...` (internal), `net_storage/...` (mounted share), or `U-disk0/...`. This writes a file, so it needs authorization and must not overwrite an existing name.
 - Inspect screenshots for clipping, ringing, pulses, setup mistakes, and on-screen decode/status context. A screenshot is evidence of display state, not a substitute for complete samples or a measurement report.
+- `:DISPlay:PERSistence` (`OFF`, `INFinite`, `1S`, `5S`, `10S`, `30S` on SDS800X HD) keeps previous acquisitions on screen; it is how an intermittent glitch becomes visible in a screenshot at all. Record the setting with any screenshot used as evidence.
 
 ## Preferred Modern Waveform Transfer
 
@@ -48,6 +50,8 @@ Do not infer full record length from a CSV/downsampled point limit. Compare scop
 Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
 
 - `:PRINt?`: printed p. 15; screenshot example pp. 494-495.
+- `:SAVe:IMAGe` (file screenshot, menu on/off): printed p. 203.
+- `:DISPlay:PERSistence`: printed p. 133.
 - `WAVeform` command system and preamble: printed pp. 383-394.
 - Analog reconstruction and slicing example: printed pp. 451-454.
 - Target transfer verification and parser details: [`programming-guide.md`](programming-guide.md) and [`../SKILL.md`](../SKILL.md).

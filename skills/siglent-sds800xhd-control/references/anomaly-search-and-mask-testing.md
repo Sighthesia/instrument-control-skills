@@ -4,29 +4,32 @@ For long motor captures, use the local analyzer's time-bounded workflow before e
 
 Load this reference when the symptom is intermittent runt/glitch/pulse-width/interval/slope behavior or a compliance/mask failure. These features require setup before reading results; do not enable or reconfigure them while preserving an immutable stopped frame.
 
-## Search Results
+## Search Configuration
 
-Manual-supported; `COUNT?` and `EVENt?` were exercised on the target and returned `0` in the current state:
+The queries below report results only for whatever configuration was last active. Search is off by default, so `COUNT?` returning `0` usually means "not configured", not "no anomaly".
 
-| Query | Meaning |
-|---|---|
-| `:SEARch?` | Search enable state. |
-| `:SEARch:MODE?` | Search mode: `EDGE`, `SLOPe`, `PULSE`, `INTerval`, or `RUNT`. |
-| `:SEARch:COUNT?` | Number of search events on the current screen; not a lifetime or full-history total. |
-| `:SEARch:EVENt?` | Event-frame index currently located when acquisition is stopped. |
+```text
+:SEARch {ON|OFF}
+:SEARch:MODE {EDGE|SLOPe|PULSE|INTerval|RUNT}
+:SEARch:COUNT?
+:SEARch:EVENt?
+```
 
-Search parameters are mode-specific. Read the selected mode's source, polarity/slope, threshold and limit before interpreting the count. Search configuration and event navigation can change display/acquisition context. Configure it only with explicit authorization and before a fresh acquisition, then capture/stop and query results.
+Per-mode parameters follow the selected mode: `:SEARch:EDGE:*`, `:SEARch:SLOPe:*`, `:SEARch:PULSE:*`, `:SEARch:INTerval:*`, `:SEARch:RUNT:*` (source, slope/polarity, threshold, and upper/lower limits, printed pp. 209-234). Set the mode first, then its parameters, then enable search. Enabling search requires a fresh acquisition before `COUNT?` reflects the configured search.
 
 ## Mask Test Results
 
-Target-tested query shape; response is `FAIL,<n>,PASS,<n>,TOTAL,<n>`:
+Mask testing needs a mask and an enabled test before a count is meaningful. `:MTESt:COUNt?` alone cannot pass or fail anything.
 
 ```text
+:MTESt:MASK:LOAD {INTernal,<num>|EXTernal,<path>}
+:MTESt:TYPE {ALL_IN|ALL_OUT|ANY_IN|ANY_OUT}
+:MTESt {ON|OFF}
 :MTESt?
 :MTESt:COUNt?
 ```
 
-The counter alone is not a complete pass/fail conclusion. Check test enabled state, selected source, mask/test type, and total count. `TOTAL=0` means no evaluated samples/frames, not pass. The mask/template setup and operation are state-changing; only configure when the caller requests a compliance test and a valid mask is available.
+`ALL_IN` passes only when every waveform point is inside the mask; a single point outside fails it. `ALL_OUT`, `ANY_IN`, and `ANY_OUT` invert that logic, so a PASS/FAIL figure is meaningless without the recorded type. Response shape is `FAIL,<n>,PASS,<n>,TOTAL,<n>`; `TOTAL=0` means no evaluated samples, not pass. Mask creation, editing, and loading write files or internal slots, so treat them as authorized writes and never overwrite operator masks.
 
 ## History
 
@@ -36,7 +39,7 @@ Manual-supported, target query is conditional:
 :HISTORy:TIME?
 ```
 
-Returns `HH:MM:SS.ffffff` for the currently selected history frame. This does not contain a calendar date. A timeout can mean there is no valid selected history frame or the feature is inactive; do not automatically classify the command as unsupported. History frame selection/playback changes instrument view and must not be used during an immutable read.
+Returns `HH:MM:SS.ffffff` for the currently selected history frame. This does not contain a calendar date; pair it with `:SYSTem:DATE?`/`:SYSTem:TIME?` when wall-clock time matters. A timeout can mean there is no valid selected history frame or the feature is inactive; do not automatically classify the command as unsupported. History frame selection/playback changes instrument view and must not be used during an immutable read.
 
 ## Interpretation Rules
 
@@ -49,6 +52,6 @@ Returns `HH:MM:SS.ffffff` for the currently selected history frame. This does no
 
 Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
 
-- Search mode/count/event and mode-specific configuration: printed pp. 207-235.
-- Mask test count and test state: printed pp. 190-195.
+- Search enable, mode, count, event, and mode-specific configuration: printed pp. 207-234.
+- Mask test type, mask load, operate, count: printed pp. 218-223.
 - History frame timestamp: printed p. 163.

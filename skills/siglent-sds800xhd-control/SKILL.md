@@ -9,7 +9,7 @@ Use this skill whenever an AI needs to operate an SDS800X HD series oscilloscope
 
 ## Non-negotiable Safety Rules
 
-- Never send `ARM`. `TRMD SINGLE` is the only accepted single-shot start operation on firmware `4.8.12.1.1.6.5`.
+- Never send `ARM`. `TRMD SINGLE` is the only accepted single-shot start operation on firmware `4.8.12.1.1.6.5`. `TRMD` is a firmware-verified short form; the manual's documented spelling is `:TRIGger:MODE SINGle`, which is the same operation (manual printed pp. 243-244). The manual contains no `ARM` command at all, and the target firmware rejected it; both facts stay, but attribute them correctly.
 - A valid capture requires the observed state transition `Ready -> Stop`. A `Stop` observed without a prior `Ready` is not proof of a new capture.
 - After `Stop`, do not send `STOP`, `ARM`, `RUN`, `TRMD`, trigger/timebase/channel configuration, `WFSU`, or a TCP reconnect while reading the frame.
 - In an immutable legacy read, issue every channel's `WF? DAT2` first. Only after all payloads are saved may the caller explicitly issue `WF? DESC`.
@@ -32,6 +32,8 @@ Load only the reference matching the current debugging goal. Do not read every c
 | Cross-check a command across subsystems, or answer a command question no task reference covers | [Command reference (fallback)](references/command-reference.md) |
 
 The fallback command index is not a starting point: use it only after the matching task reference and the bundled scripts fail to answer the command question. It indexes only the commands this Skill already records; anything missing from it must be verified against the programming guide and labelled `documented` before use, and the safety rules above always take precedence.
+
+Every setting has both a read and a write form. Reads are the default and are safe at any time; writes change the acquisition context, so they belong before `TRMD SINGLE` and never during a stopped-frame read. The most often missed writes are `:ACQuire:MMANagement`/`:ACQuire:SRATe` (sample rate only applies in `FSRate` mode), `:TRIGger:TYPE` (runt/pulse/serial triggering), `:SEARch` and `:MTESt` enable, `:MEASure:SIMPle:ITEM`, and `:FORMat:DATA` (default precision is only 3 significant digits).
 
 Start with the matching reference's read-only snapshot. Use a setup/enable command only when that workflow requires it and the caller authorized changing scope state. Each reference distinguishes target-hardware-tested behavior from manual-documented behavior and notes feature prerequisites.
 

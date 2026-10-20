@@ -55,7 +55,9 @@ WFSU SP,1,NP,0,FP,0
 
 On the target firmware, `ARM` is forbidden. `WFSU` may refresh or replace a stopped frame, so it is never implicit in immutable mode. `DAT2` before `DESC` is required by the handover for this firmware; read all channel DAT2 payloads before any descriptor query.
 
-The programming guide also documents the IEEE block form as `#N<N-Digits><payload length><payload>`. A response may carry bytes before `#`; those bytes are transport prefix, not waveform data.
+These are handover short forms, not manual spellings: `TRMD`, `SAST?`, `TRSE`, `TRSL`, `TRLV`, `TRDL?`, `CHDR`, `WFSU`, `C<n>:VDIV`, and `C<n>:OFST` do not appear anywhere in the programming guide. The manual equivalents are `:TRIGger:MODE`, `:TRIGger:STATus?`, `:TRIGger:EDGE:*`, and `:CHANnel<n>:SCALe`/`:OFFSet`. Cite the firmware when using a short form, and cite the manual when using the long form.
+
+The programming guide documents the IEEE block form as `#N<N-Digits><payload length><payload>`. A response may carry bytes before `#`; that prefix behaviour comes from the handover capture of this firmware, not from the manual, and the bytes are transport prefix, not waveform data.
 
 ## Capture state
 

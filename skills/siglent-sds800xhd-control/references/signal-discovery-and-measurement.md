@@ -43,6 +43,41 @@ post-trigger = (10 - margin_div) * Timebase
 
 For `margin_div=1`, this is `Delay=+4*Timebase`, one division before the trigger and nine divisions after it. Use this only for events expected to continue after the trigger. Set `TIM:SCAL`, `TIM:DEL`, optional `TIM:REF:POS`, and `ACQ:MDEP` before `TRMD SINGLE`; never apply them while reading an existing stopped frame.
 
+## Vertical Channel Control
+
+Every per-channel read in the snapshot table above has a documented setter. Reads are the default; the writes below change the acquisition context, so they belong before `TRMD SINGLE` and never during a stopped-frame read (manual printed pp. 24-30).
+
+| Command | Values | Notes |
+|---|---|---|
+| `:CHANnel<n>:SCALe` | NR3, V/div | Range depends on model and scales with probe attenuation. |
+| `:CHANnel<n>:OFFSet` | NR3, V | Allowed range depends on the vertical scale. |
+| `:CHANnel<n>:SWITch` | `ON`, `OFF` | Channel enable. |
+| `:CHANnel<n>:COUPling` | `AC`, `DC`, `GND` | `GND` disconnects the input; a flat trace is not a zero-volt signal. |
+| `:CHANnel<n>:PROBe` | `DEFault` or `VALue,<ratio>`; ratio `1E-6`..`1E6` | Default 1X. Wrong ratio silently scales every voltage and measurement. |
+| `:CHANnel<n>:BWLimit` | `20M`, `200M`, `FULL` | Bandwidth limit changes rise time and noise. |
+| `:CHANnel<n>:INVert` | `ON`, `OFF` | Displayed polarity only; trigger slope is unaffected. |
+| `:CHANnel<n>:IMPedance` | `ONEMeg`, `FIFTy` | At `FIFTy` (50 Ω) the maximum vertical scale is 1 V/div. |
+| `:CHANnel<n>:UNIT` | `V`, `A` | Changes the unit of measurements, cursors, channel scale, and trigger level, not just the label. A current probe workflow needs `A`; a voltage-in-V assumption is then wrong. |
+| `:CHANnel<n>:SKEW` | NR3, `-1.00E-07`..`1.00E-07` s | Channel-to-channel deskew. |
+| `:CHANnel<n>:LABel` + `:CHANnel<n>:LABel:TEXT` | `ON`/`OFF`; quoted string up to 20 chars | Annotation only; never evidence of the signal. |
+| `:CHANnel<n>:VISible` | `ON`, `OFF` | Display visibility, distinct from `SWITch`. |
+| `:CHANnel:REFerence` | `OFFSet`, `POSition` | Vertical expansion strategy when the scale changes. |
+
+`UNIT A` is the most dangerous of these: after switching a channel to amperes, every voltage figure in this Skill (including the WORD calibration caveat and the trigger level) is expressed in amperes. Record the unit with each measurement.
+
+## Trigger Mode and Type
+
+`TRMD` / `TRMD?` are the firmware-verified short forms used by every script here. The manual does not list `TRMD` at all; its documented spellings are `:TRIGger:MODE` and `:TRIGger:MODE?` (printed pp. 243-244), and `TRMD SINGLE` and `:TRIGger:MODE SINGle` are the same operation. Record which form was sent, and never send `TRMD` after `Stop`.
+
+| Command | Values | Notes |
+|---|---|---|
+| `:TRIGger:MODE` / `TRMD` | `SINGle`, `NORMal`, `AUTO`, `FTRIG` | `FTRIG` forces a frame regardless of the trigger condition. This Skill still uses `TRMD SINGLE` as the only approved single-shot start; `FTRIG` and `NORMal` are recorded for completeness, not recommended for captures that depend on the `Ready -> Stop` proof. |
+| `:TRIGger:STATus?` / `SAST?` | `Arm`, `Ready`, `Auto`, `Trig'd`, `Stop`, `Roll` | The `Ready -> Stop` rule applies to the value, whichever spelling produced it. |
+| `:TRIGger:TYPE` | `EDGE`, `PULSE`, `SLOPe`, `INTerval`, `PATTern`, `RUNT`, `WINDow`, `DROPout`, `VIDeo`, `QUALified`, `NEDGe`, `DELay`, `SHOLd`, `IIC`, `SPI`, `UART`, `LIN`, `CAN`, `FLEXray`, `CANFd`, `IIS`, `M1553`, `SENT`, `A429` | 24 documented types (printed p. 245). Only `EDGE` is verified here. A runt/glitch workflow needs `RUNT` or `PULSE` plus its own parameters; searching cannot be configured without first selecting the type. |
+| `:TRIGger:RUN` / `:TRIGger:STOP` | — | Equivalent to the front-panel Run/Stop key. Both are forbidden after `Stop` while reading a frame; nothing in this Skill sends them automatically. |
+
+Serial, video, and qualified trigger types (`IIC`, `SPI`, `UART`, `LIN`, `CAN`, `FLEXray`, `CANFd`, `IIS`, `M1553`, `SENT`, `A429`, `VIDeo`, `QUALified`, `PATTern`, `SHOLd`) have their own parameter trees on printed pp. 267-410; they are not reproduced here. Availability depends on model and installed options, and most need digital channels. Configure one only after confirming the option and recording the full parameter readback.
+
 ## Sample Rate and Memory Management
 
 `:ACQuire:MMANagement` decides which of the two settings is authoritative. Query it before assuming that a written sample rate or memory depth survived, and write it before the setting it governs (manual printed p. 18).
@@ -77,8 +112,8 @@ Manual-supported, not hardware-tested in this Skill. These change the acquisitio
 | `:ACQuire:TYPE` | `NORMal`, `PEAK`, `AVERage,<times>`, `ERES,<bits>` | `PEAK` can show glitches narrower than one sample; averaging and ERES limit depth and are unavailable while segmented acquisition is on. `<times>` is 4..8192 in powers of two; `<bits>` is 0.5..4.0 in 0.5 steps (manual printed p. 23). |
 | `:ACQuire:INTerpolation` | `ON` (Sinc), `OFF` (linear) | Changes how samples are joined; do not compare measurements taken under different interpolation. |
 | `:ACQuire:SEQuence` | `ON`, `OFF` | Enables segmented acquisition; pair with `:ACQuire:SEQuence:COUNt` and `:WAVeform:SEQuence?`. |
-| `:ACQuire:SEQuence:COUNt` | integer; upper bound depends on model and timebase | Record it with any segmented capture. |
-| `:ACQuire:RESolution` | `8Bits`, `10Bits` | The manual attributes this to SDS2000X Plus; confirm support on the connected model instead of assuming it. |
+| `:ACQuire:SEQuence:COUNt` | integer; upper bound depends on memory depth | Record it with any segmented capture. |
+| `:ACQuire:RESolution` | `8Bits`, `10Bits` (the manual's description mentions SDS2000X Plus; confirm on the connected model instead of assuming it) | ADC resolution. Do not confuse it with the math `ERES` bit setting, which is 0.5-3.0 not 0.5-4.0. |
 | `:ACQuire:CSWeep` | — (event) | Clears sweeps and restarts acquisition, like the front-panel Clear Sweeps key. It is a state change, not cleanup. |
 
 ## Signal Discovery
@@ -97,25 +132,31 @@ Manual-supported, not hardware-tested in this Skill. These change the acquisitio
 Manual-supported, target response not individually checked for each parameter:
 
 ```text
+:MEASure <ON|OFF>                       # global measurement enable
+:MEASure:MODE {SIMPle|ADVanced}
+:MEASure:SIMPle:ITEM <parameter>,<ON|OFF>
 :MEASure:SIMPle:SOURce?                 # source, e.g. C1
 :MEASure:SIMPle:VALue? PKPK             # one requested metric
-:MEASure:SIMPle:VALue? ALL              # all basic measurement values
+:MEASure:SIMPle:VALue? ALL              # all enabled measurement values
 ```
 
-The documented type set includes voltage (`PKPK`, `MAX`, `MIN`, `AMPL`, `MEAN`, `RMS`), timing (`PER`, `FREQ`, `PWID`, `NWID`, `DUTY`, `RISE`, `FALL`), edge counts, areas, and other listed items. `ALL` is documented as querying every basic measurement item. Its result is not guaranteed to be a single scalar.
+The item must be enabled with `:MEASure:SIMPle:ITEM <parameter>,ON` before `VALue?` returns it; a reading that depends on an item nobody enabled is not a measurement result. The manual lists 52 parameters (printed pp. 181-182), including `PKPK`, `MAX`, `MIN`, `AMPL`, `TOP`, `BASE`, `LEVELX`, `CMEAN`, `MEAN`, `STDEV`, `VSTD`, `RMS`, `CRMS`, `MEDIAN`, `CMEDIAN`, `OVSN`, `OVSP`, `FPRE`, `RPRE`, `ULOWer`, `PER`, `FREQ`, `TMAX`, `TMIN`, `PWID`, `NWID`, `DUTY`, `NDUTY`, `WID`, `NBWID`, `DELAY`, `TIMEL`, `RISE`, `FALL`, `RISE20T80`, `FALL80T20`, `CCJ`, `PAREA`, `NAREA`, `AREA`, `ABSAREA`, `CYCLES`, `REDGES`, `FEDGES`, `EDGES`, `PPULSES`, `NPULSES`, `PACArea`, `NACArea`, `ACArea`, `ABSACArea`. `ALL` is documented as querying every basic measurement item; its result is not guaranteed to be a single scalar.
 
 ### Advanced measurements
 
-Manual-supported. Measurement slots are `P1` through `P12`; first query slot type/source before interpreting the value:
+Manual-supported. Measurement slots are `P1` through `P12`; first query slot type/source before interpreting the value. The type is a write-only setting: a slot with no type returns nothing useful.
 
 ```text
-:MEASure:ADVanced:P1:TYPE?
-:MEASure:ADVanced:P1:SOURce1?
-:MEASure:ADVanced:P1:VALue?
-:MEASure:ADVanced:P1:STATistics? MEAN
-:MEASure:ADVanced:P1:STATistics? ALL
-:MEASure:ADVanced:P1:SHIStory? 5
-```
+:MEASure:ADVanced:P<n> {ON|OFF}
+:MEASure:ADVanced:P<n>:TYPE <parameter>
+:MEASure:ADVanced:P<n>:SOURce1 <source>
+:MEASure:ADVanced:P<n>:SOURce2 <source>
+:MEASure:ADVanced:P<n>:VALue?
+:MEASure:ADVanced:P<n>:STATistics? MEAN
+:MEASure:ADVanced:P<n>:STATistics? ALL
+:MEASure:ADVanced:P<n>:SHIStory? 5```
+
+Sources accept `C<n>`, `Z<n>` (zoom, only while zoom is on), `F<x>` (math), `M<m>` (memory), `D<d>` (digital 0-15), and `REF<r>` where `<r>` is `A`..`D`. That is why a voltage-only assumption breaks on a math or reference source.
 
 `STATistics?` accepts `ALL`, `CURRent`, `MEAN`, `MAXimum`, `MINimum`, `STDev`, or `COUNt`. `SHIStory? [count]` returns `Count=n,value...`; it is bounded measurement-statistics history, not necessarily a wall-clock timeline. The manual says history behavior depends on a finite maximum-statistics count; with no limit it returns current measurement data.
 
@@ -127,6 +168,7 @@ These argument-bearing queries must include their arguments exactly as documente
 - Keep the signal comfortably within the vertical range. Use measured min/max and channel scale to avoid clipping, then center using offset and re-read.
 - Estimate a trigger level between stable low/high levels; verify that the selected channel and edge slope match the signal.
 - Require sample rate to cover the signal's relevant bandwidth with margin. A 4-5x fundamental-frequency heuristic is not sufficient for fast edges or harmonics; use edge bandwidth/rise time when known.
+- Set `:FORMat:DATA` before trusting a numeric reading. The default is 3 significant digits; a 7-digit frequency counter or a small ripple measurement is meaningless at that precision. Use `:FORMat:DATA DOUBle` (14 digits) or `:FORMat:DATA CUSTom,<1..64>` when the reading is used in statistics.
 - Every setting write changes acquisition context. Apply only authorized writes before arming a new capture, wait for `*OPC?` as appropriate, and obtain a fresh capture before analysis.
 
 ## Evidence and Manual Pages
@@ -134,11 +176,13 @@ These argument-bearing queries must include their arguments exactly as documente
 Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repository.
 
 - Device ID / `*OPC?`: printed pp. 13-14.
-- Acquisition points, frame count, sample rate: printed pp. 21-23.
+- Numeric precision (`:FORMat:DATA`): printed p. 15.
 - Acquisition mode, interpolation, memory management, memory depth, sample rate, acquisition type: printed pp. 17-23.
-- System remote/local, LAN, NSTorage, date/time, touch, self-calibration: printed pp. 257-266.
-- Channel coupling, probe, V/div, switch: printed pp. 25-29.
+- Acquisition points, frame count, sample rate: printed pp. 21-23.
+- Channel coupling, probe, V/div, switch, bandwidth limit, invert, impedance, unit, skew, label, reference: printed pp. 24-30.
 - Simple/advanced measurement, statistics, history: printed pp. 164-183.
-- Trigger frequency and status: printed pp. 243-244.
+- Trigger frequency, mode, status, run/stop: printed pp. 243-244.
+- Trigger types and per-type parameters: printed pp. 245-410.
 - Timebase: printed pp. 239-242.
+- System remote/local, LAN, NSTorage, date/time, touch, self-calibration: printed pp. 257-266.
 - The manual lists SDS800X HD support from firmware 1.1.3.1; target hardware tested here is firmware 4.8.12.1.1.6.5.

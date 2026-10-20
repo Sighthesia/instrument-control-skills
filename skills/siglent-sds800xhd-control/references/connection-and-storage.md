@@ -151,7 +151,7 @@ VXI-11 广播/发现是否可用取决于 VISA 实现、子网和设备固件；
 :SYSTem:NSTorage:DISConnect
 ```
 
-`NSTorage` 的完整字段顺序为 `<path>,<user>,<pwd>,<anon>,<auto_con>,<rem_path>,<rem_user>,<rem_pwd>`，后五个都是 `1|0` 标志；查询时密码恒返回 `***`（手册印刷 pp. 262-263）。
+`NSTorage` 的完整字段顺序为 `<path>,<user>,<pwd>,<anon>,<auto_con>,<rem_path>,<rem_user>,<rem_pwd>`（手册印刷 pp. 262-263）。含义分别是：`<path>` 服务器挂载路径、`<user>` 用户名、`<pwd>` 密码、`<anon>` 匿名标志（1 = ON）、`<auto_con>` 自动连接标志、`<rem_path>` **记住路径**标志、`<rem_user>` **记住用户名**标志、`<rem_pwd>` **记住密码**标志。后三项是“是否记住”，不是“是否连接”，不要把它们当成连接参数。查询时密码恒返回 `***`。
 
 注意：`NSTorage` 的字段含义和 SMB/NFS 兼容性由固件决定；不要把密码提交到日志、脚本仓库或 JSON。用户原始示例中的 `net_storage/ScopeShare/...` 也应先通过目标设备的文件浏览/保存测试确认，不能跨固件硬编码。
 
