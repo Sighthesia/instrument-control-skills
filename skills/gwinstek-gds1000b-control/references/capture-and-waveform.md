@@ -37,6 +37,32 @@ Recommended gate:
 Do not query `:MEMory?` while acquisition is running; stop first so the record
 cannot change between the block length and its payload.
 
+## Acquisition mode
+
+```text
+:ACQuire:MODe {SAMPle|PDETect|AVERage|?}
+:ACQuire:AVERage {2|4|8|16|32|64|128|256|?}
+:ACQuire:INTERpolation {ET|SINC|?}
+```
+
+All three are setters, not read-only snapshot fields (manual pp. 40-41, 45).
+
+- `PDETect` changes what one "point" means: it reports the min/max excursion per
+  sample interval, so a peak-detect record is not the same signal as a
+  sample-mode record of the same length. It makes narrow glitches visible and
+  inflates apparent noise.
+- `AVERage` needs `:ACQuire:AVERage`; the count is one of 2, 4, 8, 16, 32, 64,
+  128, 256. An averaged record has different noise and different edge noise than
+  a single-shot record, so an averaged capture is not comparable to an
+  unaveraged one.
+- `INTERpolation SINC` reconstructs edges between samples. Rise time, overshoot,
+  and ringing measured from a SINC record are **interpolated**, not sampled.
+  The manual states this model does not support `ET`.
+
+Record the mode, the average count, and the interpolation with every waveform.
+The Skill's default workflow assumes `SAMPle`; if the instrument is left in
+`AVERage` or `PDETect`, the numbers in a report are not sample-mode numbers.
+
 ## Record length
 
 ```text

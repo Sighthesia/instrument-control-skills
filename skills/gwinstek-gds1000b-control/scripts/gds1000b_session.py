@@ -390,8 +390,20 @@ def cmd_query(session: Session, command: str, allow_write: bool = False) -> int:
     return 0
 
 
-def cmd_capture(session: Session, channel: int, timeout: float, poll: float) -> int:
+def cmd_capture(session: Session, channel: int, timeout: float, poll: float,
+                require_normal: bool = True) -> int:
     _validate_channel(channel)
+    # AUTO is documented as "Auto trigger (Untriggered roll)" (manual p. 126) and
+    # *AUTO "acquires data even in the absence of a trigger" (p. 138). In that
+    # mode a single-shot gate proves nothing, so require NORMal unless the caller
+    # explicitly opts out.
+    if require_normal:
+        mode = session.query_text(":TRIGger:MODe?").strip().lstrip("*").upper()
+        if not session.dry_run and mode != "NORMAL":
+            raise SessionError(
+                f"capture requires NORMal trigger mode, instrument reports {mode!r}; "
+                "AUTo is an untriggered roll and cannot prove the frame was triggered"
+            )
     session.send(b":HEADer ON")
     session.send(b":SINGle")
     if session.dry_run:
@@ -408,7 +420,12 @@ def cmd_capture(session: Session, channel: int, timeout: float, poll: float) -> 
         state = last_state.lstrip("*").upper()
         if state == "SAVE":
             break
-        if state not in {"ARMED", "READY", "TRIGGER", "AUTO"}:
+        if state == "AUTO":
+            raise SessionError(
+                "trigger state is AUTO (untriggered roll); the frame was not proven "
+                "to be triggered, so it cannot be reported as a triggered capture"
+            )
+        if state not in {"ARMED", "READY", "TRIGGER"}:
             raise SessionError(f"unexpected trigger state: {last_state!r}")
         time.sleep(max(poll, 0.01))
     else:
@@ -500,6 +517,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_capture = sub.add_parser("capture")
     p_capture.add_argument("--channel", type=int, default=1)
+    p_capture.add_argument("--timeout", type=float, default=10.0)
+    p_capture.add_argument("--poll", type=float, default=0.05)
+    p_capture.add_argument("--allow-auto-trigger", action="store_true",
+                           help="permit AUTo (untriggered roll); the frame is then not a triggered capture")
 
     p_image = sub.add_parser("save-image")
     p_image.add_argument("--path", required=True)
@@ -554,7 +575,10 @@ def main(argv: list[str] | None = None) -> int:
                 allow_unready=args.allow_unready,
             )
         if args.subcommand == "capture":
-            return cmd_capture(session, args.channel, args.timeout, args.poll)
+            return cmd_capture(
+                session, args.channel, args.timeout, args.poll,
+                require_normal=not args.allow_auto_trigger,
+            )
         if args.subcommand == "save-image":
             return cmd_save_image(session, args.path)
         if args.subcommand == "hardcopy":

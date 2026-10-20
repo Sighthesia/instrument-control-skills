@@ -137,6 +137,7 @@ class DryRunTests(unittest.TestCase):
         self.assertEqual(
             session.sent,
             [
+                b":TRIGger:MODe?\n",
                 b":HEADer ON\n",
                 b":SINGle\n",
                 b":TRIGger:STATe?\n",

@@ -155,8 +155,11 @@ terminators on input.
 
 ## Save and screenshot workflow
 
-- Screenshots are files created on the instrument (`Disk:/` or `USB:/`); no
-  SCPI query returns the image or file bytes. Do not claim remote readback.
+- `:DISPlay:OUTPut?` returns the screen image as 16-bit RGB run-length encoded
+  data (manual p. 77). It is the only image readback path; no bundled parser
+  decodes it yet, so treat any saved response as raw bytes, `UNVERIFIED`.
+- Saved files are still not readable: `:SAVe:IMAGe` writes `Disk:/` or
+  `USB:/` and nothing returns those bytes.
 - `:SAVe:IMAGe "Disk:/pic1.PNG"` with `:SAVe:IMAGe:FILEFormat {PNG|BMP}`
   (manual pp. 165-166). Filenames are limited to 8 characters.
 - Hardcopy: `:HARDcopy:MODe {PRINT|SAVE}`, `ASSIGN`, `SAVEFORMat`, `START`
@@ -221,9 +224,13 @@ There is no hardware in this repository's verification path.
 - Waveform voltage conversion is uncalibrated, and the manual's header example
   (`Vertical Scale,5.000E+00`) disagrees with its calculation (`0.5`).
 - `115200 8N1` for USB CDC is an assumption; the manual gives no default.
-- Ethernet is limited to 4-channel models and is off by default; the socket
-  server must be enabled from the front panel.
-- No SCPI command returns screenshot or saved-file bytes.
+- Ethernet socket server is off by default and must be enabled from the front
+  panel. The interface chapter describes it for the GDS-1000B generally (manual
+  pp. 10-11); only `:ETHERnet:DHCP` is restricted to GDS-1074B/GDS-1104B
+  (manual p. 169). Do not assume the socket server is absent on 2-channel
+  models.
+- `:DISPlay:OUTPut?` returns a run-length encoded screen image (manual p. 77);
+  saved files (`Disk:/`, `USB:/`) are still not readable over SCPI.
 - `:HEADer OFF` removes scale and unit metadata; such blocks are `UNVERIFIED`.
 - Advanced features (bus decode, digital filter, some trigger types) are
   option- or model-dependent; the scripts do not implement them.

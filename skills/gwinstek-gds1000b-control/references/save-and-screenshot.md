@@ -5,10 +5,20 @@ pp. 78-80 (hardcopy), pp. 164-168 (save/recall). Support level: `documented`.
 
 ## Critical boundary
 
-**No SCPI command in this manual returns image or saved-file bytes.** A
-screenshot or save operation creates a file on the instrument (`Disk:/` or
-`USB:/`). Retrieving it requires physical media, a separate file-transfer
-mechanism, or operator action. Do not claim remote image readback.
+**Two different things are true, and the earlier version of this page conflated them.**
+
+- `:DISPlay:OUTPut?` **does** return the screen image over SCPI: a 16-bit RGB
+  run-length encoded image framed as `#<n><len>[count][color]...[count][color]<LF>`,
+  where each `[count]`/`[color]` pair is 2 bytes (manual p. 77). So remote image
+  readback exists.
+- **Saved files still cannot be read back.** `:SAVe:IMAGe` writes `Disk:/` or
+  `USB:/`; no command returns those file bytes. Retrieving them still needs
+  physical media, a separate transfer mechanism, or operator action.
+
+The bundled parser does **not** implement the RLE decoder for
+`:DISPlay:OUTPut?`. Until it does, a raw response may be saved as bytes but
+must not be presented as a decoded or verified image.
+
 
 ## Image save
 
@@ -114,9 +124,14 @@ Manual pp. 33-39, 164-167.
 
 ## Verification limits
 
-- There is no documented query that returns image bytes or confirms pixel
-  content.
-- A successful command means the instrument accepted the request; it does not
-  prove the file exists, is readable, or contains the expected screen.
+- `:DISPlay:OUTPut?` is the only image readback path, and it returns the
+  run-length encoded screen, not a PNG and not a saved file. No bundled parser
+  decodes it, so its pixel content remains `UNVERIFIED`.
+- A successful `:SAVe:IMAGe` means the instrument accepted the request; it does
+  not prove the file exists, is readable, or contains the expected screen. The
+  documented failure modes are `-250` mass storage error, `-252` missing media,
+  `-254` media full, `-256` file name not found, `-257` file name error, and
+  `-258` media protected (manual p. 252), so drain `:SYSTem:ERRor?` instead of
+  assuming success.
 - File naming and storage behavior are firmware-dependent and `documented`
   only.

@@ -89,8 +89,12 @@ optional/licensed feature and may not exist on every instrument.
 :TRIGger:FREQuency?
 ```
 
-- `AUTO` forces a sweep when no trigger occurs; `NORMAL` waits. A timeout in
-  `NORMAL` is a configuration result, not a transport bug.
+- `AUTO` is documented as **"Auto trigger (Untriggered roll)"** (manual
+  p. 126): it keeps sweeping even with no trigger, and `*AUTO` means the scope
+  "acquires data even in the absence of a trigger" (p. 138). So in `AUTO` a
+  completed download proves a **frame**, never a **triggered frame**. Use
+  `NORMAL` for any capture whose value depends on a trigger condition. A
+  timeout in `NORMAL` is a configuration result, not a transport bug.
 - `LEVel TTL`/`ECL`/`SETTO50` are presets; `<NRf>` is an explicit level.
 - `HLEVel`/`LLEVel` matter for rise/fall and pulse-runt triggers.
 - `COUPle` changes the trigger signal path and can hide DC or high-frequency
@@ -126,15 +130,18 @@ finding a missing signal but is not a substitute for a valid level.
 `*TRIGGER` (pp. 137-138). Interpretation:
 
 - `*ARMED`: waiting for the trigger condition.
-- `*AUTO`: automatic mode is sweeping without a trigger.
-- `*READY`: pretrigger information is complete and the scope is ready to accept
-  a trigger; it does not mean the post-trigger record is complete.
+- `*AUTO`: automatic mode is sweeping without a trigger; the record is not a
+  triggered record.
+- `*READY`: all pretrigger information has been acquired, and the scope is ready
+  to accept a trigger; it does not mean the post-trigger record is complete.
 - `*TRIGGER`: a trigger occurred and post-trigger acquisition is in progress.
 - `*SAVE`: the scope is in save mode and is not acquiring; do not treat it as
   generic readiness.
 
 For a deterministic download, use `:SINGle`, wait for
-`:ACQuire<X>:STATe?` = 1, then `:STOP`.
+`:Acquire<X>:STATe?` = 1, then `:STOP`. The bundled `capture` command now
+refuses to run unless `:TRIGger:MODe?` is `NORMAL`; pass
+`--allow-auto-trigger` only to record a deliberately untriggered frame.
 
 ## Snapshot fields to record
 

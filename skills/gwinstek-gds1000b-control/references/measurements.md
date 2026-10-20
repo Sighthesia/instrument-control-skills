@@ -88,8 +88,21 @@ return `<NR3>` in the manual's examples.
 - `METHod` chooses how High/Low reference levels are derived.
 - Gating restricts the measurement window to the screen or cursors; results
   from different gating settings are not comparable.
-- Reference percentages (high/low, middle) are documented around pp. 82-84.
-  Record any non-default value with the measurement.
+
+Reference levels are settable, not fixed (manual pp. 83-84):
+
+```text
+:MEASUrement:REFLevel:PERCent:HIGH {<NRf>|?}     # 0-100 %
+:MEASUrement:REFLevel:PERCent:LOW  {<NRf>|?}
+:MEASUrement:REFLevel:PERCent:MID  {<NRf>|?}
+:MEASUrement:REFLevel:PERCent:MID2 {<NRf>|?}
+```
+
+Rise time, fall time, duty cycle, pulse width, and phase are all derived from
+these percentages. A rise time quoted without them is not reproducible: 10/90
+and 20/80 boundaries give different numbers from the same record. Read them
+back and record them with every measurement that depends on a threshold
+crossing.
 
 ## Advanced eight-slot measurements
 
@@ -104,9 +117,20 @@ return `<NR3>` in the manual's examples.
 :MEASUrement:MEAS<X>:STDdev?
 ```
 
-Manual pp. 106-113. `<X>` selects one of eight measurement slots. The slot type
-is set independently, and `VALue?` etc. are only meaningful when the slot is
-enabled and the source is valid.
+Manual pp. 106-113. `<X>` selects one of eight measurement slots. `TYPe` is a
+required write, not a read-only label: set it before expecting `VALue?` to
+return anything meaningful. The documented type enum (manual p. 107) is
+`PK2pk`, `MAXimum`, `MINImum`, `AMPlitude`, `HIGH`, `LOW`, `MEAN`, `CMEan`,
+`RMS`, `CRMs`, `AREa`, `CARea`, `ROVShoot`, `FOVShoot`, `RPReshoot`,
+`FPReshoot`, `FREQuency`, `PERIod`, `RISe`, `FALL`, `PWIdth`, `NWIdth`,
+`PDUTy`, `PPULSE`, `NPULSE`, `PEDGE`, `NEDGE`, `FRRDelay`, `FRFDelay`,
+`FFRDelay`, `FFFDelay`, `LRRDelay`, `LRFDelay`, `LFRDelay`, `LFFDelay`,
+`PHAse`.
+
+`STATE` returns `0`/`1`, not `OFF`/`ON` (manual p. 108). A `0` means the slot is
+off, so a following `VALue?` result must not be reported as a measurement. The
+source, type, and state are set independently, and `VALue?` etc. are only
+meaningful when the slot is enabled and the source is valid.
 
 Statistics:
 

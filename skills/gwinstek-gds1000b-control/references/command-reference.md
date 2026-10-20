@@ -55,7 +55,9 @@ command takes no parameter.
 | `:ACQuire<X>:MEMory?` | query | — | Returns ASCII header, `Waveform Data;` marker, then an IEEE 488.2 definite-length block. Never query while running. Voltages `UNVERIFIED`. | capture-and-waveform.md (manual pp. 41-46)<br>SKILL.md<br>response-and-evidence.md<br>gds1000b_session.py<br>gds1000b_protocol.py |
 | `:ACQuire:RECOrdlength` | set | `{1e3\|1e4\|1e5\|1e6\|1e7}` = 1 000 … 10 000 000 points | At two bytes per point the largest record is about 20 MB; parser limits `MAX_POINTS = 10_000_000`, `MAX_PAYLOAD_BYTES = 20_000_000`. | capture-and-waveform.md (manual p. 45) |
 | `:ACQuire:RECOrdlength?` | query | — | Read it back and record it with the waveform context. | capture-and-waveform.md (manual p. 45)<br>vertical-timebase-trigger.md<br>gds1000b_session.py |
-| `:ACQuire:MODe?` | query | — | Included in the session snapshot before writing state. | gds1000b_session.py |
+| `:ACQuire:MODe` | set/query | `{SAMPle\|PDETect\|AVERage}` | 采样模式（手册 p. 41）。`PDETect` 改变“一个点”的含义；`AVERage` 需配 `:ACQuire:AVERage`。会改变所有幅值/有效值结果，必须随波形记录。 | capture-and-waveform.md (manual pp. 40-41)<br>gds1000b_session.py |
+| `:ACQuire:AVERage` | set/query | `{2\|4\|8\|16\|32\|64\|128\|256}` | 平均次数（手册 p. 40）。缺失时平均模式停留在面板遗留值。 | capture-and-waveform.md (manual p. 40) |
+| `:ACQuire:INTERpolation` | set/query | `{ET\|SINC}` | 内插方式（手册 p. 45）；本机型不支持 `ET`。`SINC` 会让上升时间/过冲变成插值结果。 | capture-and-waveform.md (manual p. 45) |
 | `:HEADer` | set | `{ON\|OFF}` | Default ON (manual p. 46). `OFF` returns only the block: no scale, unit, source, or timebase metadata, so the result is `UNVERIFIED`. | capture-and-waveform.md (manual p. 46)<br>response-and-evidence.md (manual p. 46)<br>SKILL.md<br>gds1000b_session.py |
 | `:HEADer?` | query | — | Reads the header switch state in the session snapshot. | gds1000b_session.py |
 
@@ -183,8 +185,9 @@ source is valid.
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
 | `:MEASUrement:MEAS<X>:SOURCE<X>` | set | `{CH1\|CH2\|CH3\|CH4\|MATH}` | CH3/CH4 need a 4-channel model. | measurements.md (manual pp. 106-113)<br>SKILL.md |
-| `:MEASUrement:MEAS<X>:TYPe` | set | `<type>` (not enumerated by this Skill) | Record the type with the value. | measurements.md (manual pp. 106-113) |
-| `:MEASUrement:MEAS<X>:STATE` | set/query | `{OFF\|ON}` | Confirm the slot is enabled before reading any result. | measurements.md (manual pp. 106-113)<br>SKILL.md |
+| `:MEASUrement:MEAS<X>:TYPe` | set/query | `PK2pk`、`MAXimum`、`MINImum`、`AMPlitude`、`HIGH`、`LOW`、`MEAN`、`CMEan`、`RMS`、`CRMs`、`AREa`、`CARea`、`ROVShoot`、`FOVShoot`、`RPReshoot`、`FPReshoot`、`FREQuency`、`PERIod`、`RISe`、`FALL`、`PWIdth`、`NWIdth`、`PDUTy`、`PPULSE`、`NPULSE`、`PEDGE`、`NEDGE`、`FRRDelay`、`FRFDelay`、`FFRDelay`、`FFFDelay`、`LRRDelay`、`LRFDelay`、`LFRDelay`、`LFFDelay`、`PHAse` | **必写设置**，不是只读标签；不设类型槽位就没有有效值。手册 p. 107。 | measurements.md (manual p. 107) |
+| `:MEASUrement:MEAS<X>:STATE` | set/query | `{OFF\|ON}`（查询返回 `0`/`1`） | 返回 `0` 表示槽位关闭，此时 `VALue?` 结果不得当作测量值。手册 p. 108。 | measurements.md (manual p. 108) |
+| `:MEASUrement:REFLevel:PERCent:HIGH` / `:LOW` / `:MID` / `:MID2` | set/query | `<NRf>`，0-100 % | 参考电平百分比；上升/下降时间、占空比、脉宽、相位都由它决定，不记录则数值不可复现。手册 pp. 83-84。 | measurements.md (manual pp. 83-84) |
 | `:MEASUrement:MEAS<X>:VALue?` | query | — | Current value of the slot. | measurements.md (manual pp. 106-113)<br>SKILL.md |
 | `:MEASUrement:MEAS<X>:MAXimum?` | query | — | Accumulated maximum, not one acquisition; a single `VALue?` without the segment index is ambiguous in segmented mode. | measurements.md (manual pp. 106-113)<br>SKILL.md |
 | `:MEASUrement:MEAS<X>:MEAN?` | query | — | Accumulated mean. | measurements.md (manual pp. 106-113)<br>SKILL.md |
@@ -204,7 +207,9 @@ source is valid.
 | `:HARDcopy:PRINTINKSaver` | set | `{ON\|OFF}` | Ink saving for printer output. | save-and-screenshot.md (manual pp. 78-80) |
 | `:HARDcopy:SAVEINKSaver` | set | `{ON\|OFF}` | Ink saving for stored output. | save-and-screenshot.md (manual pp. 78-80) |
 | `:HARDcopy:START` | event | — | Performs the configured hardcopy; does not choose a destination filename. | save-and-screenshot.md (manual pp. 78-80)<br>SKILL.md<br>gds1000b_session.py |
-| `:SAVe:IMAGe` | set | `"Disk:/<name>.PNG"` or `"USB:/<name>.BMP"` | Writes a file on instrument storage; SCPI never returns image bytes. Filename stem ≤ 8 characters; path must start with `Disk:/` or `USB:/`; never overwrite operator files. | save-and-screenshot.md (manual pp. 165-166)<br>SKILL.md<br>gds1000b_session.py |
+| `:DISPlay:OUTPut?` | query | — | 返回 16 位 RGB 行程编码（RLE）的屏幕图像，格式 `#<n><len>[count][color]...[count][color]<LF>`，每对 2 字节（手册 p. 77）。**这是唯一的图像回读路径**；本 Skill 未实现 RLE 解码，只能按原始字节保存并标为 `UNVERIFIED`。 | save-and-screenshot.md (manual p. 77) |
+| `:DISPlay:WAVEform` | set/query | `{VECTor\|DOT}` | 矢量/点显示方式（手册 p. 77）；影响截图观感，不影响数据。 | save-and-screenshot.md (manual p. 77) |
+| `:SAVe:IMAGe` | set | `"Disk:/<name>.PNG"` or `"USB:/<name>.BMP"` | Writes a file on instrument storage; `:DISPlay:OUTPut?` is the only way to read the screen image back over SCPI. Filename stem ≤ 8 characters; path must start with `Disk:/` or `USB:/`; never overwrite operator files. Documented file errors are `-250`/`-252`/`-254`/`-256`/`-257`/`-258` (manual p. 252), so drain the error queue instead of assuming success. | save-and-screenshot.md (manual pp. 165-166, 252)<br>SKILL.md<br>gds1000b_session.py |
 | `:SAVe:IMAGe:FILEFormat` | set | `{PNG\|BMP}` | Must match the file extension (`.PNG`→`PNG`, `.BMP`→`BMP`). | save-and-screenshot.md (manual pp. 165-166)<br>SKILL.md<br>gds1000b_session.py |
 | `:SAVe:IMAGe:INKSaver` | set | `{ON\|OFF}` | Reduces ink for printing; does not change resolution. | save-and-screenshot.md (manual pp. 165-166)<br>gds1000b_session.py |
 
