@@ -264,7 +264,7 @@ Guards, all verified against the 2026-10-20 capture:
   operator; the tool never assumes that wiring.
 - `walk` requires `--confirm-open-input`, since it expects disconnected leads
   and reports overflow as the correct result.
-- `*RST`, `*CLS`, `:SYSTem:PRESet`, `:CALibration...`,
+- `*RST`, `*CLS`, `:SYSTem:PRESet`, `:CALibration...`/`:CAL:PROT...`,
   `:SYSTem:AZERo:STATe`, and `:INITiate:CONTinuous` are refused unless
   `--allow-state-change` is given.
 - `--no-configure` reads the current setup untouched; with continuous

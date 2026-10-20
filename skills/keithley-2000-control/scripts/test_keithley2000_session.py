@@ -164,6 +164,22 @@ class DryRunTests(unittest.TestCase):
         self.assertIsNone(session_module._temperature_unit(readback("?")))
         self.assertIsNone(session_module._temperature_unit({}))
 
+    def test_read_rejects_unsupported_settings_before_writing(self):
+        cases = [
+            (["--function", "FREQ", "--nplc", "1"], "NPLC"),
+            (["--function", "CONT", "--digits", "6"], "DIGits"),
+        ]
+        for argv, message in cases:
+            with self.subTest(argv=argv):
+                session = Session(dry_run=True)
+                args = session_module._build_parser().parse_args(
+                    ["--dry-run", "read", *argv])
+                with self.assertRaises(SessionError) as caught:
+                    session_module.cmd_read(session, args)
+                self.assertIn(message, str(caught.exception))
+                self.assertEqual(session.sent, [])
+                session.close()
+
     def test_walk_skips_rate_for_functions_without_nplc(self):
         session = Session(dry_run=True)
         args = session_module._build_parser().parse_args(

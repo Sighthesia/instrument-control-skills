@@ -127,7 +127,7 @@
         "status": "pass",
         "evidence": {
           "command": "python3 -m unittest discover -s skills/keithley-2000-control/scripts -p 'test_*.py'",
-          "tests": 104,
+          "tests": 105,
           "network": "none; fixtures and captures only"
         }
       }

@@ -370,6 +370,16 @@ def _configure(session: Session, function: str, args: argparse.Namespace,
         raise SessionError(f"{token} has no selectable range")
     if args.autorange is not None and targets["autorange"] is None:
         raise SessionError(f"{token} has no autorange setting")
+    if args.nplc is not None:
+        if token not in NPLC_FUNCTIONS:
+            raise SessionError(f"{token} does not support NPLC")
+        if not 0.01 <= args.nplc <= 10:
+            raise SessionError("NPLC must be in 0.01..10")
+    if getattr(args, "digits", None) is not None:
+        if token not in DIGITS_FUNCTIONS:
+            raise SessionError(f"{token} does not support DIGits")
+        if not 4 <= args.digits <= 7:
+            raise SessionError("DIGits must be in 4..7")
     commands: list[str] = []
 
     def setting(command: str) -> None:
@@ -383,16 +393,8 @@ def _configure(session: Session, function: str, args: argparse.Namespace,
     if args.elements:
         setting(f":FORMat:ELEments {args.elements}")
     if args.nplc is not None:
-        if token not in NPLC_FUNCTIONS:
-            raise SessionError(f"{token} does not support NPLC")
-        if not 0.01 <= args.nplc <= 10:
-            raise SessionError("NPLC must be in 0.01..10")
         setting(f":SENSe:{path}:NPLCycles {args.nplc:g}")
     if getattr(args, "digits", None) is not None:
-        if token not in DIGITS_FUNCTIONS:
-            raise SessionError(f"{token} does not support DIGits")
-        if not 4 <= args.digits <= 7:
-            raise SessionError("DIGits must be in 4..7")
         setting(f":SENSe:{path}:DIGits {args.digits}")
     if args.range is not None:
         setting(f"{targets['range']} {args.range}")
