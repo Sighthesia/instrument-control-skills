@@ -28,6 +28,9 @@
 | `:SYSTem:NSTorage` | set | `<path>,<user>,<pwd>,...`（完整字段由固件决定）；示意 `"//192.168.1.100/ScopeShare","scope-user","<password>",0,0,1,0,0` | 设置网络存储参数；密码查询以 `***` 返回；不要把密码写入日志/仓库/JSON；字段含义与 SMB/NFS 兼容性由固件决定，不能跨固件硬编码。 | connection-and-storage.md |
 | `:SYSTem:NSTorage:CONNect` | event | — | 短命令形式以设备手册为准；连接前先填好 `NSTorage` 参数。 | connection-and-storage.md |
 | `:SYSTem:NSTorage:STATus?` | query | — | 确认返回 `ON` 或手册规定的已连接状态；先用小截图/小 CSV 验证挂载路径。 | connection-and-storage.md |
+| `:SYSTem:NSTorage:DISConnect` | event | — | 断开网络存储；与 `CONNect` 成对使用。手册印刷 p. 263。 | connection-and-storage.md (manual p. 263) |
+| `:SYSTem:REMote?` | query | 返回 `ON`、`OFF` | 查询远程控制状态；`ON` 表示触摸屏、前面板按键和外设均被禁用，界面显示 “Remote”。手册印刷 p. 264。 | connection-and-storage.md (manual p. 264) |
+| `:SYSTem:REMote` / `SYST:REM` | set | `ON`、`OFF` | **状态改变**：`ON` 锁定面板与触摸屏，`OFF` 返回本地。仅在用户明确要求时发送，不作为会话收尾清理；raw TCP 会话不会自动进入此状态。手册印刷 p. 264；证据等级 `documented`，未在目标固件实测。 | connection-and-storage.md (manual p. 264) |
 
 ## Identity / status / acquisition state
 
@@ -48,9 +51,21 @@
 |---|---|---|---|---|
 | `:ACQuire:NUMACq?` | query | — | 已采集帧数；水平/垂直变更等影响采集的操作会使其复位；不是通用平均完成标志。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23) |
 | `:ACQuire:POINts?` / `ACQ:POIN?` | query | — | 当前记录点数（`scope_record_points`）；用于与描述符点数比对判断 `COMPLETE`/`INCOMPLETE`。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py |
-| `:ACQuire:SRATe?` / `SARA?` | query | — | 当前采样率（Sa/s）。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
-| `:ACQuire:MDEPth?` / `ACQ:MDEP?` | query | — | 当前存储深度档位；SDS800X HD 按活动通道数列出 100M/50M/25M。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
-| `ACQ:MDEP` | set | `100M`、`50M`、`25M`（`configure_memory_depth` 仅接受这三档；默认按通道数 1/2/3/4 取 100M/50M/25M/25M） | 必须在 `TRMD SINGLE` 之前写入；写入后回读校验；不可变读取期间禁止。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
+| `:ACQuire:SRATe?` | query | — | 当前采样率（Sa/s）。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `:ACQuire:SRATe` / `ACQ:SRAT` | set | `<rate>`，浮点 NR3，如 `5.00E9`；手册未给离散档位表，只说明“超过可设定值会自动匹配” | **仅在 `:ACQuire:MMANagement FSRate` 固定采样率模式下有效**；写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。手册印刷 p. 22。证据等级 `documented`。 | signal-discovery-and-measurement.md (manual pp. 22-23) |
+| `:ACQuire:MMANagement?` | query | 返回 `AUTO`、`FSRate`、`FMDepth` | 存储管理方式；决定采样率与存储深度哪一个由用户控制。写采样率或深度前应先确认此模式。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
+| `:ACQuire:MMANagement` / `ACQ:MMAN` | set | `AUTO`、`FSRate`、`FMDepth` | `AUTO` 保持最大采样率并按时基推两者；`FSRate` 固定采样率、深度随时基；`FMDepth` 固定深度、采样率随时基。改变采集上下文，写入后回读。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
+| `:ACQuire:MODE` | set/query | `YT`、`XY`、`ROLL` | 采集模式；`ROLL` 会限制可用存储深度。手册印刷 pp. 18-19。 | signal-discovery-and-measurement.md (manual pp. 18-19) |
+| `:ACQuire:AMODe` | set/query | `FAST`、`SLOW` | 快采/慢采，影响波形捕获率。手册印刷 p. 17。 | signal-discovery-and-measurement.md (manual p. 17) |
+| `:ACQuire:TYPE` | set/query | `NORMal`、`PEAK`、`AVERage[,<times>]`、`ERES[,<bits>]`；`<times>` = 4..8192 的 2 次幂，`<bits>` = 0.5..4.0 步进 0.5 | 采集方式；**分段采集开启时平均/ERES 不可用**；平均与 ERES 会限制存储深度。手册印刷 p. 23。 | signal-discovery-and-measurement.md (manual p. 23) |
+| `:ACQuire:INTerpolation` | set/query | `ON`（Sinc）、`OFF`（线性） | 内插方式。手册印刷 pp. 17-18。 | signal-discovery-and-measurement.md (manual pp. 17-18) |
+| `:ACQuire:SEQuence` | set/query | `ON`、`OFF` | 分段采集开关；随后用 `:WAVeform:SEQuence?` 读取帧。手册印刷 p. 22。 | signal-discovery-and-measurement.md (manual p. 22) |
+| `:ACQuire:SEQuence:COUNt` | set/query | 整型 NR1；上限受机型与当前时基限制 | 分段数。手册印刷 p. 22。 | signal-discovery-and-measurement.md (manual p. 22) |
+| `:ACQuire:RESolution` | set/query | `8Bits`、`10Bits`（手册标注为 SDS2000X Plus） | ADC 分辨率；SDS800X HD 是否支持需按机型确认，不得假设。手册印刷 p. 21。 | signal-discovery-and-measurement.md (manual p. 21) |
+| `:ACQuire:CSWeep` | event | — | 清除扫描并重新开始采集，等价于前面板 Clear Sweeps。手册印刷 p. 17。 | signal-discovery-and-measurement.md (manual p. 17) |
+
+| `:ACQuire:MDEPth?` / `ACQ:MDEP?` | query | — | 当前存储深度。SDS800X HD 手册档位为：单通道 `{10k,100k,1M,10M,100M}`、双通道 `{10k,100k,1M,10M,50M}`、四通道 `{10k,100k,1M,10M,25M}`。手册印刷 pp. 19-20。 | signal-discovery-and-measurement.md (manual pp. 19-20)<br>scripts/scope_protocol.py |
+| `ACQ:MDEP` | set | 手册全档位见上；`configure_memory_depth` 目前只接受 `100M`、`50M`、`25M` 三个便捷值（默认按通道数 1/2/3/4 取 100M/50M/25M/25M） | 必须在 `TRMD SINGLE` 之前写入；写入后回读校验；不可变读取期间禁止。脚本未实现的更小档位（10k/100k/1M/10M）需直接发送命令并自行回读。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
 | `:TIMebase:SCALe?` / `TIM:SCAL?` / `TDIV?` | query | — | 主时基（s/div）；左对齐触发策略先读取它计算 `Delay`，写入后再回读校验。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `:TIMebase:DELay?` / `TIM:DEL?` / `TRDL?` | query | — | 水平延迟（s）；`TRDL?` 为旧式字段，延迟符号约定不要与新式 `TIMebase:DELay?` 混用。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `TIM:DEL` | set | 秒，`(5 - margin_div) * Timebase`（`margin_div` 取值 (0, 5]） | 触发跟随窗口策略的显式可选项；只在 `TRMD SINGLE` 之前写，写完回读；与 `--existing-stopped` 不兼容。 | signal-discovery-and-measurement.md<br>SKILL.md<br>scripts/scope_protocol.py |
@@ -196,9 +211,9 @@
 
 - **IEEE 488.2 其余命令**：仅记录了 `*IDN?` 与 `*OPC?`；`*RST`、`*CLS`、`*ESE`/`*ESE?`、`*ESR?`、`*SRE`/`*SRE?`、`*STB?`、`*OPC`、`*TRG`、`*SAV`/`*RCL`、`*TST?` 等均未在 Skill 内出现。
 - **错误队列与状态寄存器**：未记录任何查询（手册印刷 pp. 13-14 页范围只确认了 ID/`*OPC?`）。
-- **系统设置**：`SYSTem` 除 LAN 与 `NSTorage` 外其余子树的命令未记录；`NSTorage` 各字段的完整取值也未记录。
+- **系统设置**：`SYSTem` 已记录 LAN、`NSTorage`（含 `DISConnect`）、`REMote`；`BUZZer`、`CLOCk`、`VNCPort`、`DATE`/`TIME`、`EDUMode`、`LANGuage`、`MENU`、`PON`、`REBoot`、`SHUTdown`、`SSAVer`、`TOUCh`、`SELFCal` 未记录（手册印刷 pp. 257-266）。
 - **通道/垂直写入**：只记录了 `VDIV`、`OFST`；开关、耦合、带宽限制、探头写入、反相、单位、标签等命令未记录。
-- **时基/采集写入**：只记录了 `ACQ:MDEP`、`TIM:DEL`、`TIM:REF:POS`、`TDIV`；`SARA` 写入、分段/平均/峰值检测等采集模式、`ACQ:MDEP` 之外的记录长度控制未记录。
+- **时基/采集写入**：已记录 `ACQ:MDEP`、`ACQ:SRAT`、`ACQ:MMAN`、`ACQ:MODE`、`ACQ:TYPE`、`ACQ:SEQuence`、`TIM:DEL`、`TIM:REF:POS`、`TDIV`；`ACQ:AMODe`、`ACQ:INTerpolation`、`ACQ:CSWeep` 已列但未实现为脚本参数；数字通道、平均/ERES 与记录深度的交互只按手册记录，未实测。
 - **触发系统**：只记录了边沿触发的一条完整序列；脉宽、欠幅、斜率、超时、视频、串行等触发类型，以及触发释抑/延迟/耦合/输出命令未记录。
 - **测量**：简单测量的完整参数与门限/参考电平设置未记录；高级测量只记录 P1..P12 的五类查询，统计复位/开关与门限设置未记录。
 - **波形传输**：只记录了现代 WAV 与旧式 `C<n>:WF? DAT2/DESC`；`WAV:SOURce` 的数字通道/I2C 等扩展源、历史帧/存储媒介选择（`MEMory`/`SAVE` 类）未记录。

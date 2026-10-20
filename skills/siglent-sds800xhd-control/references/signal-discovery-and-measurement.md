@@ -22,6 +22,7 @@ The following scalar forms are **Target-tested** on TCP 5025:
 | `:ACQuire:NUMACq?` | Acquired frame count; resets after operations affecting acquisition, including horizontal/vertical changes. Not a generic averaging-complete flag. |
 | `:ACQuire:POINts?` | Current record point count. |
 | `:ACQuire:SRATe?` | Current sample rate in Sa/s. |
+| `:ACQuire:MMANagement?` | Current memory-management mode: `AUTO`, `FSRate`, or `FMDepth`. Determines whether the sample rate or the memory depth is the setting you control. |
 | `:TIMebase:SCALe?`, `:TIMebase:DELay?` | Main timebase in s/div and horizontal delay in s. |
 | `:TIMebase:REFerence:POSition?` | Horizontal reference position percentage, 0..100, for delay-fixed expansion. |
 | `:ACQuire:MDEPth?` | Current acquisition memory-depth class; SDS800X HD lists 100M/50M/25M classes by active channel count. |
@@ -41,6 +42,44 @@ post-trigger = (10 - margin_div) * Timebase
 ```
 
 For `margin_div=1`, this is `Delay=+4*Timebase`, one division before the trigger and nine divisions after it. Use this only for events expected to continue after the trigger. Set `TIM:SCAL`, `TIM:DEL`, optional `TIM:REF:POS`, and `ACQ:MDEP` before `TRMD SINGLE`; never apply them while reading an existing stopped frame.
+
+## Sample Rate and Memory Management
+
+`:ACQuire:MMANagement` decides which of the two settings is authoritative. Query it before assuming that a written sample rate or memory depth survived, and write it before the setting it governs (manual printed p. 18).
+
+| Mode | Behaviour | Which setting you control |
+|---|---|---|
+| `AUTO` | keeps the maximum sample rate and derives memory depth and sample rate from the timebase | neither; both follow the timebase |
+| `FSRate` | fixed sample rate; memory depth follows the timebase | `:ACQuire:SRATe` |
+| `FMDepth` | fixed memory depth; sample rate follows the timebase | `:ACQuire:MDEPth` |
+
+Sample rate is settable only in `FSRate` mode:
+
+```text
+:ACQuire:MMANagement FSRate
+:ACQuire:SRATe 5.00E9
+:ACQuire:SRATe?            # read back; the manual warns a value above the
+                           # settable maximum is matched to the nearest one
+```
+
+`SARA` / `ACQ:SRAT` are the short forms. The documented example is `5.00E9`; the manual states no discrete rate list, only that an out-of-range request is snapped to a settable value, so always read the rate back and record it as observed, not requested. Setting the rate changes the acquisition context, so it is an authorized write before `TRMD SINGLE` only; never while reading a stopped frame.
+
+Memory depth is a per-channel-count table, not a three-value choice. For SDS800X HD the manual lists `{10k|100k|1M|10M|100M}` single channel, `{10k|100k|1M|10M|50M}` dual channel, and `{10k|100k|1M|10M|25M}` four channel (manual printed pp. 19-20). `scripts/scope_protocol.py` currently accepts only `100M`, `50M`, and `25M` as the default-per-channel-count convenience values; the smaller classes are documented but not implemented by the script. Digital channels, averaging/ERES acquisition type, and roll mode all reduce the usable depth.
+
+## Other Acquisition Settings
+
+Manual-supported, not hardware-tested in this Skill. These change the acquisition context, so any write belongs before `TRMD SINGLE` and never during a stopped-frame read.
+
+| Command | Values | Why it matters |
+|---|---|---|
+| `:ACQuire:MODE` | `YT`, `XY`, `ROLL` | `ROLL` limits usable memory depth; `XY` changes what the horizontal axis means. |
+| `:ACQuire:AMODe` | `FAST`, `SLOW` | Fast capture improves the odds of catching an anomaly but is not a substitute for a real trigger. |
+| `:ACQuire:TYPE` | `NORMal`, `PEAK`, `AVERage,<times>`, `ERES,<bits>` | `PEAK` can show glitches narrower than one sample; averaging and ERES limit depth and are unavailable while segmented acquisition is on. `<times>` is 4..8192 in powers of two; `<bits>` is 0.5..4.0 in 0.5 steps (manual printed p. 23). |
+| `:ACQuire:INTerpolation` | `ON` (Sinc), `OFF` (linear) | Changes how samples are joined; do not compare measurements taken under different interpolation. |
+| `:ACQuire:SEQuence` | `ON`, `OFF` | Enables segmented acquisition; pair with `:ACQuire:SEQuence:COUNt` and `:WAVeform:SEQuence?`. |
+| `:ACQuire:SEQuence:COUNt` | integer; upper bound depends on model and timebase | Record it with any segmented capture. |
+| `:ACQuire:RESolution` | `8Bits`, `10Bits` | The manual attributes this to SDS2000X Plus; confirm support on the connected model instead of assuming it. |
+| `:ACQuire:CSWeep` | — (event) | Clears sweeps and restarts acquisition, like the front-panel Clear Sweeps key. It is a state change, not cleanup. |
 
 ## Signal Discovery
 
@@ -96,6 +135,8 @@ Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repositor
 
 - Device ID / `*OPC?`: printed pp. 13-14.
 - Acquisition points, frame count, sample rate: printed pp. 21-23.
+- Acquisition mode, interpolation, memory management, memory depth, sample rate, acquisition type: printed pp. 17-23.
+- System remote/local, LAN, NSTorage, date/time, touch, self-calibration: printed pp. 257-266.
 - Channel coupling, probe, V/div, switch: printed pp. 25-29.
 - Simple/advanced measurement, statistics, history: printed pp. 164-183.
 - Trigger frequency and status: printed pp. 243-244.

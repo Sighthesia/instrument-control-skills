@@ -23,7 +23,7 @@ Load only the reference matching the current debugging goal. Do not read every c
 
 | Goal or observation | Read this reference |
 |---|---|
-| Automatically discover a scope, verify USB/LAN identity, configure the basic connection, or choose a storage transfer path | [Connection and storage guidance](references/connection-and-storage.md) |
+| Automatically discover a scope, verify USB/LAN identity, configure the basic connection, choose a storage transfer path, or lock/release the front panel | [Connection and storage guidance](references/connection-and-storage.md) |
 | Identify the scope, find a signal, auto-range, inspect trigger/acquisition state, or evaluate voltage/timing/jitter | [Signal discovery and measurement](references/signal-discovery-and-measurement.md) |
 | Inspect waveform shape visually, fetch a screenshot, or download samples for external analysis | [Screenshot and waveform data](references/screenshot-and-waveform.md) |
 | Diagnose UART/I2C/SPI/CAN/LIN or another supported serial bus | [Protocol decode](references/protocol-decode.md) |
@@ -53,6 +53,8 @@ Start with the matching reference's read-only snapshot. Use a setup/enable comma
 - Channel mapping: `C1=ENABLE`, `C2=nFAULT`, `C3=HOC`, `C4=P4.1/CMP`.
 - Typical setup: C1/C2/C4 `VDIV 2`, C3 `VDIV 5`, all `OFST 0`, probe `10`; edge trigger on C1 rising at `2.5 V`; `TRMD SINGLE`; `500 ms/div`; `5.00 MSa/s`; `25.0 Mpts`; about `-2 s` trigger delay.
 - Expected record: `25,000,000` points, `200 ns` per point, `5 s`.
+- Sample rate is only directly settable in `:ACQuire:MMANagement FSRate` mode; the typical setup above observed `5.00 MSa/s` in the default management mode, which derives it from the timebase.
+- Front-panel lock is the explicit `:SYSTem:REMote ON|OFF` state (manual printed p. 264), not a side effect of opening a TCP session.
 
 ## Approved Workflows
 
