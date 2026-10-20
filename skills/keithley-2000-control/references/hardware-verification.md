@@ -1,7 +1,7 @@
 # Hardware verification record
 
-Scope: one Keithley Model 2000, one RS-232 session, DC voltage function only.
-Everything else in this Skill remains `documented`.
+Scope: one Keithley Model 2000, one RS-232 session, DC voltage and DC current
+only. Everything else in this Skill remains `documented`.
 
 Evidence: *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
 2010`; PDF physical pages 85-87 (RS-232), 121-126 (`:READ?`, `:INITiate`),
@@ -23,6 +23,7 @@ Evidence: *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
 | Host | Linux, `pyserial 3.5` |
 | Test date | 2026-10-20 (`2026-10-20T05:51:33Z` capture start) |
 | Source under test | ~25.2 V nominal DC from an external supply, `INPUT HI`/`INPUT LO` |
+| Current under test | same supply feeding a load through the meter, front `AMPS` + `INPUT LO` in series |
 
 Raw bytes for every response below are in `assets/captures/`, with the full
 ordered exchange in `assets/captures/session.json`.
@@ -45,6 +46,38 @@ NPLC 1 spanned 25.27314 V to 25.27485 V (mean 25.27402 V, population σ ≈ 0.54
 ≈ 68 ppm span). The task source was nominally 25.2 V; the ~0.3 % difference is
 consistent with the source's own accuracy and is **not** evidence about Model
 2000 calibration, which stays `UNVERIFIED`.
+
+## DC current
+
+Leads were moved by the operator to the front `AMPS` + `INPUT LO` terminals with
+the meter in series between the supply and its load; the meter was verified on
+the front path (`:SYSTem:FRSWitch?` → `1`) before acquisition. Sequence:
+
+```text
+:CONFigure:CURRent:DC
+:SENSe:CURRent:DC:RANGe 3        ; top range first: lowest burden, no fuse risk
+:SENSe:CURRent:DC:NPLC 1
+:READ?                           ; x3
+:SENSe:CURRent:DC:RANGe:AUTO ON
+:READ?                           ; x3
+```
+
+Observed behaviour:
+
+| Field | Value |
+|---|---|
+| `:FUNCtion?` after configure | `"CURR:DC"` |
+| `:SENSe:CURRent:DC:RANGe?` after `RANGe 3` | `3.1000` (top-range full scale) |
+| Error queue after every step | `0,"No error"` |
+| 3 A-range readings | 0.20220 A, 0.20228 A, 0.20221 A |
+| Autorange readings | 0.20225 A, 0.20220 A, 0.20219 A |
+| Autorange resolution | `:SENSe:CURRent:DC:RANGe?` → `1.0000` (1 A range) |
+
+Mean ≈ 202.22 mA, span ≈ 97 µA (≈ 480 ppm) across six readings, consistent with
+a ~5 W load on the 25.2 V supply. No `-213` appeared because `:CONFigure`
+leaves continuous initiation off. Nothing here verifies the 3 A fuse rating,
+the meter's current calibration, or the burden-voltage error introduced into
+the circuit.
 
 ## Deviation found: `:READ?` under continuous initiation
 
@@ -99,3 +132,4 @@ and pair exactly one response with each query.
   continuity, trigger/buffer/limit/scan workflows.
 - Overflow (`+9.9E37`) behaviour; the available source could not exceed range.
 - GPIB/IEEE-488, other baud rates, `*OPC?` sequencing, sample count > 1.
+- Burden voltage and its effect on the DUT while the AMPS path is in series.

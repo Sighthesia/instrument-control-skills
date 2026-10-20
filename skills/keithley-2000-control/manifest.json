@@ -26,20 +26,25 @@
     "kind": "scalar-measurement",
     "raw_path": "assets/captures/reading-dcv-25v.txt",
     "raw_sha256": "437795d05390cefa3d21fdc0e08a8cc31967af21357b77e002c6f6d74b17bc2d",
-    "raw_provenance": "Real instrument capture, 2026-10-20, Keithley Model 2000 serial 0944865 over RS-232 9600 8N1; ~25.2 V DC source on the front INPUT HI/LO terminals."
+    "raw_provenance": "Real instrument captures, 2026-10-20, Keithley Model 2000 serial 0944865 over RS-232 9600 8N1: ~25.2 V DC on front INPUT HI/LO, and the same supply feeding a load through front AMPS/INPUT LO in series (~202 mA)."
   },
   "support": {
     "level": "hardware-verified",
     "hardware_verified": true,
     "verified_scope": {
-      "functions": ["VOLTage:DC"],
-      "interfaces": ["RS-232 9600 8N1"],
+      "functions": [
+        "VOLTage:DC",
+        "CURRent:DC"
+      ],
+      "interfaces": [
+        "RS-232 9600 8N1"
+      ],
       "date": "2026-10-20",
       "firmware": "A17 /A02",
       "serial": "0944865"
     },
     "known_limitations": [
-      "Hardware evidence covers DC voltage over RS-232 on one instrument only; all other functions and interfaces remain documented.",
+      "Hardware evidence covers DC voltage and DC current over RS-232 on one instrument only; all other functions and interfaces remain documented.",
       "The parser accepts one ASCII scalar line and one error-queue line only; other error-queue codes require explicit error-queue mode.",
       "Multi-reading, binary, and scanner responses are unsupported.",
       "Automatic error-queue classification recognizes only documented sentinels; other error-queue lines require explicit error-queue mode.",
@@ -64,6 +69,15 @@
         "status": "pass",
         "evidence": {
           "command": "python3 scripts/keithley2000_scalar.py assets/captures/reading-dcv-25v.txt --function VOLT:DC --unit VDC --query :READ? --acquisition-complete",
+          "result": "COMPLETE"
+        }
+      },
+      {
+        "name": "current_parser_roundtrip",
+        "status": "pass",
+        "evidence": {
+          "capture_path": "assets/captures/session-dci.json",
+          "command": "python3 scripts/keithley2000_scalar.py assets/captures/dci-3a-range.txt --function CURR:DC --unit ADC --query :READ? --acquisition-complete",
           "result": "COMPLETE"
         }
       }

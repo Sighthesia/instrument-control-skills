@@ -1,0 +1,194 @@
+{
+  "port": "/dev/ttyUSB0",
+  "baud": 9600,
+  "framing": "8N1",
+  "flow_control": "none",
+  "tx_terminator": "CR (0x0D)",
+  "rx_framing": "read until CR",
+  "host_library": "pyserial 3.5",
+  "captured_utc": "2026-10-20T06:01:25Z",
+  "wiring": "front AMPS + INPUT LO, meter in series with the load",
+  "source": "~25.2 V DC supply feeding the load through the meter",
+  "records": [
+    {
+      "tag": "identity",
+      "command": "*IDN?",
+      "raw_hex": "4b454954484c455920494e535452554d454e545320494e432e2c4d4f44454c20323030302c303934343836352c41313720202f41303220200d",
+      "raw_ascii": "KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  \r",
+      "sha256": "183ad18833a8c12f31ca5c92a4669524bdadc690ae42e73de79f41619571ca05",
+      "timestamp_utc": "2026-10-20T06:00:30Z"
+    },
+    {
+      "tag": "input-path",
+      "command": ":SYSTem:FRSWitch?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T06:00:33Z"
+    },
+    {
+      "tag": "error-before",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T06:00:36Z"
+    },
+    {
+      "tag": "configure-dci",
+      "command": ":CONFigure:CURRent:DC",
+      "raw_hex": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T06:00:36Z"
+    },
+    {
+      "tag": "range-3a",
+      "command": ":SENSe:CURRent:DC:RANGe 3",
+      "raw_hex": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T06:00:36Z"
+    },
+    {
+      "tag": "nplc-1",
+      "command": ":SENSe:CURRent:DC:NPLC 1",
+      "raw_hex": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T06:00:36Z"
+    },
+    {
+      "tag": "error-after-config",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T06:00:39Z"
+    },
+    {
+      "tag": "function-after-config",
+      "command": ":FUNCtion?",
+      "raw_hex": "22435552523a4443220d",
+      "raw_ascii": "\"CURR:DC\"\r",
+      "sha256": "229597fc182c0a03e218923395ffe82bdf4b0e3b415630177a2e274ff19d1635",
+      "timestamp_utc": "2026-10-20T06:00:42Z"
+    },
+    {
+      "tag": "range-after-config",
+      "command": ":SENSe:CURRent:DC:RANGe?",
+      "raw_hex": "332e313030300d",
+      "raw_ascii": "3.1000\r",
+      "sha256": "053851508c2d35e741b4cfc1f37f71fc3835a4fde0dd2036337949b00eef5f70",
+      "timestamp_utc": "2026-10-20T06:00:45Z"
+    },
+    {
+      "tag": "nplc-after-config",
+      "command": ":SENSe:CURRent:DC:NPLC?",
+      "raw_hex": "312e30300d",
+      "raw_ascii": "1.00\r",
+      "sha256": "93a7bd21830d1d70797354dfefce5c35a91a4f041555f2cc20ce5b90702a7a64",
+      "timestamp_utc": "2026-10-20T06:00:48Z"
+    },
+    {
+      "tag": "math-state",
+      "command": ":CALCulate:STATe?",
+      "raw_hex": "300d",
+      "raw_ascii": "0\r",
+      "sha256": "090126452a2d8d97cd0b207101054c77c3e576bf215c4123e911f0ac7c931581",
+      "timestamp_utc": "2026-10-20T06:00:51Z"
+    },
+    {
+      "tag": "read-3a-1",
+      "command": ":READ?",
+      "raw_hex": "2b322e3032313939323835452d30310d",
+      "raw_ascii": "+2.02199285E-01\r",
+      "sha256": "72df359a65fe3cc887eda15c64e08b361defca19ff0211fd5417573f30c64aff",
+      "timestamp_utc": "2026-10-20T06:00:54Z"
+    },
+    {
+      "tag": "read-3a-2",
+      "command": ":READ?",
+      "raw_hex": "2b322e3032323834303139452d30310d",
+      "raw_ascii": "+2.02284019E-01\r",
+      "sha256": "03cc3492d4ef94ea02c780bc597e186f6ad694317f9a395a8253ad5e4a13a626",
+      "timestamp_utc": "2026-10-20T06:00:57Z"
+    },
+    {
+      "tag": "read-3a-3",
+      "command": ":READ?",
+      "raw_hex": "2b322e3032323037393435452d30310d",
+      "raw_ascii": "+2.02207945E-01\r",
+      "sha256": "23f7e5ce96caf03374ff14c281b999482054628ef54ccee342f90c85ce1f0868",
+      "timestamp_utc": "2026-10-20T06:01:00Z"
+    },
+    {
+      "tag": "error-after-3a",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T06:01:03Z"
+    },
+    {
+      "tag": "range-auto-on",
+      "command": ":SENSe:CURRent:DC:RANGe:AUTO ON",
+      "raw_hex": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T06:01:03Z"
+    },
+    {
+      "tag": "error-after-autorange",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T06:01:06Z"
+    },
+    {
+      "tag": "read-auto-1",
+      "command": ":READ?",
+      "raw_hex": "2b322e3032323436363230452d30310d",
+      "raw_ascii": "+2.02246620E-01\r",
+      "sha256": "342a51cdf206330b79ccfcedba7dbffebf76773701147190cb08ae2c85cc0089",
+      "timestamp_utc": "2026-10-20T06:01:10Z"
+    },
+    {
+      "tag": "read-auto-2",
+      "command": ":READ?",
+      "raw_hex": "2b322e3032313936303037452d30310d",
+      "raw_ascii": "+2.02196007E-01\r",
+      "sha256": "3b706dc7bc4009c8d8a8b0dcbb3ddea6b4c035d2adeac0b0412f15b22a1dd3fe",
+      "timestamp_utc": "2026-10-20T06:01:13Z"
+    },
+    {
+      "tag": "read-auto-3",
+      "command": ":READ?",
+      "raw_hex": "2b322e3032313836373634452d30310d",
+      "raw_ascii": "+2.02186764E-01\r",
+      "sha256": "b9a9666b82ac739dbb7b02b05808760dcf8f128445d8b321290a0ef7ef626e78",
+      "timestamp_utc": "2026-10-20T06:01:16Z"
+    },
+    {
+      "tag": "range-resolved",
+      "command": ":SENSe:CURRent:DC:RANGe?",
+      "raw_hex": "312e303030300d",
+      "raw_ascii": "1.0000\r",
+      "sha256": "6670c70db985041b0a4d9463ee8bd8be2c6276ec556a685ecb67e52d02ab365c",
+      "timestamp_utc": "2026-10-20T06:01:19Z"
+    },
+    {
+      "tag": "range-auto-state",
+      "command": ":SENSe:CURRent:DC:RANGe:AUTO?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T06:01:22Z"
+    },
+    {
+      "tag": "error-final",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T06:01:25Z"
+    }
+  ]
+}

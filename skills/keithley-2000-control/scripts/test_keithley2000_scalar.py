@@ -183,7 +183,8 @@ class Keithley2000ScalarTests(unittest.TestCase):
         self.assertEqual(manifest["data"]["raw_sha256"], digest)
         self.assertEqual(manifest["support"]["hardware_verified"], True)
         self.assertEqual(manifest["support"]["level"], "hardware-verified")
-        self.assertEqual(manifest["support"]["verified_scope"]["functions"], ["VOLTage:DC"])
+        self.assertEqual(manifest["support"]["verified_scope"]["functions"],
+                         ["VOLTage:DC", "CURRent:DC"])
         self.assertEqual(manifest["instrument"]["serial"], "0944865")
 
     def test_hardware_capture_shapes_parse_as_observed(self):
@@ -210,6 +211,14 @@ class Keithley2000ScalarTests(unittest.TestCase):
         )
         self.assertEqual(init_ignored["record"]["code"], -213)
         self.assertEqual(init_ignored["record"]["message"], '"Init ignored"')
+
+        dci = parse_response(
+            (captures / "dci-3a-range.txt").read_bytes(),
+            context={"function": "CURR:DC", "unit": "ADC",
+                     "acquisition_complete": True},
+        )
+        self.assertEqual(dci["integrity"]["status"], "COMPLETE")
+        self.assertAlmostEqual(dci["measurement"]["value"], 0.202199285)
 
     def test_response_type_is_validated(self):
         artifact = parse_response(b"+1.0E+00VDC\n", response_type="typo")

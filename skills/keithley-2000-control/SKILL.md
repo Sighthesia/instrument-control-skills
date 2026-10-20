@@ -10,10 +10,10 @@ documented SCPI/IEEE-488 or RS-232 workflows. The implementation is based on
 the official *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
 2010`.
 
-DC voltage over RS-232 is `hardware-verified` / `firmware-scoped` for one
-instrument (serial `0944865`, firmware `A17`/`A02`, 9600 8N1, 2026-10-20); see
-[Hardware verification](references/hardware-verification.md). Every other
-function and interface remains `documented`.
+DC voltage and DC current over RS-232 are `hardware-verified` /
+`firmware-scoped` for one instrument (serial `0944865`, firmware `A17`/`A02`,
+9600 8N1, 2026-10-20); see [Hardware verification](references/hardware-verification.md).
+Every other function and interface remains `documented`.
 
 ## Non-negotiable safety rules
 
@@ -78,10 +78,10 @@ verification date.
   serial, and firmware, but does **not** prove that SCPI is the selected language.
 - **Primary data kind**: `scalar-measurement`; one or more readings with function,
   unit, acquisition context, raw response hash, and integrity status.
-- **Support level**: `hardware-verified` / `firmware-scoped` for DC voltage over
-  RS-232 (serial `0944865`, firmware `A17`/`A02`); `documented` for all other
-  functions and interfaces. Do not extend one capture to another instrument,
-  firmware, or interface.
+- **Support level**: `hardware-verified` / `firmware-scoped` for DC voltage and
+  DC current over RS-232 (serial `0944865`, firmware `A17`/`A02`); `documented`
+  for all other functions and interfaces. Do not extend one capture to another
+  instrument, firmware, or interface.
 - **Not automatic**: calibration, fuse diagnosis, safe probing, line-power
   changes, interface/language switching, and scanner availability.
 
@@ -238,9 +238,10 @@ Use these statuses conservatively:
 Never call a valid-looking number calibrated, fresh, complete, or hardware
 verified without the corresponding evidence. Keep `documented`,
 `hardware-verified`, and `firmware-scoped` as evidence labels, not feature
-counts. The current hardware evidence covers DC voltage over RS-232 on serial
-`0944865`, firmware `A17`/`A02`, tested 2026-10-20; raw captures and the exact
-scope are in [Hardware verification](references/hardware-verification.md).
+counts. The current hardware evidence covers DC voltage and DC current over
+RS-232 on serial `0944865`, firmware `A17`/`A02`, tested 2026-10-20; raw
+captures and the exact scope are in
+[Hardware verification](references/hardware-verification.md).
 
 ## Verification commands
 
