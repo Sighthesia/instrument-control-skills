@@ -1,0 +1,333 @@
+{
+  "port": "/dev/ttyUSB0",
+  "baud": 9600,
+  "framing": "8N1",
+  "flow_control": "none",
+  "tx_terminator": "CR (0x0D)",
+  "rx_framing": "read until CR (0x0D); one query, one response",
+  "host_library": "pyserial 3.5",
+  "host_os": "Linux",
+  "captured_utc": "2026-10-20T05:51:33Z",
+  "records": [
+    {
+      "tag": "identity",
+      "command": "*IDN?",
+      "raw_hex": "4b454954484c455920494e535452554d454e545320494e432e2c4d4f44454c20323030302c303934343836352c41313720202f41303220200d",
+      "raw_ascii": "KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  \r",
+      "sha256": "183ad18833a8c12f31ca5c92a4669524bdadc690ae42e73de79f41619571ca05",
+      "timestamp_utc": "2026-10-20T05:49:52Z"
+    },
+    {
+      "tag": "scpi-version",
+      "command": ":SYSTem:VERSion?",
+      "raw_hex": "313939312e300d",
+      "raw_ascii": "1991.0\r",
+      "sha256": "6f9a55c1c4cdab0a1b1ae3085ffe73dbfd1e1f0360bcdc58b0d80b92651680c6",
+      "timestamp_utc": "2026-10-20T05:49:55Z"
+    },
+    {
+      "tag": "options",
+      "command": "*OPT?",
+      "raw_hex": "302c300d",
+      "raw_ascii": "0,0\r",
+      "sha256": "bf4e68fe27b52e53de92e1ed3435c286c225c53eab39692406e177155df68f5f",
+      "timestamp_utc": "2026-10-20T05:49:58Z"
+    },
+    {
+      "tag": "input-path",
+      "command": ":SYSTem:FRSWitch?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:50:01Z"
+    },
+    {
+      "tag": "error-queue-before",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:50:04Z"
+    },
+    {
+      "tag": "continuous-initial-state",
+      "command": ":INITiate:CONTinuous?",
+      "raw_hex": "300d",
+      "raw_ascii": "0\r",
+      "sha256": "090126452a2d8d97cd0b207101054c77c3e576bf215c4123e911f0ac7c931581",
+      "timestamp_utc": "2026-10-20T05:50:07Z"
+    },
+    {
+      "tag": "function-before",
+      "command": ":FUNCtion?",
+      "raw_hex": "22564f4c543a4443220d",
+      "raw_ascii": "\"VOLT:DC\"\r",
+      "sha256": "cbe664d67bba6a5866c1ada35942a34f709e5ca7f8e6a510dce7f1cd5790720a",
+      "timestamp_utc": "2026-10-20T05:50:10Z"
+    },
+    {
+      "tag": "range-auto-before",
+      "command": ":SENSe:VOLTage:DC:RANGe:AUTO?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:50:13Z"
+    },
+    {
+      "tag": "nplc-before",
+      "command": ":SENSe:VOLTage:DC:NPLC?",
+      "raw_hex": "312e30300d",
+      "raw_ascii": "1.00\r",
+      "sha256": "93a7bd21830d1d70797354dfefce5c35a91a4f041555f2cc20ce5b90702a7a64",
+      "timestamp_utc": "2026-10-20T05:50:16Z"
+    },
+    {
+      "tag": "math-before",
+      "command": ":CALCulate:STATe?",
+      "raw_hex": "300d",
+      "raw_ascii": "0\r",
+      "sha256": "090126452a2d8d97cd0b207101054c77c3e576bf215c4123e911f0ac7c931581",
+      "timestamp_utc": "2026-10-20T05:50:19Z"
+    },
+    {
+      "tag": "autozero-before",
+      "command": ":SYSTem:AZERo:STATe?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:50:22Z"
+    },
+    {
+      "tag": "restore-original-continuous-on",
+      "command": ":INITiate:CONTinuous ON",
+      "raw_hex": null,
+      "raw_ascii": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T05:50:22Z"
+    },
+    {
+      "tag": "continuous-before",
+      "command": ":INITiate:CONTinuous?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:50:26Z"
+    },
+    {
+      "tag": "read-continuous-on",
+      "command": ":READ?",
+      "raw_hex": "2b322e3532373431393337452b30310d",
+      "raw_ascii": "+2.52741937E+01\r",
+      "sha256": "a8af679eed927ed0c2f07f48d7cd4140f5c6784cf232ac27dcb5d3076de4f120",
+      "timestamp_utc": "2026-10-20T05:50:29Z"
+    },
+    {
+      "tag": "error-after-read-continuous-on",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "2d3231332c22496e69742069676e6f726564220d",
+      "raw_ascii": "-213,\"Init ignored\"\r",
+      "sha256": "e7331677fc3938d3eb747ec93eb4a05802f69df4da0cf74e6d05b94094df5dec",
+      "timestamp_utc": "2026-10-20T05:50:32Z"
+    },
+    {
+      "tag": "error-after-read-continuous-on",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:50:35Z"
+    },
+    {
+      "tag": "set-continuous-off",
+      "command": ":INITiate:CONTinuous OFF",
+      "raw_hex": null,
+      "raw_ascii": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T05:50:35Z"
+    },
+    {
+      "tag": "error-after-set-continuous-off",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:50:38Z"
+    },
+    {
+      "tag": "set-function-dcv",
+      "command": ":SENSe:FUNCtion 'VOLTage:DC'",
+      "raw_hex": null,
+      "raw_ascii": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T05:50:38Z"
+    },
+    {
+      "tag": "set-range-auto",
+      "command": ":SENSe:VOLTage:DC:RANGe:AUTO ON",
+      "raw_hex": null,
+      "raw_ascii": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T05:50:38Z"
+    },
+    {
+      "tag": "error-after-setup",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:50:41Z"
+    },
+    {
+      "tag": "read-1",
+      "command": ":READ?",
+      "raw_hex": "2b322e3532373536393834452b30310d",
+      "raw_ascii": "+2.52756984E+01\r",
+      "sha256": "437795d05390cefa3d21fdc0e08a8cc31967af21357b77e002c6f6d74b17bc2d",
+      "timestamp_utc": "2026-10-20T05:50:44Z"
+    },
+    {
+      "tag": "read-2",
+      "command": ":READ?",
+      "raw_hex": "2b322e3532373431393036452b30310d",
+      "raw_ascii": "+2.52741906E+01\r",
+      "sha256": "663547c4d7d8ff74056bd27c3a26b6165fa9fa95399ac6f3fc0f81519d48caf8",
+      "timestamp_utc": "2026-10-20T05:50:47Z"
+    },
+    {
+      "tag": "read-3",
+      "command": ":READ?",
+      "raw_hex": "2b322e3532373338343034452b30310d",
+      "raw_ascii": "+2.52738404E+01\r",
+      "sha256": "4a0eb7bd3388e79d7abe339890c5902b66db4d7cd6b1b3e73b185da7bcc11cee",
+      "timestamp_utc": "2026-10-20T05:50:50Z"
+    },
+    {
+      "tag": "read-4",
+      "command": ":READ?",
+      "raw_hex": "2b322e3532373535323336452b30310d",
+      "raw_ascii": "+2.52755236E+01\r",
+      "sha256": "43bc5bfaa212b0c7a8c73380b34538d9101ad1c558ae8758c8ebad061e2fff17",
+      "timestamp_utc": "2026-10-20T05:50:53Z"
+    },
+    {
+      "tag": "read-5",
+      "command": ":READ?",
+      "raw_hex": "2b322e3532373433363638452b30310d",
+      "raw_ascii": "+2.52743668E+01\r",
+      "sha256": "772bc295af368b4e01eb493ad77cd50b1f320e6639ed7c029dcade8672acc890",
+      "timestamp_utc": "2026-10-20T05:50:56Z"
+    },
+    {
+      "tag": "function-after",
+      "command": ":FUNCtion?",
+      "raw_hex": "22564f4c543a4443220d",
+      "raw_ascii": "\"VOLT:DC\"\r",
+      "sha256": "cbe664d67bba6a5866c1ada35942a34f709e5ca7f8e6a510dce7f1cd5790720a",
+      "timestamp_utc": "2026-10-20T05:50:59Z"
+    },
+    {
+      "tag": "range-after",
+      "command": ":SENSe:VOLTage:DC:RANGe?",
+      "raw_hex": "3130302e3030303030300d",
+      "raw_ascii": "100.000000\r",
+      "sha256": "fec5f4adc0d4052842b254e52db374ee8b566ebd3c4df0ea13eeb8f75f30acb1",
+      "timestamp_utc": "2026-10-20T05:51:02Z"
+    },
+    {
+      "tag": "range-auto-after",
+      "command": ":SENSe:VOLTage:DC:RANGe:AUTO?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:51:05Z"
+    },
+    {
+      "tag": "nplc-after",
+      "command": ":SENSe:VOLTage:DC:NPLC?",
+      "raw_hex": "312e30300d",
+      "raw_ascii": "1.00\r",
+      "sha256": "93a7bd21830d1d70797354dfefce5c35a91a4f041555f2cc20ce5b90702a7a64",
+      "timestamp_utc": "2026-10-20T05:51:08Z"
+    },
+    {
+      "tag": "math-after",
+      "command": ":CALCulate:STATe?",
+      "raw_hex": "300d",
+      "raw_ascii": "0\r",
+      "sha256": "090126452a2d8d97cd0b207101054c77c3e576bf215c4123e911f0ac7c931581",
+      "timestamp_utc": "2026-10-20T05:51:11Z"
+    },
+    {
+      "tag": "autozero-after",
+      "command": ":SYSTem:AZERo:STATe?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:51:14Z"
+    },
+    {
+      "tag": "format-elements",
+      "command": ":FORMat:ELEMents?",
+      "raw_hex": "524541442c2c0d",
+      "raw_ascii": "READ,,\r",
+      "sha256": "f49ba3096db3b9246d0ef505855786823543c52f77d39d5e8d673544955e32dc",
+      "timestamp_utc": "2026-10-20T05:51:17Z"
+    },
+    {
+      "tag": "error-queue-after",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:51:21Z"
+    },
+    {
+      "tag": "send-bogus",
+      "command": ":BOGUS:COMMand",
+      "raw_hex": null,
+      "raw_ascii": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T05:51:21Z"
+    },
+    {
+      "tag": "error-after-bogus",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "2d3131332c22556e646566696e656420686561646572220d",
+      "raw_ascii": "-113,\"Undefined header\"\r",
+      "sha256": "67c98d5688b63d7d063b608c71e9291b0d38d303e2528cb9ba14a3152d7f6aa4",
+      "timestamp_utc": "2026-10-20T05:51:24Z"
+    },
+    {
+      "tag": "error-after-bogus",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:51:27Z"
+    },
+    {
+      "tag": "restore-continuous-on",
+      "command": ":INITiate:CONTinuous ON",
+      "raw_hex": null,
+      "raw_ascii": null,
+      "sha256": null,
+      "timestamp_utc": "2026-10-20T05:51:27Z"
+    },
+    {
+      "tag": "continuous-after-restore",
+      "command": ":INITiate:CONTinuous?",
+      "raw_hex": "310d",
+      "raw_ascii": "1\r",
+      "sha256": "1092f3da081f46047853850eaeeae92393bc1e307b2916a1e6ed70b100fbb2d5",
+      "timestamp_utc": "2026-10-20T05:51:30Z"
+    },
+    {
+      "tag": "error-final",
+      "command": ":SYSTem:ERRor?",
+      "raw_hex": "302c224e6f206572726f72220d",
+      "raw_ascii": "0,\"No error\"\r",
+      "sha256": "5647382a10430a03d9617379119631f21ddef40885be864147c8c5b0acf3a458",
+      "timestamp_utc": "2026-10-20T05:51:33Z"
+    }
+  ]
+}

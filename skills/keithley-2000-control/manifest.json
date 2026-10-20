@@ -7,8 +7,10 @@
   "instrument": {
     "vendor": "Keithley Instruments",
     "model": "Model 2000",
-    "firmware": null,
-    "serial": null
+    "firmware": "A17 /A02",
+    "serial": "0944865",
+    "interface": "RS-232, 9600 8N1, no flow control",
+    "input_path": "front (SYSTem:FRSWitch? -> 1)"
   },
   "source": {
     "operation": "single scalar ASCII reading or error-queue response",
@@ -17,35 +19,52 @@
       "title": "Model 2000 Multimeter User's Manual",
       "revision": "2000-900-01 Rev. J / August 2010",
       "url": "https://download.tek.com/manual/2000-900_J-Aug2010_User.pdf",
-      "location": "PDF physical pages 134-137, 159-162, 168-169, 190-194"
+      "location": "PDF physical pages 85-87, 121-126, 134-138, 159-162, 168-169, 190-194, 212"
     }
   },
   "data": {
     "kind": "scalar-measurement",
-    "raw_path": "assets/fixtures/valid-reading.txt",
-    "raw_sha256": "a017168a649ee36c4a0f74866e448647b5d27402c288aba2999f1b9d6f84d2fd",
-    "raw_provenance": "Synthetic fixture following the manual's documented ASCII example; not a real instrument capture."
+    "raw_path": "assets/captures/reading-dcv-25v.txt",
+    "raw_sha256": "437795d05390cefa3d21fdc0e08a8cc31967af21357b77e002c6f6d74b17bc2d",
+    "raw_provenance": "Real instrument capture, 2026-10-20, Keithley Model 2000 serial 0944865 over RS-232 9600 8N1; ~25.2 V DC source on the front INPUT HI/LO terminals."
   },
   "support": {
-    "level": "documented",
-    "hardware_verified": false,
+    "level": "hardware-verified",
+    "hardware_verified": true,
+    "verified_scope": {
+      "functions": ["VOLTage:DC"],
+      "interfaces": ["RS-232 9600 8N1"],
+      "date": "2026-10-20",
+      "firmware": "A17 /A02",
+      "serial": "0944865"
+    },
     "known_limitations": [
-      "No instrument transport or hardware verification is included.",
+      "Hardware evidence covers DC voltage over RS-232 on one instrument only; all other functions and interfaces remain documented.",
       "The parser accepts one ASCII scalar line and one error-queue line only; other error-queue codes require explicit error-queue mode.",
       "Multi-reading, binary, and scanner responses are unsupported.",
       "Automatic error-queue classification recognizes only documented sentinels; other error-queue lines require explicit error-queue mode.",
-      "Calibration, fuse continuity, and acquisition freshness are not inferred."
+      "Calibration, fuse continuity, and acquisition freshness are not inferred.",
+      "With continuous initiation ON, :READ? queues -213,\"Init ignored\" and returns a continuous-acquisition value rather than a newly triggered reading."
     ]
   },
   "integrity": {
-    "status": "UNVERIFIED",
+    "status": "COMPLETE",
     "checks": [
       {
-        "name": "fixture_origin",
+        "name": "hardware_capture",
         "status": "pass",
         "evidence": {
-          "synthetic": true,
-          "hardware_capture": false
+          "capture_path": "assets/captures/session.json",
+          "captured_utc": "2026-10-20T05:51:33Z",
+          "identity": "KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  "
+        }
+      },
+      {
+        "name": "parser_roundtrip",
+        "status": "pass",
+        "evidence": {
+          "command": "python3 scripts/keithley2000_scalar.py assets/captures/reading-dcv-25v.txt --function VOLT:DC --unit VDC --query :READ? --acquisition-complete",
+          "result": "COMPLETE"
         }
       }
     ]

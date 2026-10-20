@@ -176,12 +176,40 @@ class Keithley2000ScalarTests(unittest.TestCase):
                 self.assertIsNone(artifact["measurement"]["value"])
                 self.assertEqual(artifact["integrity"]["status"], "UNVERIFIED")
 
-    def test_manifest_hash_matches_synthetic_fixture(self):
+    def test_manifest_hash_matches_captured_reading(self):
         manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
         raw = (ROOT / manifest["data"]["raw_path"]).read_bytes()
         digest = hashlib.sha256(raw).hexdigest()
         self.assertEqual(manifest["data"]["raw_sha256"], digest)
-        self.assertEqual(manifest["support"]["hardware_verified"], False)
+        self.assertEqual(manifest["support"]["hardware_verified"], True)
+        self.assertEqual(manifest["support"]["level"], "hardware-verified")
+        self.assertEqual(manifest["support"]["verified_scope"]["functions"], ["VOLTage:DC"])
+        self.assertEqual(manifest["instrument"]["serial"], "0944865")
+
+    def test_hardware_capture_shapes_parse_as_observed(self):
+        captures = ROOT / "assets" / "captures"
+
+        bare = parse_response(
+            (captures / "reading-dcv-25v.txt").read_bytes(),
+            context={"function": "VOLT:DC"},
+        )
+        self.assertEqual(bare["integrity"]["status"], "INCOMPLETE")
+        self.assertEqual(bare["integrity"]["reasons"], ["unit_missing"])
+
+        full = parse_response(
+            (captures / "elements-read-chan-unit.txt").read_bytes(),
+            context={"function": "VOLT:DC", "acquisition_complete": True},
+        )
+        self.assertEqual(full["integrity"]["status"], "COMPLETE")
+        self.assertEqual(full["measurement"]["channel"], 0)
+        self.assertEqual(full["measurement"]["channel_kind"], "INTCHAN")
+
+        init_ignored = parse_response(
+            (captures / "error-init-ignored.txt").read_bytes(),
+            response_type="error-queue",
+        )
+        self.assertEqual(init_ignored["record"]["code"], -213)
+        self.assertEqual(init_ignored["record"]["message"], '"Init ignored"')
 
     def test_response_type_is_validated(self):
         artifact = parse_response(b"+1.0E+00VDC\n", response_type="typo")

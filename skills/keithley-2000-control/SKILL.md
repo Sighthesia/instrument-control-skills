@@ -8,8 +8,12 @@ description: Control and document measurement workflows for a Keithley Model 200
 Use this Skill for the Keithley Model 2000 (6½-digit) bench multimeter and its
 documented SCPI/IEEE-488 or RS-232 workflows. The implementation is based on
 the official *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
-2010`; it is `documented` only until a real instrument response is captured with
-model, firmware, interface, and test date.
+2010`.
+
+DC voltage over RS-232 is `hardware-verified` / `firmware-scoped` for one
+instrument (serial `0944865`, firmware `A17`/`A02`, 9600 8N1, 2026-10-20); see
+[Hardware verification](references/hardware-verification.md). Every other
+function and interface remains `documented`.
 
 ## Non-negotiable safety rules
 
@@ -54,6 +58,7 @@ Read the task-specific reference instead of loading every command detail:
 | Configure range, resolution, NPLC, filter, units, or math context | [Measurement configuration](references/measurement-configuration.md) |
 | Use trigger, buffer, limit, or scanner features | [Conditional acquisition](references/conditional-acquisition.md) |
 | Understand parser stages, statuses, and manual provenance | [Response and evidence](references/response-and-evidence.md) |
+| Check what a real Model 2000 returned, and what stays unverified | [Hardware verification](references/hardware-verification.md) |
 
 The local evidence file is `ref/2000-900_J-Aug2010_User.pdf`. It is a copy of
 the official Keithley/Tektronix document available at
@@ -73,8 +78,10 @@ verification date.
   serial, and firmware, but does **not** prove that SCPI is the selected language.
 - **Primary data kind**: `scalar-measurement`; one or more readings with function,
   unit, acquisition context, raw response hash, and integrity status.
-- **Support level**: `documented`; no hardware response is bundled. Upgrade to
-  `hardware-verified` only after preserving the raw exchange and exact identity.
+- **Support level**: `hardware-verified` / `firmware-scoped` for DC voltage over
+  RS-232 (serial `0944865`, firmware `A17`/`A02`); `documented` for all other
+  functions and interfaces. Do not extend one capture to another instrument,
+  firmware, or interface.
 - **Not automatic**: calibration, fuse diagnosis, safe probing, line-power
   changes, interface/language switching, and scanner availability.
 
@@ -88,7 +95,9 @@ send a second query while an earlier response is unread.
    straight-through DB-9 connection, not a null-modem connection; the manual
   documents 8N1, software flow control, and a factory baud rate of 4800. For
   RS-232, the manual lists `+808 ASCII only with RS-232`; use ASCII responses
-  rather than attempting binary transfers.
+  rather than attempting binary transfers. Frame responses on the configured
+  terminator (the verified unit sends CR only), not on an assumed LF: a host
+  reader that waits for LF can accumulate extra bytes.
 2. Send `*IDN?`; preserve the raw response and record vendor, model, serial,
    firmware, interface, and timestamp.
 3. Confirm with the operator or setup record that the Model 2000 is in SCPI
@@ -117,12 +126,12 @@ send a second query while an earlier response is unread.
 
 | Need | Preferred sequence | Important semantics |
 |---|---|---|
-| Fresh one-shot reading with explicit function | `:CONFigure:<function>` then `:READ?` | `READ?` performs `ABORt; INITiate; FETCh?`; readings are stored in the buffer. |
+| Fresh one-shot reading with explicit function | `:CONFigure:<function>` then `:READ?` | `READ?` performs `ABORt; INITiate; FETCh?`; readings are stored in the buffer. If continuous initiation is ON, `:INITiate` is ignored and queues `-213,"Init ignored"` while `:FETCh?` still returns a value: that value is a continuous-acquisition result, not a newly triggered one. |
 | Fresh one-shot reading with the instrument selecting the function | `:MEASure:<function>?` | Convenience command performs `ABORt; CONFigure; READ?`; it resets/overrides math, buffer, scan, and continuous-trigger context. |
 | Retrieve the latest post-processed value | `:FETCh?` | Does not trigger; may return the same old reading repeatedly. It can miss readings with rapid external triggers. |
 | Retrieve the latest raw or REL-adjusted value | `:SENSe:DATA?` | Does not return math results or the function name; pair with `:FUNCtion?` and a configuration snapshot. |
 | Require a new value | Prefer an explicit one-shot `:READ?` sequence | The supplied Rev. J PDF mentions `:DATA:FRESh?` only as a cross-reference on p.135; it does not include its command description. Do not rely on it without matching firmware documentation or hardware verification. |
-| Repeated readings | Configure trigger/sample count or continuous initiation, then use the documented fetch/buffer path | Do not combine `:INITiate:CONTinuous ON` with `:READ?` or an unsafe `*OPC?` sequence. |
+| Repeated readings | Configure trigger/sample count or continuous initiation, then use the documented fetch/buffer path | Do not combine `:INITiate:CONTinuous ON` with `:READ?` or an unsafe `*OPC?` sequence. Check `:INITiate:CONTinuous?` and drain `-213` before trusting a `:READ?` as newly triggered. |
 
 For each artifact record the command sequence, raw bytes, response order,
 function, unit, terminal/input selection, range/auto-range, digits, NPLC or
@@ -177,6 +186,11 @@ The default parser accepts the documented ASCII reading shape produced by
   number and `INTCHAN`/`EXTCHAN` marker form one token).
 - The function and acquisition context are supplied separately; multi-field
   comma-separated test metadata is not supported by this parser.
+- The verified unit leaves the factory `:FORMat:ELEMents READ,,` selected, so
+  `:READ?` returns a bare `+2.52756984E+01` with no unit. Supply `--unit VDC`
+  from the configuration record, or select `:FORMat:ELEMents READ,CHAN,UNIT`
+  to get `+2.52742641E+01VDC,00INTCHAN`; without either, the parser correctly
+  reports `INCOMPLETE` / `unit_missing`.
 
 It preserves the complete original bytes and SHA-256. It recognizes the
 documented overflow sentinel `9.9E37` (with optional sign, with or without a
@@ -224,7 +238,9 @@ Use these statuses conservatively:
 Never call a valid-looking number calibrated, fresh, complete, or hardware
 verified without the corresponding evidence. Keep `documented`,
 `hardware-verified`, and `firmware-scoped` as evidence labels, not feature
-counts.
+counts. The current hardware evidence covers DC voltage over RS-232 on serial
+`0944865`, firmware `A17`/`A02`, tested 2026-10-20; raw captures and the exact
+scope are in [Hardware verification](references/hardware-verification.md).
 
 ## Verification commands
 
