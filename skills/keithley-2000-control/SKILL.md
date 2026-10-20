@@ -249,9 +249,10 @@ python3 scripts/keithley2000_session.py unblock
 setters it writes, queries every value back, and drains the queue; `--output`
 saves `config.json` plus the session log. It selects a function with
 `:FUNCtion`, not `:CONFigure`, so it does not reset the other settings.
-`--rel-acquire` uses the latest valid reading, so it needs one already
-available (continuous acquisition or a preceding read). Supported fields differ
-by function: NPLC excludes frequency/period/continuity/diode; digits exclude
+`--rel-acquire` requires `--rel on|off`, temporarily disables REL, captures
+the latest raw reading, then applies the requested state; it cannot be combined
+with `--rel-reference`. It needs a reading already available (continuous
+acquisition or a preceding read). Supported fields differ by function: NPLC excludes frequency/period/continuity/diode; digits exclude
 continuity/diode; the filter excludes frequency/period/continuity/diode; REL
 excludes continuity/diode. `config --function CURR:DC` needs
 `--allow-current`, because changing to the current function changes the input

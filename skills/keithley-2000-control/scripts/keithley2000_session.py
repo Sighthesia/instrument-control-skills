@@ -577,6 +577,8 @@ def cmd_config(session: Session, args: argparse.Namespace) -> int:
     if args.rel is not None or args.rel_reference is not None or args.rel_acquire:
         if token not in REFERENCE_FUNCTIONS:
             raise SessionError(f"{token} has no REL/reference function")
+    if args.rel_acquire and args.rel is None:
+        raise SessionError("--rel-acquire requires --rel on or --rel off")
     if args.rel_reference is not None:
         low, high = REFERENCE_LIMITS[token]
         if not low <= args.rel_reference <= high:
@@ -616,10 +618,14 @@ def cmd_config(session: Session, args: argparse.Namespace) -> int:
         apply(f":SENSe:{path}:AVERage:STATe {'ON' if args.filter == 'on' else 'OFF'}")
     if args.rel_reference is not None:
         apply(f":SENSe:{path}:REFerence {args.rel_reference:g}")
-    if args.rel is not None:
-        apply(f":SENSe:{path}:REFerence:STATe {'ON' if args.rel == 'on' else 'OFF'}")
     if args.rel_acquire:
+        # ACQuire captures the displayed reading, so REL must be off first.
+        apply(f":SENSe:{path}:REFerence:STATe OFF")
         apply(f":SENSe:{path}:REFerence:ACQuire")
+        if args.rel == "on":
+            apply(f":SENSe:{path}:REFerence:STATe ON")
+    elif args.rel is not None:
+        apply(f":SENSe:{path}:REFerence:STATe {'ON' if args.rel == 'on' else 'OFF'}")
 
     readbacks: dict[str, Any] = {}
     for label, query in _config_queries(token, path).items():
@@ -951,9 +957,12 @@ def _build_parser() -> argparse.ArgumentParser:
     config.add_argument("--filter", choices=("on", "off"))
     config.add_argument("--filter-type", dest="filter_type", choices=("moving", "repeat"))
     config.add_argument("--filter-count", dest="filter_count", type=int)
-    config.add_argument("--rel", choices=("on", "off"))
-    config.add_argument("--rel-reference", dest="rel_reference", type=float)
-    config.add_argument("--rel-acquire", dest="rel_acquire", action="store_true")
+    config.add_argument("--rel", choices=("on", "off"),
+                        help="final REL state; required with --rel-acquire")
+    rel_group = config.add_mutually_exclusive_group()
+    rel_group.add_argument("--rel-reference", dest="rel_reference", type=float)
+    rel_group.add_argument("--rel-acquire", dest="rel_acquire", action="store_true",
+                           help="capture the latest raw reading as the reference")
     config.add_argument("--allow-current", action="store_true",
                         help="confirm the AMPS/INPUT LO path is already wired in series")
     config.add_argument("--output")

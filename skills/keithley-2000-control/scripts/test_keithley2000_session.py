@@ -273,6 +273,36 @@ class DryRunTests(unittest.TestCase):
         self.assertIn(b":SENSe:CURRent:DC:NPLCycles 1\r", session.sent)
         session.close()
 
+    def test_config_rel_acquire_disables_rel_before_capturing(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "config", "--function", "VOLT:DC",
+             "--rel", "on", "--rel-acquire"])
+        self.assertEqual(session_module.cmd_config(session, args), 0)
+        self.assertEqual(
+            session.sent[:4],
+            [b':FUNCtion "VOLT:DC"\r',
+             b':SENSe:VOLTage:DC:REFerence:STATe OFF\r',
+             b':SENSe:VOLTage:DC:REFerence:ACQuire\r',
+             b':SENSe:VOLTage:DC:REFerence:STATe ON\r'])
+        self.assertEqual(session.sent[4], b':FUNCtion?\r')
+        session.close()
+
+    def test_config_rel_acquire_needs_final_state(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "config", "--function", "VOLT:DC", "--rel-acquire"])
+        with self.assertRaises(SessionError):
+            session_module.cmd_config(session, args)
+        self.assertEqual(session.sent, [])
+        session.close()
+
+    def test_config_rel_reference_and_acquire_are_exclusive(self):
+        with self.assertRaises(SystemExit):
+            session_module._build_parser().parse_args(
+                ["config", "--function", "VOLT:DC",
+                 "--rel-reference", "0.05", "--rel-acquire", "--rel", "on"])
+
     def test_constants_dry_run_queries_the_documented_set(self):
         session = Session(dry_run=True)
         args = session_module._build_parser().parse_args(["--dry-run", "constants"])

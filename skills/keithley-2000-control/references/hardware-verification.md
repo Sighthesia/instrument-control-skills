@@ -183,7 +183,9 @@ The same session was re-run through `scripts/keithley2000_session.py` on
 - `config` applied NPLC 0.5, DIGits 6, a moving filter with count 5, and a
   0.05 V REL reference, read every value back, then restored NPLC 1, DIGits 7,
   filter off, and REL off; `config --rel-acquire` captured the latest reading
-  (`-0.263604 V`) as the reference.
+  (`-0.263604 V`) as the reference. With REL ON and a 1.0 V reference,
+  `--rel-acquire` captured the raw input (`-0.0494138 V`), not the relative
+  result, confirming REL is disabled during capture and re-enabled afterwards.
 - `constants` reproduced the table above and reported the calibration due date
   as overdue.
 - A second concurrent session was refused with "serial port is already open
