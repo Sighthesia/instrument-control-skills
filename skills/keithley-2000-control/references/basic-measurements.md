@@ -85,6 +85,14 @@ instrument's SCPI parser; SCPI keywords are not case-sensitive.
   37).
 - The signal must exceed `10%` of the selected full-scale voltage range; use the
   AC voltage input path and observe the `8 × 10^7 V·Hz` limit (PDF 37-38).
+- The range for these functions is the threshold voltage range, not
+  `:RANGe`: `:SENSe:FREQuency:THReshold:VOLTage:RANGe` and
+  `:SENSe:PERiod:THReshold:VOLTage:RANGe` (query verified as `10.000000`).
+  `:SENSe:FREQuency:RANGe?` is not a Model 2000 command; the verified firmware
+  returns no response, which a host sees as a read timeout.
+- With no signal the instrument answers `+0.00000000E+00` rather than overflow;
+  treat that as no-signal unless the amplitude requirement is separately
+  established.
 
 ### Temperature
 

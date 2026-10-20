@@ -163,6 +163,27 @@ Consequences for evidence:
 - Setting `:SENSe:DIODe:CURRent:RANGe 1e-4` read back `0.00010`, confirming the
   documented three-range diode bias control.
 
+## Bundled helper checks
+
+The same session was re-run through `scripts/keithley2000_session.py` on
+2026-10-20:
+
+- `identify` parsed the identity and reported `matches recorded capture: True`.
+- `walk --confirm-open-input --output ...` reproduced the open-input table above
+  and wrote one raw file per function plus `walk.json` and a session log.
+- `read --function VOLT:DC --no-configure` with continuous initiation ON
+  returned a value **and** reported `flags=['init_ignored']`, status
+  `UNVERIFIED`, freshness `not_newly_triggered` — the workflow gap that a
+  hand-run parser leaves open.
+- `read --function CURR:DC` was refused without `--allow-current`, and `walk`
+  without `--confirm-open-input`; `*RST` and `:INITiate:CONTinuous` were
+  refused without `--allow-state-change`.
+- The frequency/period range readback is
+  `:SENSe:<fn>:THReshold:VOLTage:RANGe?`. Writing the voltage/current/resistance
+  form (`:SENSe:FREQuency:RANGe?`) is invalid: the firmware returns **no
+  response**, which the transport reports as a timeout and treats as a
+  desynchronised session.
+
 ## Not verified
 
 - Calibration, input-fuse continuity, thermal EMF, and long-term drift.

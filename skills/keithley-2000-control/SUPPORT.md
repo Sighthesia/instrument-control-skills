@@ -7,9 +7,10 @@
   firmware `A17` / `A02`, RS-232 9600 8N1, front terminals (`INPUT HI`/`INPUT LO`
   for voltage, `AMPS`/`INPUT LO` in series for current)
 - Manual source: [Model 2000 Multimeter User's Manual, 2000-900-01 Rev. J / August 2010](https://download.tek.com/manual/2000-900_J-Aug2010_User.pdf)
-- Supported data kinds: one scalar ASCII reading or one error-queue line from a saved response
+- Bundled scripts: `keithley2000_scalar.py` (one reading or one queue line), `keithley2000_protocol.py` (`*IDN?`, configuration readbacks, whole queue drain, function/unit mapping, reading assessment), `keithley2000_session.py` (optional RS-232 transport with lazy pyserial, `--dry-run`, guard flags, raw capture)
+- Supported data kinds: one scalar ASCII reading, one or more error-queue lines, identity, or configuration readbacks
 - Command evidence: all eleven front-panel functions were configured and read with open inputs on 2026-10-20; overflow (`+9.9E37`) appeared on resistance, 4-wire, continuity, diode, and temperature, while frequency/period reported `0` and DCV floated to tens of millivolts. This proves the command path, not measurement accuracy.
-- Known limitations: no transport driver; no binary, multi-reading, or scanner parser; automatic classification recognizes only documented error-queue sentinels, while other queue responses require explicit error-queue mode; calibration, input-fuse continuity, and acquisition freshness are not inferred; `:READ?` with continuous initiation ON yields `-213,"Init ignored"` and a continuous-acquisition value; a floating input and a no-signal frequency/period can look like a valid reading
+- Known limitations: no transport driver; no binary, multi-reading, or scanner parser; automatic classification recognizes only documented error-queue sentinels, while other queue responses require explicit error-queue mode; calibration, input-fuse continuity, and acquisition freshness are not inferred; `:READ?` with continuous initiation ON yields `-213,"Init ignored"` and a continuous-acquisition value, which the session helper reports as `UNVERIFIED` / `not_newly_triggered`; a floating input and a no-signal frequency/period can look like a valid reading; the live session is verified against one instrument and one baud rate
 
 Raw responses and the full exchange are in `assets/captures/`; the scope and
 remaining gaps are recorded in `references/hardware-verification.md`.

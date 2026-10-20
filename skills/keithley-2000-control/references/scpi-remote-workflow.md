@@ -97,6 +97,20 @@ with continuous initiation active; `:INITiate:CONTinuous ON` combined with
 - Keep command errors, execution errors, device-dependent errors, query errors,
   instrument overloads, and missing/stale responses as distinct findings.
 
+## Bundled helpers
+
+- `scripts/keithley2000_scalar.py` — one saved ASCII reading or error-queue line.
+- `scripts/keithley2000_protocol.py` — `*IDN?`, configuration readbacks, a whole
+  multi-line queue drain, plus function/unit mapping and reading assessment.
+- `scripts/keithley2000_session.py` — the only script that opens RS-232;
+  `--dry-run` records the exact bytes, the guard flags block resets and
+  unconfirmed current measurements, and each `read` saves raw bytes plus a
+  session log when `--output` is given.
+
+Do not send a second query while a response is unread: an undefined query such
+as `:SENSe:FREQuency:RANGe?` produces no response at all, so the host must time
+out and the session is then out of step.
+
 ## Manual citation index
 
 | Topic | PDF physical pages |

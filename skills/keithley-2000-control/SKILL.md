@@ -160,7 +160,7 @@ For a compact one-shot, `:MEASure:VOLTage:DC?` is documented, but it resets the
 selected function settings and disables math, buffer, scan, and continuous
 initiation context; use it only when that state change is intended.
 
-## Offline parser
+## Offline parsers
 
 Use `scripts/keithley2000_scalar.py` for saved ASCII response bytes. It is
 transport-independent and never opens a socket or sends a command:
@@ -169,6 +169,22 @@ transport-independent and never opens a socket or sends a command:
 python3 scripts/keithley2000_scalar.py assets/fixtures/valid-reading.txt
 python3 scripts/keithley2000_scalar.py assets/fixtures/overflow-reading.txt
 ```
+
+Use `scripts/keithley2000_protocol.py` for the responses that are not a single
+scalar reading:
+
+```text
+python3 scripts/keithley2000_protocol.py identity assets/captures/identity.txt
+python3 scripts/keithley2000_protocol.py config  saved/VOLT-DC-token.txt --query ':FUNCtion?'
+python3 scripts/keithley2000_protocol.py queue   saved/queue-drain.txt
+```
+
+It parses `*IDN?` into vendor/model/serial/digital+display firmware (and flags
+whether the identity matches the recorded capture), classifies configuration
+readbacks (`"VOLT:DC"`, `1010.000000`, `1`, `READ,,`), and parses a whole
+multi-line error-queue drain in order. It also supplies `default_unit()` /
+`sense_path()` / `assess_reading()` so the caller does not have to hand-map
+function tokens or guess whether a reading was newly triggered.
 
 The parser stages are deliberately separate:
 
@@ -204,6 +220,43 @@ scalar parser; report `UNSUPPORTED` or use a separately documented framing
 implementation. Automatic error-queue detection recognizes only `0,No error`
 and `±350, Queue Overflow`; pass `--response-type error-queue` to parse other
 error messages.
+
+## Live session helper (optional)
+
+`scripts/keithley2000_session.py` is the only bundled script that opens the
+port. It uses 8N1 with no flow control, writes one command at a time terminated
+by CR, and consumes exactly one CR/LF-terminated response per query. pyserial is
+imported lazily; `--dry-run` prints the exact bytes without opening anything.
+
+```text
+python3 scripts/keithley2000_session.py identify
+python3 scripts/keithley2000_session.py errors
+python3 scripts/keithley2000_session.py read --function VOLT:DC --count 3 --output captures/
+python3 scripts/keithley2000_session.py read --function VOLT:DC --no-configure
+python3 scripts/keithley2000_session.py walk --confirm-open-input --output captures/
+python3 scripts/keithley2000_session.py query ':FUNCtion?'
+python3 scripts/keithley2000_session.py write ':CONFigure:VOLT:DC'
+```
+
+Guards, all verified against the 2026-10-20 capture:
+
+- `read`/`walk` refuse `CURR:DC`/`CURR:AC` unless `--allow-current` is given,
+  because the AMPS/INPUT LO path must already be wired in series by the
+  operator; the tool never assumes that wiring.
+- `walk` requires `--confirm-open-input`, since it expects disconnected leads
+  and reports overflow as the correct result.
+- `*RST`, `*CLS`, `:SYSTem:PRESet`, `:CALibration...`,
+  `:SYSTem:AZERo:STATe`, and `:INITiate:CONTinuous` are refused unless
+  `--allow-state-change` is given.
+- `--no-configure` reads the current setup untouched; with continuous
+  initiation ON this reproduces `-213` and the result is reported `UNVERIFIED`
+  with freshness `not_newly_triggered`.
+- Range/threshold writes are function-specific: frequency and period use
+  `:SENSe:<fn>:THReshold:VOLTage:RANGe`, continuity uses
+  `:SENSe:CONTinuity:THReshold`, diode uses `:SENSe:DIODe:CURRent:RANGe`, and
+  temperature has no range. `:SENSe:FREQuency:RANGe?` is not a Model 2000
+  command and returns no response (a session timeout), so never generalize the
+  voltage/current/resistance range syntax.
 
 ## Conditional advanced features
 
