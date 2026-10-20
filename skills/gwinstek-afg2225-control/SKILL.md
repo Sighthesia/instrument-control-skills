@@ -88,6 +88,13 @@ These labels describe evidence, not feature count. This Skill is intentionally
 | AM/FM/FSK/PM/SUM, sweep, burst, counter, phase, coupling | [modulation-sweep-burst.md](references/modulation-sweep-burst.md) |
 | ARB memory, DATA:DAC, CSV, validation, quantization | [arbitrary-waveform.md](references/arbitrary-waveform.md) |
 | Parser stages, statuses, provenance, limitations | [response-and-evidence.md](references/response-and-evidence.md) |
+| Cross-check a command across subsystems, or answer a command question no task reference covers | [command-reference.md](references/command-reference.md) |
+
+The command index is a fallback, not a starting point: open it only when the
+task reference and the scripts cannot answer the command question. It lists only
+commands this Skill already records; anything absent must be verified against the
+user manual and labelled `documented` before use, and the safety rules above still
+apply.
 
 ## Standard remote session
 

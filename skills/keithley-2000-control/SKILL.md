@@ -59,6 +59,13 @@ Read the task-specific reference instead of loading every command detail:
 | Use trigger, buffer, limit, or scanner features | [Conditional acquisition](references/conditional-acquisition.md) |
 | Understand parser stages, statuses, and manual provenance | [Response and evidence](references/response-and-evidence.md) |
 | Check what a real Model 2000 returned, and what stays unverified | [Hardware verification](references/hardware-verification.md) |
+| Cross-check a command across subsystems, or answer a command question no task reference covers | [Command reference (fallback)](references/command-reference.md) |
+
+The command index is a fallback, not a starting point: open it only when the
+task reference and the scripts cannot answer the command question. It lists only
+commands this Skill already records; anything absent must be verified against the
+user's manual and labelled `documented` before use, and the safety rules above
+still apply.
 
 The local evidence file is `ref/2000-900_J-Aug2010_User.pdf`. It is a copy of
 the official Keithley/Tektronix document available at

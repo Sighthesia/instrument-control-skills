@@ -94,8 +94,13 @@ Labels describe evidence, not feature count. This Skill is intentionally
 | Image/hardcopy save, waveform/setup save/recall, file limits | [save-and-screenshot.md](references/save-and-screenshot.md) |
 | Math, cursors, display, decode, search, segments, DVM, Go-NoGo, datalog, remote disk | [advanced-features.md](references/advanced-features.md) |
 | Parser stages, statuses, raw evidence, calibration caveat | [response-and-evidence.md](references/response-and-evidence.md) |
+| Cross-check a command across subsystems, or answer a command question no task reference covers | [command-reference.md](references/command-reference.md) |
 
-Load only the reference matching the current task.
+Load only the reference matching the current task. The command index is a
+fallback, not a starting point: open it only when the task reference and the
+scripts cannot answer the command question. It lists only commands this Skill
+already records; anything absent must be verified against the programming manual
+and labelled `documented` before use, and the safety rules above still apply.
 
 ## Standard remote session
 

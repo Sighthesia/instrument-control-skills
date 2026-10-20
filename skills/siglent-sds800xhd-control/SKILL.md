@@ -29,6 +29,9 @@ Load only the reference matching the current debugging goal. Do not read every c
 | Diagnose UART/I2C/SPI/CAN/LIN or another supported serial bus | [Protocol decode](references/protocol-decode.md) |
 | Find runt pulses, glitches, timing violations, mask failures, or replay a captured fault | [Anomaly search and mask testing](references/anomaly-search-and-mask-testing.md) |
 | Measure long-term frequency/period statistics, inspect cursor deltas, or inspect history timestamps | [Counter, cursor, and history](references/counter-cursor-and-history.md) |
+| Cross-check a command across subsystems, or answer a command question no task reference covers | [Command reference (fallback)](references/command-reference.md) |
+
+The fallback command index is not a starting point: use it only after the matching task reference and the bundled scripts fail to answer the command question. It indexes only the commands this Skill already records; anything missing from it must be verified against the programming guide and labelled `documented` before use, and the safety rules above always take precedence.
 
 Start with the matching reference's read-only snapshot. Use a setup/enable command only when that workflow requires it and the caller authorized changing scope state. Each reference distinguishes target-hardware-tested behavior from manual-documented behavior and notes feature prerequisites.
 
