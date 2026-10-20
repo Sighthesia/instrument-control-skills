@@ -1,0 +1,419 @@
+> *IDN?
+< KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  
+> :SYSTem:VERSion?
+< 1991.0
+> :SYSTem:LFRequency?
+< 50
+> :SYSTem:FRSWitch?
+< 1
+> :SYSTem:POSetup?
+< SAV0
+> :SYSTem:AZERo:STATe?
+< 1
+> :CAL:PROT:COUN?
+< 6
+> :CAL:PROT:DATE?
+< 2008,06,20
+> :CAL:PROT:NDUE?
+< 2009,06,20
+> :CAL:PROT:LOCK?
+< 0
+> :FUNCtion?
+< "VOLT:DC"
+> :SENSe:VOLTage:DC:NPLCycles?
+< 1.00
+> :SENSe:VOLTage:DC:DIGits?
+< 7
+> :SENSe:VOLTage:DC:AVERage:STATe?
+< 0
+> :SENSe:VOLTage:DC:AVERage:TCONtrol?
+< REP
+> :SENSe:VOLTage:DC:AVERage:COUNt?
+< 10
+> :SENSe:VOLTage:DC:REFerence?
+< 0.0000000E+00
+> :SENSe:VOLTage:DC:REFerence:STATe?
+< 0
+> :SENSe:VOLTage:DC:RANGe:AUTO?
+< 1
+> :INITiate:CONTinuous?
+< 1
+> :TRIGger:SOURce?
+< IMM
+> :FORMat:ELEments?
+< READ,,
+> :ABORt
+> :INITiate:CONTinuous OFF
+> :CONFigure:VOLT:DC
+> :SENSe:VOLTage:DC:RANGe 10
+> :SENSe:VOLTage:DC:DIGits 7
+> :SENSe:VOLTage:DC:AVERage:STATe OFF
+> :SENSe:VOLTage:DC:REFerence:STATe OFF
+> :SYSTem:AZERo:STATe OFF
+> :SENSe:VOLTage:DC:NPLCycles 0.01
+> :SENSe:VOLTage:DC:NPLCycles?
+< 0.01
+> :READ?
+< +6.63525176E-01
+> :READ?
+< +6.52251887E-01
+> :READ?
+< +6.22645270E-01
+> :READ?
+< +5.84612153E-01
+> :READ?
+< +6.00098692E-01
+> :READ?
+< +5.85750869E-01
+> :SENSe:VOLTage:DC:NPLCycles 0.1
+> :SENSe:VOLTage:DC:NPLCycles?
+< 0.10
+> :READ?
+< -4.80940711E-01
+> :READ?
+< -7.82451127E-02
+> :READ?
+< +1.29888293E-01
+> :READ?
+< +3.61314399E-01
+> :READ?
+< +4.48180140E-01
+> :READ?
+< +3.40412819E-01
+> :SENSe:VOLTage:DC:NPLCycles 1
+> :SENSe:VOLTage:DC:NPLCycles?
+< 1.00
+> :READ?
+< -5.41975596E-01
+> :READ?
+< -5.59271808E-01
+> :READ?
+< -5.77823959E-01
+> :READ?
+< -5.99737428E-01
+> :READ?
+< -6.21616737E-01
+> :READ?
+< -6.28869418E-01
+> :SENSe:VOLTage:DC:NPLCycles 10
+> :SENSe:VOLTage:DC:NPLCycles?
+< 10.00
+> :READ?
+< -1.42893498E+00
+> :READ?
+< -1.66484576E+00
+> :READ?
+< -1.74937865E+00
+> :READ?
+< -2.15793123E+00
+> :READ?
+< -3.48863134E+00
+> :READ?
+< -3.60344967E+00
+> :SYSTem:AZERo:STATe ON
+> :SENSe:VOLTage:DC:NPLCycles 1
+> :READ?
+< -2.98673296E+00
+> :READ?
+< -2.84430279E+00
+> :READ?
+< -2.87978736E+00
+> :READ?
+< -2.89036208E+00
+> :READ?
+< -3.00538475E+00
+> :SENSe:VOLTage:DC:NPLCycles?
+< 1.00
+> :SENSe:VOLTage:DC:NPLCycles 10
+> :READ?
+< -3.34971859E+00
+> :READ?
+< -3.43697682E+00
+> :READ?
+< -3.53451786E+00
+> :READ?
+< -3.62829195E+00
+> :READ?
+< -3.72179787E+00
+> :SENSe:VOLTage:DC:NPLCycles?
+< 10.00
+> :SENSe:VOLTage:DC:NPLCycles 1
+> :SENSe:VOLTage:DC:DIGits 4
+> :SENSe:VOLTage:DC:DIGits?
+< 4
+> :READ?
+< -3.86448877E+00
+> :SENSe:VOLTage:DC:DIGits 5
+> :SENSe:VOLTage:DC:DIGits?
+< 5
+> :READ?
+< -3.89115101E+00
+> :SENSe:VOLTage:DC:DIGits 6
+> :SENSe:VOLTage:DC:DIGits?
+< 6
+> :READ?
+< -3.91489146E+00
+> :SENSe:VOLTage:DC:DIGits 7
+> :SENSe:VOLTage:DC:DIGits?
+< 7
+> :READ?
+< -3.93826949E+00
+> :CONFigure:CURR:DC
+> :SENSe:CURRent:DC:RANGe:AUTO ON
+> :SENSe:CURRent:DC:NPLCycles 1
+> :SENSe:CURRent:DC:DIGits 7
+> :SENSe:CURRent:DC:AVERage:STATe OFF
+> :SENSe:CURRent:DC:REFerence 0
+> :SENSe:CURRent:DC:REFerence:STATe OFF
+> :READ?
+< -1.30336111E-08
+> :READ?
+< -3.02269477E-08
+> :READ?
+< -3.35546902E-08
+> :READ?
+< -2.74538289E-08
+> :READ?
+< -2.41260863E-08
+> :SENSe:CURRent:DC:REFerence 0.05
+> :SENSe:CURRent:DC:REFerence:STATe ON
+> :SENSe:CURRent:DC:REFerence?
+< 5.0000000E-02
+> :SENSe:CURRent:DC:REFerence:STATe?
+< 1
+> :READ?
+< -5.00000236E-02
+> :READ?
+< -5.00000136E-02
+> :READ?
+< -5.00000297E-02
+> :SENSe:CURRent:DC:REFerence:STATe OFF
+> :READ?
+< -2.91177002E-08
+> :READ?
+< -3.30000805E-08
+> :READ?
+< -3.30000805E-08
+> :SENSe:CURRent:DC:REFerence:STATe?
+< 0
+> :SENSe:CURRent:DC:REFerence:STATe ON
+> :SENSe:CURRent:DC:REFerence:ACQuire
+> :SENSe:CURRent:DC:REFerence?
+< -3.3000081E-08
+> :READ?
+< +1.88572063E-08
+> :READ?
+< +2.21848680E-09
+> :READ?
+< +4.43698155E-09
+> :SENSe:CURRent:DC:REFerence:STATe OFF
+> :SENSe:CURRent:DC:REFerence 0
+> :SENSe:CURRent:DC:NPLCycles 0.1
+> :SENSe:CURRent:DC:AVERage:COUNt 10
+> :SENSe:CURRent:DC:AVERage:STATe ON
+> :INITiate:CONTinuous ON
+> :SENSe:CURRent:DC:AVERage:TCONtrol MOVing
+> :FETCh?
+< +1.34831394E-06
+> :FETCh?
+< +3.89581614E-07
+> :FETCh?
+< +1.13677139E-07
+> :FETCh?
+< +4.01943420E-08
+> :FETCh?
+< -1.04117349E-08
+> :FETCh?
+< +3.36898464E-07
+> :FETCh?
+< +2.25981035E-07
+> :FETCh?
+< +4.04142155E-07
+> :FETCh?
+< +3.45217271E-07
+> :FETCh?
+< +2.35686310E-07
+> :FETCh?
+< +2.11425216E-07
+> :FETCh?
+< +2.80751318E-07
+> :FETCh?
+< +4.17319763E-07
+> :FETCh?
+< +5.30318020E-07
+> :FETCh?
+< +1.44876113E-07
+> :FETCh?
+< +2.84217522E-07
+> :FETCh?
+< +2.86297245E-07
+> :FETCh?
+< +1.85777323E-07
+> :FETCh?
+< +2.22519087E-07
+> :FETCh?
+< +2.55100530E-07
+> :SENSe:CURRent:DC:AVERage:STATe?
+< 1
+> :SENSe:CURRent:DC:AVERage:TCONtrol?
+< MOV
+> :SENSe:CURRent:DC:AVERage:COUNt?
+< 10
+> :SENSe:CURRent:DC:AVERage:TCONtrol REPeat
+> :FETCh?
+< +1.94092384E-07
+> :FETCh?
+< +3.40364783E-07
+> :FETCh?
+< +4.92183056E-07
+> :FETCh?
+< +4.92183056E-07
+> :FETCh?
+< +4.40190497E-07
+> :FETCh?
+< +2.38459368E-07
+> :FETCh?
+< +3.64627978E-07
+> :FETCh?
+< +1.65667475E-07
+> :FETCh?
+< +3.61158510E-07
+> :FETCh?
+< +2.47468780E-07
+> :FETCh?
+< +3.12632406E-07
+> :FETCh?
+< +2.45389090E-07
+> :FETCh?
+< +2.80743823E-07
+> :FETCh?
+< -1.06078548E-07
+> :FETCh?
+< -5.47795239E-08
+> :FETCh?
+< -2.98232419E-08
+> :FETCh?
+< -1.19942651E-07
+> :FETCh?
+< -3.05157423E-08
+> :FETCh?
+< +2.07835013E-08
+> :FETCh?
+< +2.62721826E-07
+> :SENSe:CURRent:DC:AVERage:STATe?
+< 1
+> :SENSe:CURRent:DC:AVERage:TCONtrol?
+< REP
+> :SENSe:CURRent:DC:AVERage:COUNt?
+< 10
+> :SENSe:CURRent:DC:AVERage:STATe OFF
+> :FETCh?
+< +4.85131780E-08
+> :FETCh?
+< +8.45732290E-07
+> :FETCh?
+< -6.30856152E-07
+> :FETCh?
+< -3.67427228E-07
+> :FETCh?
+< +3.81265503E-07
+> :FETCh?
+< -1.59457025E-07
+> :FETCh?
+< -1.01213486E-06
+> :FETCh?
+< +7.48679528E-07
+> :FETCh?
+< -9.63610652E-07
+> :FETCh?
+< +5.75373240E-07
+> :FETCh?
+< +1.02597663E-06
+> :FETCh?
+< -4.57548381E-07
+> :FETCh?
+< +4.22861323E-07
+> :FETCh?
+< -4.85391484E-08
+> :FETCh?
+< +1.38520905E-08
+> :FETCh?
+< +2.21822887E-07
+> :FETCh?
+< +4.29795482E-07
+> :FETCh?
+< +6.92032380E-09
+> :FETCh?
+< -4.64481492E-07
+> :FETCh?
+< -8.32006116E-08
+> :SENSe:CURRent:DC:AVERage:STATe?
+< 0
+> :SENSe:CURRent:DC:AVERage:TCONtrol?
+< REP
+> :SENSe:CURRent:DC:AVERage:COUNt?
+< 10
+> :ABORt
+> :INITiate:CONTinuous OFF
+> :SYSTem:AZERo:STATe ON
+> :SENSe:CURRent:DC:AVERage:STATe OFF
+> :SENSe:CURRent:DC:REFerence:STATe OFF
+> :SENSe:CURRent:DC:REFerence 0
+> :CONFigure:VOLT:DC
+> :SENSe:VOLTage:DC:NPLCycles 1
+> :SENSe:VOLTage:DC:DIGits 7
+> :SENSe:VOLTage:DC:AVERage:STATe OFF
+> :SENSe:VOLTage:DC:AVERage:TCONtrol REPeat
+> :SENSe:VOLTage:DC:AVERage:COUNt 10
+> :SENSe:VOLTage:DC:REFerence 0
+> :SENSe:VOLTage:DC:REFerence:STATe OFF
+> :SENSe:VOLTage:DC:RANGe:AUTO ON
+> :FORMat:ELEments READ
+> :TRIGger:SOURce IMM
+> :INITiate:CONTinuous ON
+> *IDN?
+< KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  
+> :SYSTem:VERSion?
+< 1991.0
+> :SYSTem:LFRequency?
+< 50
+> :SYSTem:FRSWitch?
+< 1
+> :SYSTem:POSetup?
+< SAV0
+> :SYSTem:AZERo:STATe?
+< 1
+> :CAL:PROT:COUN?
+< 6
+> :CAL:PROT:DATE?
+< 2008,06,20
+> :CAL:PROT:NDUE?
+< 2009,06,20
+> :CAL:PROT:LOCK?
+< 0
+> :FUNCtion?
+< "VOLT:DC"
+> :SENSe:VOLTage:DC:NPLCycles?
+< 1.00
+> :SENSe:VOLTage:DC:DIGits?
+< 7
+> :SENSe:VOLTage:DC:AVERage:STATe?
+< 0
+> :SENSe:VOLTage:DC:AVERage:TCONtrol?
+< REP
+> :SENSe:VOLTage:DC:AVERage:COUNt?
+< 10
+> :SENSe:VOLTage:DC:REFerence?
+< 0.0000000E+00
+> :SENSe:VOLTage:DC:REFerence:STATe?
+< 0
+> :SENSe:VOLTage:DC:RANGe:AUTO?
+< 1
+> :INITiate:CONTinuous?
+< 1
+> :TRIGger:SOURce?
+< IMM
+> :FORMat:ELEments?
+< READ,,
+> :SYSTem:ERRor?
+< 0,"No error"

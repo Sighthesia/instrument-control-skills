@@ -220,9 +220,87 @@ Recovery used on the verified unit: send `0x03`, then restore
 helper exposes this as `unblock`. Treat a timeout as a desynchronised session —
 never retry the same query and merge whatever arrives later.
 
+## Rate, resolution, REL, filter, and instrument constants
+
+Read-only queries and configuration sweeps on 2026-10-20, leads disconnected,
+RS-232. Evidence: `assets/captures/rate-filter-rel-digits/` (`results.json`,
+`exchange.txt`, `session-characteristics.json`, `instrument-constants.txt`).
+Every step ended with `0,"No error"`.
+
+### Rate (NPLC)
+
+Fixed 10 V range; five `:READ?` calls per setting; host-measured wall time:
+
+| NPLC | readback | autozero OFF | autozero ON |
+|---|---|---|---|
+| 0.01 | 0.01 | 40.4 ms | - |
+| 0.1 | 0.10 | 41.4 ms | - |
+| 1 | 1.00 | 59.7 ms | 66.8 ms |
+| 10 | 10.00 | 239.0 ms | 649.4 ms |
+
+The ~40 ms floor is command/trigger/serial overhead at 9600 baud, so 0.01 and
+0.1 PLC are indistinguishable end-to-end. At 50 Hz, 1 PLC is 20 ms and 10 PLC
+is 200 ms; the rest is autozero and host overhead. With autorange enabled on an
+open input, 10 PLC reads ranged from about 0.65 s to 1.88 s, so fix the range
+before measuring rate.
+
+### DIGits
+
+`:DIGits?` read back 4, 5, 6, and 7 exactly after each write. Every reading
+string still carried 9 significant digits (for example `-3.86448877E+00`), so
+DIGits changes display resolution only, not the remote reading format - as the
+manual states (PDF 52).
+
+### REL (reference)
+
+Exercised on DC current with the current input open (functional check only; no
+current source):
+
+| State | Result |
+|---|---|
+| baseline, REL off | mean `-2.568E-08 A` over 5 reads |
+| `:REFerence 0.05`, `:STATe ON` | mean `-0.050000 A` over 3 reads (delta `-0.050000 A`) |
+| `:REFerence:STATe OFF` | mean `-3.17E-08 A` |
+| `:REFerence:ACQuire` | reference became `-3.3000081E-08`; next reads mean `8.5E-09 A` |
+
+### Filter
+
+DCI open input, NPLC 0.1, count 10, 20 `:FETCh?` samples per mode:
+
+| Mode | stdev |
+|---|---|
+| OFF | 555 nA |
+| MOVing | 269 nA |
+| REPeat | 191 nA |
+
+State, type, and count read back correctly. The open current input is not a
+calibrated noise source; this shows the filter is applied and reduces scatter,
+not a specified noise-rejection figure.
+
+### Instrument constants (query-only)
+
+| Query | Response |
+|---|---|
+| `*IDN?` | `KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02` |
+| `*OPT?` | `0,0` (no scanner option reported) |
+| `:SYSTem:VERSion?` | `1991.0` |
+| `:SYSTem:LFRequency?` | `50` |
+| `:SYSTem:FRSWitch?` | `1` (front inputs) |
+| `:SYSTem:POSetup?` | `SAV0` |
+| `:SYSTem:AZERo:STATe?` | `1` |
+| `:CAL:PROT:COUN?` | `6` |
+| `:CAL:PROT:DATE?` | `2008,06,20` |
+| `:CAL:PROT:NDUE?` | `2009,06,20` |
+| `:CAL:PROT:LOCK?` | `0` (locked) |
+
+The calibration due date is in the past (2009-06-20); this records calibration
+metadata only, not accuracy or drift. Lock state `0` means locked, so a
+calibration write needs an explicit unlock procedure. No calibration command
+other than these queries was sent.
+
 ## Not verified
 
-- Calibration, input-fuse continuity, thermal EMF, and long-term drift.
+- Calibration constants, adjustment procedures, and accuracy after the 2009 due date (only count/date/due/lock metadata was read); input-fuse continuity, thermal EMF, and long-term drift.
 - AC voltage/current, resistance, 4-wire, frequency/period, temperature, diode,
   continuity, trigger/buffer/limit/scan workflows.
 - Overflow (`+9.9E37`) from a live over-range source; it was only observed from

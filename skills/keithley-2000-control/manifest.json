@@ -14,7 +14,7 @@
   },
   "source": {
     "operation": "single scalar ASCII reading or error-queue response",
-    "transport": "offline saved bytes; no transport driver included",
+    "transport": "offline saved bytes, or the optional RS-232 helper scripts/keithley2000_session.py",
     "manual": {
       "title": "Model 2000 Multimeter User's Manual",
       "revision": "2000-900-01 Rev. J / August 2010",
@@ -54,6 +54,13 @@
         "CONTinuity",
         "DIODe",
         "TEMPerature"
+      ],
+      "command_exercised_settings": [
+        "NPLC 0.01, 0.1, 1, 10 on a fixed 10 V range (timing with autozero on and off)",
+        "DIGits 4, 5, 6, 7 (display-only; remote string width unchanged)",
+        "REL reference 0.05 A, state on/off, and REFerence:ACQuire on open DCI",
+        "digital filter state/type/count (MOVing, REPeat, count 10) on open DCI",
+        "read-only constants: *OPT?, SYSTem:VERSion/LFRequency/FRSWitch/POSetup/AZERo, CAL:PROT:COUN/DATE/NDUE/LOCK"
       ]
     },
     "known_limitations": [
@@ -61,7 +68,7 @@
       "The parser accepts one ASCII scalar line and one error-queue line only; other error-queue codes require explicit error-queue mode.",
       "Multi-reading, binary, and scanner responses are unsupported.",
       "Automatic error-queue classification recognizes only documented sentinels; other error-queue lines require explicit error-queue mode.",
-      "Calibration, fuse continuity, and acquisition freshness are not inferred.",
+      "Calibration count/date/due/lock were read, but calibration accuracy, adjustment, and drift are not inferred; fuse continuity and acquisition freshness are also not inferred.",
       "With continuous initiation ON, :READ? queues -213,\"Init ignored\" and returns a continuous-acquisition value rather than a newly triggered reading.",
       "Open-input and no-signal behaviour is recorded in assets/captures/open-inputs/: resistance, 4-wire, continuity, diode, and temperature overflow as +9.9E37, frequency/period report 0, and floating DCV autoranges to 100 mV with tens of millivolts of drift.",
       "Error -213 has two verified causes: continuous initiation ON, and :INITiate while the instrument is not idle (armed BUS trigger). An armed trigger with a pending FETCh blocks the output queue and every later query times out; recovery observed with a device clear (0x03), exposed as `unblock`."
@@ -106,11 +113,21 @@
         }
       },
       {
+        "name": "characteristics_capture",
+        "status": "pass",
+        "evidence": {
+          "capture_path": "assets/captures/rate-filter-rel-digits/",
+          "captured_date": "2026-10-20",
+          "pages": "results.json, exchange.txt, session-characteristics.json, instrument-constants.txt",
+          "errors": "0,\"No error\" for every phase"
+        }
+      },
+      {
         "name": "offline_tests",
         "status": "pass",
         "evidence": {
           "command": "python3 -m unittest discover -s skills/keithley-2000-control/scripts -p 'test_*.py'",
-          "tests": 88,
+          "tests": 91,
           "network": "none; fixtures and captures only"
         }
       }

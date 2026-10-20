@@ -1,0 +1,50 @@
+# Keithley Model 2000 instrument constants and current settings
+# 2026-10-20, RS-232 9600 8N1, leads disconnected, read-only queries
+# Raw responses, CR stripped; query-only, no configuration writes.
+
+> *IDN?
+< KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  
+> *OPT?
+< 0,0
+> :SYSTem:VERSion?
+< 1991.0
+> :SYSTem:LFRequency?
+< 50
+> :SYSTem:FRSWitch?
+< 1
+> :SYSTem:POSetup?
+< SAV0
+> :SYSTem:AZERo:STATe?
+< 1
+> :CAL:PROT:COUN?
+< 6
+> :CAL:PROT:DATE?
+< 2008,06,20
+> :CAL:PROT:NDUE?
+< 2009,06,20
+> :CAL:PROT:LOCK?
+< 0
+> :FUNCtion?
+< "VOLT:DC"
+> :SENSe:VOLTage:DC:NPLCycles?
+< 1.00
+> :SENSe:VOLTage:DC:DIGits?
+< 7
+> :SENSe:VOLTage:DC:AVERage:STATe?
+< 0
+> :SENSe:VOLTage:DC:AVERage:TCONtrol?
+< REP
+> :SENSe:VOLTage:DC:AVERage:COUNt?
+< 10
+> :SENSe:VOLTage:DC:REFerence?
+< 0.0000000E+00
+> :SENSe:VOLTage:DC:REFerence:STATe?
+< 0
+> :INITiate:CONTinuous?
+< 1
+> :TRIGger:SOURce?
+< IMM
+> :FORMat:ELEments?
+< READ,,
+> :SYSTem:ERRor? (drained)
+< 0,"No error"

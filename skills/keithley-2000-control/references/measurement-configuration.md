@@ -30,10 +30,16 @@ provides a query. Unknown state is `UNVERIFIED`, not a guessed default.
 
 - `:SENSe:<function>:DIGits <n>` affects display resolution, not the remote
   reading format; it does not itself improve accuracy or speed (PDF 52).
+  Verified on 2026-10-20: 4-7 read back exactly, while the RS-232 reading
+  string stayed at 9 significant digits at every setting.
 - `:SENSe:<function>:NPLCycles <n>` controls integration where supported. The
   documented bus minimum can differ from the front-panel FAST setting. Higher
   NPLC generally improves noise rejection but reduces rate; record the actual
-  value rather than saying only “fast/slow” (PDF 53, 171).
+  value rather than saying only “fast/slow” (PDF 53, 171). Measured on a fixed
+  10 V range at 50 Hz (2026-10-20): 0.01/0.1/1/10 PLC took 40/41/60/239 ms per
+  `:READ?` with autozero off; autozero on made 1 PLC 67 ms and 10 PLC 649 ms.
+  The host floor is about 40 ms, and autorange can add hundreds of
+  milliseconds, so fix the range before timing.
 - AC voltage/current MED/SLOW modes use bandwidth selection (`3`, `30`, or
   `300` Hz lower-frequency limit) rather than ordinary NPLC changes; NPLC may be
   ignored in those cases (PDF 54, 179).
@@ -44,10 +50,15 @@ provides a query. Unknown state is `UNVERIFIED`, not a guessed default.
 
 - The averaging filter supports MOVing or REPeat behavior and a conversion
   count. Record both. It is not supported for frequency, period, continuity, or
-  diode test (PDF 51, 177-178).
+  diode test (PDF 51, 177-178). On a noisy open current input (NPLC 0.1, count
+  10), 20-sample scatter was 555 nA unfiltered, 269 nA MOVing, and 191 nA
+  REPeat, confirming the filter is applied; it is not a calibrated noise spec.
 - REL subtracts a saved reference from later readings. Store whether REL is
   enabled and its reference. For ACV, do **not** use REL to remove the typical
   5½-digit offset; the manual warns this creates an error (PDF 32, 52).
+  Verified: with a 0.05 A reference enabled, an open DCI input read exactly
+  `-0.050000 A`; `:REFerence:ACQuire` captured the latest reading as the new
+  reference.
 - Math may apply MX+B, percent, dB/dBm, buffer statistics, or limit testing.
   `:SENSe:DATA?` does not return calculated math results; read through the
   appropriate CALCulate command and record the calculation configuration

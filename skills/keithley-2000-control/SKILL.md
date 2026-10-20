@@ -264,6 +264,34 @@ Guards, all verified against the 2026-10-20 capture:
   command and returns no response (a session timeout), so never generalize the
   voltage/current/resistance range syntax.
 
+## Read-only instrument constants
+
+Query these when the record needs firmware, option, calibration, or power
+context. All are queries; the session guard still refuses calibration writes.
+
+```text
+python3 scripts/keithley2000_session.py query '*OPT?'
+python3 scripts/keithley2000_session.py query ':SYSTem:VERSion?'
+python3 scripts/keithley2000_session.py query ':SYSTem:LFRequency?'
+python3 scripts/keithley2000_session.py query ':SYSTem:FRSWitch?'
+python3 scripts/keithley2000_session.py query ':SYSTem:POSetup?'
+python3 scripts/keithley2000_session.py query ':CAL:PROT:COUN?'
+python3 scripts/keithley2000_session.py query ':CAL:PROT:DATE?'
+python3 scripts/keithley2000_session.py query ':CAL:PROT:NDUE?'
+python3 scripts/keithley2000_session.py query ':CAL:PROT:LOCK?'
+```
+
+- `*OPT?` returned `0,0` on the verified unit (no scanner option reported).
+- `:CAL:PROT:DATE?` and `:NDUE?` return `YYYY,MM,DD`; the verified unit
+  reported `2008,06,20` and `2009,06,20`.
+- `:CAL:PROT:LOCK?` is `0` locked and `1` unlocked. Every other calibration
+  command is protected; do not send one without the calibration manual and
+  operator approval.
+- Calibration date, due date, and count are metadata, not evidence of current
+  accuracy. Report the due date separately from any measurement claim.
+- `:SYSTem:FRSWitch?` reports the front/rear switch (`1` = front inputs), not
+  which terminals the wiring actually used; record wiring separately.
+
 ## Conditional advanced features
 
 Load [Conditional acquisition](references/conditional-acquisition.md) before

@@ -1,0 +1,539 @@
+{
+  "instrument": {
+    "*IDN?": "KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  ",
+    ":SYSTem:VERSion?": "1991.0",
+    ":SYSTem:LFRequency?": "50",
+    ":SYSTem:FRSWitch?": "1",
+    ":SYSTem:POSetup?": "SAV0",
+    ":SYSTem:AZERo:STATe?": "1",
+    ":CAL:PROT:COUN?": "6",
+    ":CAL:PROT:DATE?": "2008,06,20",
+    ":CAL:PROT:NDUE?": "2009,06,20",
+    ":CAL:PROT:LOCK?": "0",
+    ":FUNCtion?": "\"VOLT:DC\"",
+    ":SENSe:VOLTage:DC:NPLCycles?": "1.00",
+    ":SENSe:VOLTage:DC:DIGits?": "7",
+    ":SENSe:VOLTage:DC:AVERage:STATe?": "0",
+    ":SENSe:VOLTage:DC:AVERage:TCONtrol?": "REP",
+    ":SENSe:VOLTage:DC:AVERage:COUNt?": "10",
+    ":SENSe:VOLTage:DC:REFerence?": "0.0000000E+00",
+    ":SENSe:VOLTage:DC:REFerence:STATe?": "0",
+    ":SENSe:VOLTage:DC:RANGe:AUTO?": "1",
+    ":INITiate:CONTinuous?": "1",
+    ":TRIGger:SOURce?": "IMM",
+    ":FORMat:ELEments?": "READ,,"
+  },
+  "rate": {
+    "autozero_off": [
+      {
+        "samples": [
+          {
+            "raw": "+6.52251887E-01",
+            "ms": 40.4
+          },
+          {
+            "raw": "+6.22645270E-01",
+            "ms": 40.6
+          },
+          {
+            "raw": "+5.84612153E-01",
+            "ms": 39.9
+          },
+          {
+            "raw": "+6.00098692E-01",
+            "ms": 39.1
+          },
+          {
+            "raw": "+5.85750869E-01",
+            "ms": 40.8
+          }
+        ],
+        "median_ms": 40.4,
+        "min_ms": 39.1,
+        "max_ms": 40.8,
+        "requested_nplc": 0.01,
+        "readback": "0.01",
+        "autozero": "OFF"
+      },
+      {
+        "samples": [
+          {
+            "raw": "-7.82451127E-02",
+            "ms": 41.9
+          },
+          {
+            "raw": "+1.29888293E-01",
+            "ms": 40.9
+          },
+          {
+            "raw": "+3.61314399E-01",
+            "ms": 41.2
+          },
+          {
+            "raw": "+4.48180140E-01",
+            "ms": 41.7
+          },
+          {
+            "raw": "+3.40412819E-01",
+            "ms": 41.4
+          }
+        ],
+        "median_ms": 41.4,
+        "min_ms": 40.9,
+        "max_ms": 41.9,
+        "requested_nplc": 0.1,
+        "readback": "0.10",
+        "autozero": "OFF"
+      },
+      {
+        "samples": [
+          {
+            "raw": "-5.59271808E-01",
+            "ms": 59.7
+          },
+          {
+            "raw": "-5.77823959E-01",
+            "ms": 60.2
+          },
+          {
+            "raw": "-5.99737428E-01",
+            "ms": 58.8
+          },
+          {
+            "raw": "-6.21616737E-01",
+            "ms": 58.9
+          },
+          {
+            "raw": "-6.28869418E-01",
+            "ms": 59.7
+          }
+        ],
+        "median_ms": 59.7,
+        "min_ms": 58.8,
+        "max_ms": 60.2,
+        "requested_nplc": 1,
+        "readback": "1.00",
+        "autozero": "OFF"
+      },
+      {
+        "samples": [
+          {
+            "raw": "-1.66484576E+00",
+            "ms": 239.7
+          },
+          {
+            "raw": "-1.74937865E+00",
+            "ms": 238.2
+          },
+          {
+            "raw": "-2.15793123E+00",
+            "ms": 239.0
+          },
+          {
+            "raw": "-3.48863134E+00",
+            "ms": 238.9
+          },
+          {
+            "raw": "-3.60344967E+00",
+            "ms": 240.0
+          }
+        ],
+        "median_ms": 239.0,
+        "min_ms": 238.2,
+        "max_ms": 240.0,
+        "requested_nplc": 10,
+        "readback": "10.00",
+        "autozero": "OFF"
+      }
+    ],
+    "autozero_on": [
+      {
+        "samples": [
+          {
+            "raw": "-2.84430279E+00",
+            "ms": 67.2
+          },
+          {
+            "raw": "-2.87978736E+00",
+            "ms": 66.7
+          },
+          {
+            "raw": "-2.89036208E+00",
+            "ms": 66.9
+          },
+          {
+            "raw": "-3.00538475E+00",
+            "ms": 66.0
+          }
+        ],
+        "median_ms": 66.8,
+        "min_ms": 66.0,
+        "max_ms": 67.2,
+        "requested_nplc": 1,
+        "readback": "1.00",
+        "autozero": "ON"
+      },
+      {
+        "samples": [
+          {
+            "raw": "-3.43697682E+00",
+            "ms": 649.6
+          },
+          {
+            "raw": "-3.53451786E+00",
+            "ms": 649.1
+          },
+          {
+            "raw": "-3.62829195E+00",
+            "ms": 648.9
+          },
+          {
+            "raw": "-3.72179787E+00",
+            "ms": 650.7
+          }
+        ],
+        "median_ms": 649.4,
+        "min_ms": 648.9,
+        "max_ms": 650.7,
+        "requested_nplc": 10,
+        "readback": "10.00",
+        "autozero": "ON"
+      }
+    ]
+  },
+  "digits": [
+    {
+      "requested": 4,
+      "readback": "4",
+      "raw": "-3.86448877E+00",
+      "mantissa_chars": 9,
+      "ms": 69.9
+    },
+    {
+      "requested": 5,
+      "readback": "5",
+      "raw": "-3.89115101E+00",
+      "mantissa_chars": 9,
+      "ms": 66.8
+    },
+    {
+      "requested": 6,
+      "readback": "6",
+      "raw": "-3.91489146E+00",
+      "mantissa_chars": 9,
+      "ms": 66.7
+    },
+    {
+      "requested": 7,
+      "readback": "7",
+      "raw": "-3.93826949E+00",
+      "mantissa_chars": 9,
+      "ms": 67.6
+    }
+  ],
+  "rel": {
+    "dci_baseline_mean": -2.567903284e-08,
+    "dci_baseline_values": [
+      -1.30336111e-08,
+      -3.02269477e-08,
+      -3.35546902e-08,
+      -2.74538289e-08,
+      -2.41260863e-08
+    ],
+    "programmed_reference": "5.0000000E-02",
+    "state_on": "1",
+    "with_rel_values": [
+      -0.0500000236,
+      -0.0500000136,
+      -0.0500000297
+    ],
+    "with_rel_mean": -0.050000022299999995,
+    "delta_from_baseline": -0.04999999662096716,
+    "state_off": "0",
+    "after_off_values": [
+      -2.91177002e-08,
+      -3.30000805e-08,
+      -3.30000805e-08
+    ],
+    "after_off_mean": -3.1705953733333334e-08,
+    "acquired_reference": "-3.3000081E-08",
+    "after_acquire_values": [
+      1.88572063e-08,
+      2.2184868e-09,
+      4.43698155e-09
+    ],
+    "after_acquire_mean": 8.504224883333333e-09
+  },
+  "filter": {
+    "moving": {
+      "mode": "MOVing",
+      "state": "1",
+      "tcontrol": "MOV",
+      "count_readback": "10",
+      "values": [
+        1.34831394e-06,
+        3.89581614e-07,
+        1.13677139e-07,
+        4.0194342e-08,
+        -1.04117349e-08,
+        3.36898464e-07,
+        2.25981035e-07,
+        4.04142155e-07,
+        3.45217271e-07,
+        2.3568631e-07,
+        2.11425216e-07,
+        2.80751318e-07,
+        4.17319763e-07,
+        5.3031802e-07,
+        1.44876113e-07,
+        2.84217522e-07,
+        2.86297245e-07,
+        1.85777323e-07,
+        2.22519087e-07,
+        2.5510053e-07
+      ],
+      "mean": 3.12394133605e-07,
+      "stdev": 2.689744167687107e-07
+    },
+    "repeat": {
+      "mode": "REPeat",
+      "state": "1",
+      "tcontrol": "REP",
+      "count_readback": "10",
+      "values": [
+        1.94092384e-07,
+        3.40364783e-07,
+        4.92183056e-07,
+        4.92183056e-07,
+        4.40190497e-07,
+        2.38459368e-07,
+        3.64627978e-07,
+        1.65667475e-07,
+        3.6115851e-07,
+        2.4746878e-07,
+        3.12632406e-07,
+        2.4538909e-07,
+        2.80743823e-07,
+        -1.06078548e-07,
+        -5.47795239e-08,
+        -2.98232419e-08,
+        -1.19942651e-07,
+        -3.05157423e-08,
+        2.07835013e-08,
+        2.62721826e-07
+      ],
+      "mean": 2.0587634131e-07,
+      "stdev": 1.9101047746302712e-07
+    },
+    "off": {
+      "mode": "OFF",
+      "state": "0",
+      "tcontrol": "REP",
+      "count_readback": "10",
+      "values": [
+        4.8513178e-08,
+        8.4573229e-07,
+        -6.30856152e-07,
+        -3.67427228e-07,
+        3.81265503e-07,
+        -1.59457025e-07,
+        -1.01213486e-06,
+        7.48679528e-07,
+        -9.63610652e-07,
+        5.7537324e-07,
+        1.02597663e-06,
+        -4.57548381e-07,
+        4.22861323e-07,
+        -4.85391484e-08,
+        1.38520905e-08,
+        2.21822887e-07,
+        4.29795482e-07,
+        6.9203238e-09,
+        -4.64481492e-07,
+        -8.32006116e-08
+      ],
+      "mean": 2.6676846264999993e-08,
+      "stdev": 5.546023182593837e-07
+    }
+  },
+  "error_checks": [
+    {
+      "phase": "baseline",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rate az-off 0.01",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rate az-off 0.1",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rate az-off 1",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rate az-off 10",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rate az-on 1",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rate az-on 10",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "digits 4",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "digits 5",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "digits 6",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "digits 7",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "dci baseline",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "rel",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "filter MOVing",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "filter REPeat",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "filter OFF",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    },
+    {
+      "phase": "restore",
+      "queue": [
+        [
+          0,
+          "\"No error\""
+        ]
+      ]
+    }
+  ],
+  "restore": {
+    "*IDN?": "KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  ",
+    ":SYSTem:VERSion?": "1991.0",
+    ":SYSTem:LFRequency?": "50",
+    ":SYSTem:FRSWitch?": "1",
+    ":SYSTem:POSetup?": "SAV0",
+    ":SYSTem:AZERo:STATe?": "1",
+    ":CAL:PROT:COUN?": "6",
+    ":CAL:PROT:DATE?": "2008,06,20",
+    ":CAL:PROT:NDUE?": "2009,06,20",
+    ":CAL:PROT:LOCK?": "0",
+    ":FUNCtion?": "\"VOLT:DC\"",
+    ":SENSe:VOLTage:DC:NPLCycles?": "1.00",
+    ":SENSe:VOLTage:DC:DIGits?": "7",
+    ":SENSe:VOLTage:DC:AVERage:STATe?": "0",
+    ":SENSe:VOLTage:DC:AVERage:TCONtrol?": "REP",
+    ":SENSe:VOLTage:DC:AVERage:COUNt?": "10",
+    ":SENSe:VOLTage:DC:REFerence?": "0.0000000E+00",
+    ":SENSe:VOLTage:DC:REFerence:STATe?": "0",
+    ":SENSe:VOLTage:DC:RANGe:AUTO?": "1",
+    ":INITiate:CONTinuous?": "1",
+    ":TRIGger:SOURce?": "IMM",
+    ":FORMat:ELEments?": "READ,,",
+    ":SYSTem:ERRor?": "0,\"No error\""
+  }
+}
