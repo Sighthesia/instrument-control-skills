@@ -178,11 +178,47 @@ The same session was re-run through `scripts/keithley2000_session.py` on
 - `read --function CURR:DC` was refused without `--allow-current`, and `walk`
   without `--confirm-open-input`; `*RST` and `:INITiate:CONTinuous` were
   refused without `--allow-state-change`.
+- `unblock` sent the device clear on a healthy link, verified `*IDN?`, and left
+  continuous initiation and the error queue unchanged.
 - The frequency/period range readback is
   `:SENSe:<fn>:THReshold:VOLTage:RANGe?`. Writing the voltage/current/resistance
   form (`:SENSe:FREQuency:RANGe?`) is invalid: the firmware returns **no
   response**, which the transport reports as a timeout and treats as a
   desynchronised session.
+
+## Error 213: two causes, one blocked-queue trap
+
+`-213,"Init ignored"` has two distinct causes, both confirmed on 2026-10-20:
+
+| Cause | Sequence | Queue |
+|---|---|---|
+| Continuous initiation ON | `:INITiate:CONTinuous ON` then `:READ?` (or `:INITiate`) | `-213` then `0,"No error"`; `:FETCh?` still returns the free-running value |
+| Instrument not idle | `:TRIGger:SOURce BUS`, `:INITiate` (armed), `:INITiate` again | `-213`; the first acquisition is still armed |
+
+`-213` is therefore intermittent between scripts without any firmware fault:
+whether it appears depends on the state the previous script left behind.
+`:CONFigure` and `:MEASure` disable continuous initiation, so scripts that
+configure first are clean; scripts that issue `:READ?` against the operator's
+free-running setup queue `-213` every time. `:ABORt` does not help while
+continuous initiation is on, because the operation restarts at the top of the
+trigger model.
+
+The second cause has an extra hazard. With an armed `BUS` trigger, a pending
+`:FETCh?` never completes, so the output queue stays blocked and **every**
+subsequent query times out:
+
+```text
+:INITiate            (TRIGger:SOURce BUS, armed)
+:FETCh?              -> no response (timeout)
+*IDN?                -> no response (timeout)
+:ABORt               -> still no response
+0x03 (device clear)  -> instrument replies "DCL" and the link works again
+```
+
+Recovery used on the verified unit: send `0x03`, then restore
+`:TRIGger:SOURce IMMediate` and re-check `:SYSTem:ERRor?`. The bundled session
+helper exposes this as `unblock`. Treat a timeout as a desynchronised session —
+never retry the same query and merge whatever arrives later.
 
 ## Not verified
 

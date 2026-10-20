@@ -24,6 +24,15 @@ includes `:INITiate`, `:INITiate:CONTinuous`, `:ABORt`,
   instruments.
 - Do not combine continuous initiation with `:READ?`; avoid `*OPC?` while
   continuous initiation is on. Keep timeout/recovery operator-controlled.
+- `:INITiate` is also ignored with `-213,"Init ignored"` when the instrument is
+  not idle — for example after `:INITiate` has armed a `BUS` or `EXTernal`
+  trigger. Observed on 2026-10-20: the first `:INITiate` was clean, the second
+  one while still armed queued `-213`.
+- While an armed acquisition is waiting for its trigger, a `:FETCh?`/`:READ?`
+  never produces output. Every later query then times out because the output
+  queue is blocked; recover with a device clear (`0x03`, `:ABORt` alone did not
+  clear the blocked queue in the verified session) and then restore
+  `:TRIGger:SOURce IMMediate` before any other work.
 - When continuous initiation is on, sample count must be one. `:READ?` with
   sample count greater than one and pre-existing buffer readings returns `-225`
   (out of memory).

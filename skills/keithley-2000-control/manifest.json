@@ -63,7 +63,8 @@
       "Automatic error-queue classification recognizes only documented sentinels; other error-queue lines require explicit error-queue mode.",
       "Calibration, fuse continuity, and acquisition freshness are not inferred.",
       "With continuous initiation ON, :READ? queues -213,\"Init ignored\" and returns a continuous-acquisition value rather than a newly triggered reading.",
-      "Open-input and no-signal behaviour is recorded in assets/captures/open-inputs/: resistance, 4-wire, continuity, diode, and temperature overflow as +9.9E37, frequency/period report 0, and floating DCV autoranges to 100 mV with tens of millivolts of drift."
+      "Open-input and no-signal behaviour is recorded in assets/captures/open-inputs/: resistance, 4-wire, continuity, diode, and temperature overflow as +9.9E37, frequency/period report 0, and floating DCV autoranges to 100 mV with tens of millivolts of drift.",
+      "Error -213 has two verified causes: continuous initiation ON, and :INITiate while the instrument is not idle (armed BUS trigger). An armed trigger with a pending FETCh blocks the output queue and every later query times out; recovery observed with a device clear (0x03), exposed as `unblock`."
     ]
   },
   "integrity": {

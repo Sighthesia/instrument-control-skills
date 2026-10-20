@@ -232,6 +232,29 @@ class FramingTests(unittest.TestCase):
                          b":SYSTem:ERRor?\r:SYSTem:ERRor?\r")
         session.close()
 
+    def test_unblock_sends_device_clear_and_restores_link(self):
+        session = self._session(b'KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  \r')
+        self.assertEqual(session.unblock(),
+                         b'KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  \r')
+        self.assertEqual(session._connection.written, b"\x03*IDN?\r")
+        self.assertFalse(session._desynced)
+        session.close()
+
+    def test_unblock_clears_a_timed_out_session(self):
+        session = self._session(b"")
+        with self.assertRaises(SessionError):
+            session.query(":FETCh?")
+        self.assertTrue(session._desynced)
+        session._connection.buffer.extend(b'KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  \r')
+        self.assertTrue(session.unblock().startswith(b"KEITHLEY"))
+        session.close()
+
+    def test_unblock_dry_run_records_device_clear(self):
+        session = Session(dry_run=True)
+        self.assertEqual(session.unblock(), b"")
+        self.assertEqual(session.sent, [b"\x03"])
+        session.close()
+
     def test_exchange_log_hashes_are_recorded(self):
         session = self._session(b'0,"No error"\r')
         session.query(":SYSTem:ERRor?")

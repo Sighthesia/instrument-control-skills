@@ -133,7 +133,7 @@ send a second query while an earlier response is unread.
 | Retrieve the latest post-processed value | `:FETCh?` | Does not trigger; may return the same old reading repeatedly. It can miss readings with rapid external triggers. |
 | Retrieve the latest raw or REL-adjusted value | `:SENSe:DATA?` | Does not return math results or the function name; pair with `:FUNCtion?` and a configuration snapshot. |
 | Require a new value | Prefer an explicit one-shot `:READ?` sequence | The supplied Rev. J PDF mentions `:DATA:FRESh?` only as a cross-reference on p.135; it does not include its command description. Do not rely on it without matching firmware documentation or hardware verification. |
-| Repeated readings | Configure trigger/sample count or continuous initiation, then use the documented fetch/buffer path | Do not combine `:INITiate:CONTinuous ON` with `:READ?` or an unsafe `*OPC?` sequence. Check `:INITiate:CONTinuous?` and drain `-213` before trusting a `:READ?` as newly triggered. |
+| Repeated readings | Configure trigger/sample count or continuous initiation, then use the documented fetch/buffer path | Do not combine `:INITiate:CONTinuous ON` with `:READ?` or an unsafe `*OPC?` sequence. Check `:INITiate:CONTinuous?` and drain `-213` before trusting a `:READ?` as newly triggered. `-213` also appears when `:INITiate` is sent while the instrument is not idle (for example an armed `BUS` trigger). |
 
 For each artifact record the command sequence, raw bytes, response order,
 function, unit, terminal/input selection, range/auto-range, digits, NPLC or
@@ -236,6 +236,7 @@ python3 scripts/keithley2000_session.py read --function VOLT:DC --no-configure
 python3 scripts/keithley2000_session.py walk --confirm-open-input --output captures/
 python3 scripts/keithley2000_session.py query ':FUNCtion?'
 python3 scripts/keithley2000_session.py write ':CONFigure:VOLT:DC'
+python3 scripts/keithley2000_session.py unblock
 ```
 
 Guards, all verified against the 2026-10-20 capture:
@@ -251,6 +252,11 @@ Guards, all verified against the 2026-10-20 capture:
 - `--no-configure` reads the current setup untouched; with continuous
   initiation ON this reproduces `-213` and the result is reported `UNVERIFIED`
   with freshness `not_newly_triggered`.
+- A timed-out query means the session is desynchronised; do not retry it. An
+  armed `BUS`/`EXTernal` trigger with a pending `:FETCh?` blocks the output
+  queue and every later query. Run `unblock` (device clear `0x03`, then
+  `*IDN?`), restore `:TRIGger:SOURce IMMediate`, and drain the error queue.
+  `:ABORt` alone did not clear the blocked queue on the verified unit.
 - Range/threshold writes are function-specific: frequency and period use
   `:SENSe:<fn>:THReshold:VOLTage:RANGe`, continuity uses
   `:SENSe:CONTinuity:THReshold`, diode uses `:SENSe:DIODe:CURRent:RANGe`, and

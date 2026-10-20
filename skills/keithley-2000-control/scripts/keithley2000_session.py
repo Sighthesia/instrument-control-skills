@@ -217,6 +217,33 @@ class Session:
         })
         return raw
 
+    def unblock(self) -> bytes:
+        """Send a device clear (0x03) and verify the link with ``*IDN?``.
+
+        An armed trigger (for example ``:TRIGger:SOURce BUS`` followed by
+        ``:INITiate``) leaves a pending ``:FETCh?``/``:READ?`` in the output
+        queue. Later queries then time out until the operation is cleared; the
+        device clear is the only recovery this helper performs.
+        """
+
+        if self.dry_run:
+            print("DRY-RUN SEND-BYTES: b'\\x03'")
+            self.sent.append(b"\x03")
+            self.exchange.append({"direction": "tx", "command": "<device-clear 0x03>",
+                                  "raw_hex": "03", "timestamp_utc": _now()})
+            return b""
+        self._desynced = False
+        self._buffer.clear()
+        self._open()
+        assert self._connection is not None
+        self._connection.write(b"\x03")
+        self._connection.flush()
+        time.sleep(0.2)
+        reset = getattr(self._connection, "reset_input_buffer", None)
+        if callable(reset):
+            reset()
+        return self.query("*IDN?")
+
     def drain_errors(self) -> dict[str, Any]:
         """Drain ``:SYSTem:ERRor?`` until ``0,No error`` and parse the blobs."""
 
@@ -407,6 +434,13 @@ def cmd_write(session: Session, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_unblock(session: Session, args: argparse.Namespace) -> int:
+    raw = session.unblock()
+    if raw:
+        print(f"link restored: {raw!r}")
+    return 0 if raw or args.dry_run else 2
+
+
 def cmd_errors(session: Session, args: argparse.Namespace) -> int:
     queue = session.drain_errors()
     if args.json:
@@ -553,6 +587,8 @@ def _build_parser() -> argparse.ArgumentParser:
                            help="send one command without reading a response")
     write.add_argument("write_command", metavar="COMMAND")
 
+    sub.add_parser("unblock", parents=[common],
+                   help="device clear (0x03) after a timeout or armed trigger")
     sub.add_parser("errors", parents=[common],
                    help="drain and parse :SYSTem:ERRor?")
 
@@ -599,6 +635,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_query(session, args)
         if args.command == "write":
             return cmd_write(session, args)
+        if args.command == "unblock":
+            return cmd_unblock(session, args)
         if args.command == "errors":
             return cmd_errors(session, args)
         if args.command == "read":
