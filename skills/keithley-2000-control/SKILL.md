@@ -79,9 +79,11 @@ verification date.
 - **Primary data kind**: `scalar-measurement`; one or more readings with function,
   unit, acquisition context, raw response hash, and integrity status.
 - **Support level**: `hardware-verified` / `firmware-scoped` for DC voltage and
-  DC current over RS-232 (serial `0944865`, firmware `A17`/`A02`); `documented`
-  for all other functions and interfaces. Do not extend one capture to another
-  instrument, firmware, or interface.
+  DC current over RS-232 (serial `0944865`, firmware `A17`/`A02`); the
+  configure/read path of all eleven functions was exercised with open inputs,
+  which is command evidence, not measurement accuracy. `documented` for all
+  other interfaces. Do not extend one capture to another instrument, firmware,
+  or interface.
 - **Not automatic**: calibration, fuse diagnosis, safe probing, line-power
   changes, interface/language switching, and scanner availability.
 
@@ -242,6 +244,12 @@ counts. The current hardware evidence covers DC voltage and DC current over
 RS-232 on serial `0944865`, firmware `A17`/`A02`, tested 2026-10-20; raw
 captures and the exact scope are in
 [Hardware verification](references/hardware-verification.md).
+
+Floating and no-signal inputs produce plausible-looking numbers: an open
+`INPUT HI`/`INPUT LO` autoranges to 100 mV and reports tens of millivolts,
+`FREQuency`/`PERiod` report `0` rather than overflow, and open resistance,
+continuity, diode, and temperature inputs report `+9.9E37`. Confirm the input is
+actually connected before treating any of these as a measurement.
 
 ## Verification commands
 

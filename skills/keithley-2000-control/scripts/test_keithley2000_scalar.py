@@ -220,6 +220,34 @@ class Keithley2000ScalarTests(unittest.TestCase):
         self.assertEqual(dci["integrity"]["status"], "COMPLETE")
         self.assertAlmostEqual(dci["measurement"]["value"], 0.202199285)
 
+    def test_open_input_captures_classify_as_observed(self):
+        open_inputs = ROOT / "assets" / "captures" / "open-inputs"
+
+        for name in ("resistance-2w.txt", "resistance-4w.txt", "continuity.txt",
+                     "diode.txt", "temperature.txt"):
+            with self.subTest(name=name):
+                artifact = parse_response(
+                    (open_inputs / name).read_bytes(),
+                    context={"acquisition_complete": True},
+                )
+                self.assertEqual(artifact["integrity"]["status"], "UNVERIFIED")
+                self.assertEqual(
+                    artifact["integrity"]["reasons"], ["instrument_reported_overflow"]
+                )
+                self.assertEqual(
+                    artifact["measurement"]["reading_status"], "OVERFLOW"
+                )
+                self.assertIsNone(artifact["measurement"]["value"])
+
+        # No signal reads 0 Hz, which is structurally valid and must not be
+        # confused with a real measurement by the parser alone.
+        freq = parse_response(
+            (open_inputs / "frequency.txt").read_bytes(),
+            context={"function": "FREQ", "unit": "HZ", "acquisition_complete": True},
+        )
+        self.assertEqual(freq["integrity"]["status"], "COMPLETE")
+        self.assertEqual(freq["measurement"]["value"], 0.0)
+
     def test_response_type_is_validated(self):
         artifact = parse_response(b"+1.0E+00VDC\n", response_type="typo")
         self.assertEqual(artifact["integrity"]["status"], "INVALID")

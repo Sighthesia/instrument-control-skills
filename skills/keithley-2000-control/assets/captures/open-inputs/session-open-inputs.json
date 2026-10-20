@@ -1,0 +1,192 @@
+{
+  "captured_utc": "2026-10-20",
+  "condition": "All leads disconnected from the front terminals; no source, no load.",
+  "instrument": "Keithley Model 2000, serial 0944865, firmware A17 /A02, RS-232 9600 8N1",
+  "sequence": ":CONFigure:<function>, optional config query, :READ?, :SYSTem:ERRor? drain",
+  "results": [
+    {
+      "function": "VOLTage:DC",
+      "raw_file": "voltage-dc.txt",
+      "raw_ascii": "-5.73225513E-02\r",
+      "sha256": "727c40c2beaa8a79943eecd4c1cb34f34554b165b07cd68d8caeb831f130f042",
+      "config_readback": {
+        ":SENSe:VOLTage:DC:RANGe?": "1010.000000",
+        ":SENSe:VOLTage:DC:RANGe:AUTO?": "1"
+      },
+      "function_reported": "\"VOLT:DC\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "VOLTage:AC",
+      "raw_file": "voltage-ac.txt",
+      "raw_ascii": "+1.69459952E-03\r",
+      "sha256": "b4eb816eb4a36403f94f809b6a61ae4615b9cb048db58a86194762ad9af3c7e9",
+      "config_readback": {
+        ":SENSe:VOLTage:AC:RANGe?": "757.500000",
+        ":SENSe:VOLTage:AC:RANGe:AUTO?": "1"
+      },
+      "function_reported": "\"VOLT:AC\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "CURRent:DC",
+      "raw_file": "current-dc.txt",
+      "raw_ascii": "-2.35717052E-08\r",
+      "sha256": "6de949b869b18657d4c4e50eebf92f84a4ee42eb80ef7edcda354a5ca30d19d6",
+      "config_readback": {
+        ":SENSe:CURRent:DC:RANGe?": "3.1000",
+        ":SENSe:CURRent:DC:RANGe:AUTO?": "1"
+      },
+      "function_reported": "\"CURR:DC\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "CURRent:AC",
+      "raw_file": "current-ac.txt",
+      "raw_ascii": "+2.90821888E-03\r",
+      "sha256": "79cb3a504f4c392615d0e4a1aad2ff6ac9e3b887157c8d7104964f4922c4f9a5",
+      "config_readback": {
+        ":SENSe:CURRent:AC:RANGe?": "3.1000",
+        ":SENSe:CURRent:AC:RANGe:AUTO?": "1"
+      },
+      "function_reported": "\"CURR:AC\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "RESistance",
+      "raw_file": "resistance-2w.txt",
+      "raw_ascii": "+9.9E37\r",
+      "sha256": "cee389d5ef00e2284cc944df8dfbcd9b19724b8ca161d6f3cbc39ce3967f800b",
+      "config_readback": {
+        ":SENSe:RESistance:RANGe?": "120000000.0",
+        ":SENSe:RESistance:RANGe:AUTO?": "1"
+      },
+      "function_reported": "\"RES\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "FRESistance",
+      "raw_file": "resistance-4w.txt",
+      "raw_ascii": "+9.9E37\r",
+      "sha256": "cee389d5ef00e2284cc944df8dfbcd9b19724b8ca161d6f3cbc39ce3967f800b",
+      "config_readback": {
+        ":SENSe:FRESistance:RANGe?": "120000000.000",
+        ":SENSe:FRESistance:RANGe:AUTO?": "1"
+      },
+      "function_reported": "\"FRES\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "FREQuency",
+      "raw_file": "frequency.txt",
+      "raw_ascii": "+0.00000000E+00\r",
+      "sha256": "bd77e3f99cdf0e025df0733770cd353699639a41fab00ba8d3057cfbe96bc227",
+      "config_readback": {
+        ":SENSe:FREQuency:THReshold:VOLTage:RANGe?": "10.000000"
+      },
+      "function_reported": "\"FREQ\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "PERiod",
+      "raw_file": "period.txt",
+      "raw_ascii": "+0.00000000E+00\r",
+      "sha256": "bd77e3f99cdf0e025df0733770cd353699639a41fab00ba8d3057cfbe96bc227",
+      "config_readback": {
+        ":SENSe:PERiod:THReshold:VOLTage:RANGe?": "10.000000"
+      },
+      "function_reported": "\"PER\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "CONTinuity",
+      "raw_file": "continuity.txt",
+      "raw_ascii": "+9.9E37\r",
+      "sha256": "cee389d5ef00e2284cc944df8dfbcd9b19724b8ca161d6f3cbc39ce3967f800b",
+      "config_readback": {
+        ":SENSe:CONTinuity:THReshold?": "1.0000000E+01"
+      },
+      "function_reported": "\"CONT\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    },
+    {
+      "function": "DIODe",
+      "raw_file": "diode.txt",
+      "raw_ascii": "+9.9E37\r",
+      "sha256": "cee389d5ef00e2284cc944df8dfbcd9b19724b8ca161d6f3cbc39ce3967f800b",
+      "config_readback": {
+        ":SENSe:DIODe:CURRent:RANGe?": "0.00100"
+      },
+      "function_reported": "\"DIOD\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "-113,\"Undefined header\"",
+        "0,\"No error\""
+      ],
+      "config_note": "The first probe used :SENSe:DIODe:BIAS:VOLTage:RANGe?, which the firmware rejects with -113,\"Undefined header\". The manual's command is :SENSe:DIODe:CURRent:RANGe[:UPPer] (PDF 182); re-query returned 0.00100 and :SENSe:DIODe:CURRent:RANGe 1e-4 read back 0.00010."
+    },
+    {
+      "function": "TEMPerature",
+      "raw_file": "temperature.txt",
+      "raw_ascii": "+9.9E37\r",
+      "sha256": "cee389d5ef00e2284cc944df8dfbcd9b19724b8ca161d6f3cbc39ce3967f800b",
+      "config_readback": {
+        ":SENSe:TEMPerature:TCouple:TYPE?": "J"
+      },
+      "function_reported": "\"TEMP\"",
+      "configure_errors": [
+        "0,\"No error\""
+      ],
+      "read_errors": [
+        "0,\"No error\""
+      ]
+    }
+  ]
+}

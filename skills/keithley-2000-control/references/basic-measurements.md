@@ -102,11 +102,18 @@ instrument's SCPI parser; SCPI keywords are not case-sensitive.
 ### Continuity and diode
 
 - Continuity uses a single range; the threshold is configurable from `1 Ω` to
-  `1000 Ω` and defaults to `10 Ω` (PDF 45, 182-183). Include the threshold and
-  test-rate context with a result.
+  `1000 Ω` and defaults to `10 Ω` (PDF 45, 182-183). Set and query it with
+  `:SENSe:CONTinuity:THReshold <n>` / `:THReshold?`; continuity occurs at or
+  below the threshold. Include the threshold and test-rate context with a
+  result.
 - Diode test sources current from `INPUT HI`; selectable test current is `10 µA`,
   `100 µA`, or `1 mA`. A result above `10 V` is reported as overflow (PDF 46,
-  182).
+  182). The command is `:SENSe:DIODe:CURRent:RANGe[:UPPer] <NRf>` with `0` to
+  `1e-3`: you give the expected diode current and the instrument selects the
+  matching range; `:SENSe:DIODe:CURRent:RANGe?` reads it back (`0.00100` = 1 mA
+  default on the verified unit). `:SENSe:DIODe:BIAS:VOLTage:RANGe?` is not a
+  Model 2000 command and the verified firmware rejects it with
+  `-113,"Undefined header"`.
 
 ## Evidence limits
 

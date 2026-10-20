@@ -8,7 +8,8 @@
   for voltage, `AMPS`/`INPUT LO` in series for current)
 - Manual source: [Model 2000 Multimeter User's Manual, 2000-900-01 Rev. J / August 2010](https://download.tek.com/manual/2000-900_J-Aug2010_User.pdf)
 - Supported data kinds: one scalar ASCII reading or one error-queue line from a saved response
-- Known limitations: no transport driver; no binary, multi-reading, or scanner parser; automatic classification recognizes only documented error-queue sentinels, while other queue responses require explicit error-queue mode; calibration, input-fuse continuity, and acquisition freshness are not inferred; `:READ?` with continuous initiation ON yields `-213,"Init ignored"` and a continuous-acquisition value
+- Command evidence: all eleven front-panel functions were configured and read with open inputs on 2026-10-20; overflow (`+9.9E37`) appeared on resistance, 4-wire, continuity, diode, and temperature, while frequency/period reported `0` and DCV floated to tens of millivolts. This proves the command path, not measurement accuracy.
+- Known limitations: no transport driver; no binary, multi-reading, or scanner parser; automatic classification recognizes only documented error-queue sentinels, while other queue responses require explicit error-queue mode; calibration, input-fuse continuity, and acquisition freshness are not inferred; `:READ?` with continuous initiation ON yields `-213,"Init ignored"` and a continuous-acquisition value; a floating input and a no-signal frequency/period can look like a valid reading
 
 Raw responses and the full exchange are in `assets/captures/`; the scope and
 remaining gaps are recorded in `references/hardware-verification.md`.

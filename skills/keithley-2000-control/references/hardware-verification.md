@@ -1,7 +1,9 @@
 # Hardware verification record
 
-Scope: one Keithley Model 2000, one RS-232 session, DC voltage and DC current
-only. Everything else in this Skill remains `documented`.
+Scope: one Keithley Model 2000, one RS-232 session. Live-source (quantitative)
+evidence covers DC voltage and DC current; the configuration and read path of
+all eleven front-panel functions was exercised with open inputs. Everything not
+listed here remains `documented`.
 
 Evidence: *Model 2000 Multimeter User's Manual*, `2000-900-01 Rev. J / August
 2010`; PDF physical pages 85-87 (RS-232), 121-126 (`:READ?`, `:INITiate`),
@@ -125,11 +127,49 @@ reader that waits for LF can over-read: an early probe that used
 `serial.readline()` accumulated three copies of the `*IDN?` line. Read until CR
 and pair exactly one response with each query.
 
+## Function walk with disconnected leads
+
+With every lead removed, all eleven front-panel functions were configured and
+read in sequence (`:CONFigure:<function>` → `:READ?` → `:SYSTem:ERRor?`). Every
+step answered `0,"No error"`; raw bytes are in `assets/captures/open-inputs/`
+with `session-open-inputs.json`.
+
+| Function | Config readback | `:READ?` | Interpretation |
+|---|---|---|---|
+| `VOLTage:DC` | FS `1010.000000`, autorange `1` | `-5.73E-02` | floating input on the 100 mV range; meaningless |
+| `VOLTage:AC` | FS `757.500000`, autorange `1` | `+1.69E-03` | AC pickup on open leads |
+| `CURRent:DC` | FS `3.1000`, autorange `1` | `-2.36E-08` | no current path |
+| `CURRent:AC` | FS `3.1000`, autorange `1` | `+2.91E-03` | AC-current offset at 3.1 A FS |
+| `RESistance` | FS `120000000.0`, autorange `1` | `+9.9E37` | open circuit → overflow |
+| `FRESistance` | FS `120000000.000`, autorange `1` | `+9.9E37` | open circuit → overflow |
+| `FREQuency` | threshold `10.000000` | `+0.00E+00` | no signal; **not** a valid 0 Hz |
+| `PERiod` | threshold `10.000000` | `+0.00E+00` | no signal; **not** a valid 0 s |
+| `CONTinuity` | threshold `10.0` | `+9.9E37` | open circuit → overflow |
+| `DIODe` | current range `0.00100` (1 mA) | `+9.9E37` | open → above 10 V → overflow |
+| `TEMPerature` | TC type `J` | `+9.9E37` | no thermocouple on the terminals |
+
+Consequences for evidence:
+
+- The overflow sentinel appears on real bytes; the offline parser returns
+  `reading_status: OVERFLOW`, `integrity: UNVERIFIED`, `value: null`. Never
+  convert it to a finite number or to "0 Ω".
+- Frequency and period report `0` instead of overflow. A parser cannot tell
+  that apart from a genuine 0 Hz; treat `0` Hz/0 s as no-signal unless the
+  input amplitude requirement (signal above 10 % of the selected voltage range)
+  is separately established.
+- DC voltage autoranges down to 100 mV on an open input and then reports tens of
+  millivolts of drift (−16 mV to −57 mV over three reads). A disconnected or
+  floating input must not be reported as a measured voltage.
+- Setting `:SENSe:DIODe:CURRent:RANGe 1e-4` read back `0.00010`, confirming the
+  documented three-range diode bias control.
+
 ## Not verified
 
 - Calibration, input-fuse continuity, thermal EMF, and long-term drift.
 - AC voltage/current, resistance, 4-wire, frequency/period, temperature, diode,
   continuity, trigger/buffer/limit/scan workflows.
-- Overflow (`+9.9E37`) behaviour; the available source could not exceed range.
+- Overflow (`+9.9E37`) from a live over-range source; it was only observed from
+  open-circuit resistance, continuity, diode, and temperature inputs.
 - GPIB/IEEE-488, other baud rates, `*OPC?` sequencing, sample count > 1.
 - Burden voltage and its effect on the DUT while the AMPS path is in series.
+- Thermocouple temperature with an actual sensor connected.

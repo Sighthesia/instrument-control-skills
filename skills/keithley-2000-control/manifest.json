@@ -41,7 +41,20 @@
       ],
       "date": "2026-10-20",
       "firmware": "A17 /A02",
-      "serial": "0944865"
+      "serial": "0944865",
+      "command_exercised_functions": [
+        "VOLTage:DC",
+        "VOLTage:AC",
+        "CURRent:DC",
+        "CURRent:AC",
+        "RESistance",
+        "FRESistance",
+        "FREQuency",
+        "PERiod",
+        "CONTinuity",
+        "DIODe",
+        "TEMPerature"
+      ]
     },
     "known_limitations": [
       "Hardware evidence covers DC voltage and DC current over RS-232 on one instrument only; all other functions and interfaces remain documented.",
@@ -49,7 +62,8 @@
       "Multi-reading, binary, and scanner responses are unsupported.",
       "Automatic error-queue classification recognizes only documented sentinels; other error-queue lines require explicit error-queue mode.",
       "Calibration, fuse continuity, and acquisition freshness are not inferred.",
-      "With continuous initiation ON, :READ? queues -213,\"Init ignored\" and returns a continuous-acquisition value rather than a newly triggered reading."
+      "With continuous initiation ON, :READ? queues -213,\"Init ignored\" and returns a continuous-acquisition value rather than a newly triggered reading.",
+      "Open-input and no-signal behaviour is recorded in assets/captures/open-inputs/: resistance, 4-wire, continuity, diode, and temperature overflow as +9.9E37, frequency/period report 0, and floating DCV autoranges to 100 mV with tens of millivolts of drift."
     ]
   },
   "integrity": {
@@ -79,6 +93,15 @@
           "capture_path": "assets/captures/session-dci.json",
           "command": "python3 scripts/keithley2000_scalar.py assets/captures/dci-3a-range.txt --function CURR:DC --unit ADC --query :READ? --acquisition-complete",
           "result": "COMPLETE"
+        }
+      },
+      {
+        "name": "open_input_captures",
+        "status": "pass",
+        "evidence": {
+          "capture_path": "assets/captures/open-inputs/session-open-inputs.json",
+          "functions": 11,
+          "errors": "0,\"No error\" for every step"
         }
       }
     ]
