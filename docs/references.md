@@ -95,3 +95,24 @@ The design rationale behind these choices is recorded in
 `skills/keithley-2000-control/` derives its parsing and validation rules from the
 vendor manual (2000-900-01 Rev. J / August 2010) with page citations per command;
 no open-source parser implementation is referenced.
+
+## Function generator data handling
+
+`skills/gwinstek-afg2225-control/` derives command, range, and page claims from
+the *AFG-2225 Series User Manual* (GW Instek part no. 82RF-22250M01). Its USB
+CDC identity is external evidence, not manual text:
+
+- **Linux kernel** — commit
+  [`cf84a691a61606a2e7269907d3727e2d9fa148ee`](https://github.com/koenkooi/linux/commit/cf84a691a61606a2e7269907d3727e2d9fa148ee)
+  adds `USB_DEVICE(0x2184, 0x001c)` for the AFG-2225 to `cdc-acm` (CDC-ACM, not
+  USBTMC; byte-swapped `bInterfaceSubClass` 0x20).
+- **avian2/gwinstek-tools** — [repository](https://github.com/avian2/gwinstek-tools)
+  (GPL-3.0) uses `/dev/ttyACM0` and ASCII `DATA:DAC VOLATILE,0,...` lists; its
+  README records unverified observations about ARB DC-offset inversion and
+  `SOURCE1:OUTPUT ON`.
+- **jmfrancklab/FLinst** — [repository](https://github.com/jmfrancklab/FLinst)
+  uses an IEEE block with host-native `int16` data; this does not establish the
+  byte order for this instrument.
+
+No implementation code is copied. Community observations are labelled
+`unverified` in the Skill and are never used as automatic workarounds.

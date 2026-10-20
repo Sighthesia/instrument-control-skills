@@ -1,0 +1,32 @@
+{
+  "schema_version": "afg2225-protocol-v1",
+  "kind": "identity",
+  "vendor": "GW INSTEK",
+  "model": "AFG-2225",
+  "serial": "AFG2225000001",
+  "firmware": "V1.23",
+  "identity": {
+    "vendor": "GW INSTEK",
+    "model": "AFG-2225",
+    "serial": "AFG2225000001",
+    "firmware": "V1.23"
+  },
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "identity_parse",
+        "status": "pass",
+        "evidence": {
+          "model": "AFG-2225"
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "469b1edb2051be1ae352f1eb32ed51f2b4fd4f28ea633a36269bcc5c786befeb",
+    "raw_response_base64": "R1cgSU5TVEVLLEFGRy0yMjI1LFNOOkFGRzIyMjUwMDAwMDEsVjEuMjMK",
+    "support_level": "documented",
+    "parser": "afg2225-protocol/0.1.0"
+  }
+}

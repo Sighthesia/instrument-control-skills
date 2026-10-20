@@ -1,0 +1,35 @@
+{
+  "schema_version": "afg2225-protocol-v1",
+  "kind": "arbitrary-waveform",
+  "points": 8,
+  "min": -511,
+  "max": 511,
+  "format": "ascii",
+  "byte_order": "not-applicable",
+  "start": 0,
+  "command_bytes_base64": "REFUQTpEQUMgVk9MQVRJTEUsMCwtNTExLDAsNTExLDI1NiwtMjU2LDEyOCwtMTI4LDA=",
+  "command_sha256": "1949c71648be83c05786c52493407d8a2b50dbbccc5a9e4bf5f7f650f8fafce8",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "arb_command",
+        "status": "pass",
+        "evidence": {
+          "format": "ascii"
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "1949c71648be83c05786c52493407d8a2b50dbbccc5a9e4bf5f7f650f8fafce8",
+    "raw_response_base64": "REFUQTpEQUMgVk9MQVRJTEUsMCwtNTExLDAsNTExLDI1NiwtMjU2LDEyOCwtMTI4LDA=",
+    "support_level": "documented",
+    "parser": "afg2225-protocol/0.1.0"
+  },
+  "provenance": {
+    "manual": "AFG-2225 Series User Manual, GW Instek part no. 82RF-22250M01",
+    "pages": "pp. 260-265",
+    "source": "assets/fixtures/arb-valid.csv",
+    "support_level": "documented"
+  }
+}

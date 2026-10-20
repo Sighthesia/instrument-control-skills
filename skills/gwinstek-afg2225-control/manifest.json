@@ -1,0 +1,55 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "afg2225-protocol",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "GW Instek",
+    "model": "AFG-2225",
+    "firmware": null,
+    "serial": null
+  },
+  "source": {
+    "operation": "arbitrary waveform CSV/DAC upload command construction",
+    "transport": "offline saved bytes; optional USB CDC serial transport (not exercised)",
+    "manual": {
+      "title": "AFG-2225 Series User Manual",
+      "revision": "GW Instek part no. 82RF-22250M01",
+      "url": "https://www.gwinstek.com/en-global/products/detail/AFG-2225",
+      "location": "REMOTE INTERFACE, PDF pp. 180-265; local copy ref/编程手册.pdf"
+    }
+  },
+  "data": {
+    "kind": "arbitrary-waveform",
+    "raw_path": "assets/fixtures/arb-valid.csv",
+    "raw_sha256": "6f899f11c72c51218a3a342877ba2f15a94373bccc1a4bfc268366626d4bde5b",
+    "raw_provenance": "Synthetic fixture following the manual's documented DATA:DAC example; not a real instrument capture."
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": false,
+    "known_limitations": [
+      "No hardware verification is included; the optional USB CDC transport is untested.",
+      "USB CDC identity (0x2184:0x001c) is external/Linux-kernel evidence, not manual text.",
+      "Binary ARB byte order is unverified; ASCII decimal list is the default safe path.",
+      "The manual's DATA:DAC example claims 5 values / 16 bytes; actual byte count is 10 bytes. This is a documented manual defect.",
+      "No LAN, GPIB, or RS-232 interface; USB device port only.",
+      "No automatic *RST, *SAV, *RCL, delete, or calibration.",
+      "115200 8N1 is an assumption, not a manual default."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "pass",
+        "evidence": {
+          "synthetic": true,
+          "hardware_capture": false
+        }
+      }
+    ]
+  }
+}
