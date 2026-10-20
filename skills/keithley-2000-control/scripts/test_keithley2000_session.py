@@ -7,6 +7,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -163,6 +164,17 @@ class DryRunTests(unittest.TestCase):
         self.assertIsNone(session_module._temperature_unit(readback("?")))
         self.assertIsNone(session_module._temperature_unit({}))
 
+    def test_walk_skips_rate_for_functions_without_nplc(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "walk", "--nplc", "1", "--digits", "6"])
+        self.assertEqual(session_module.cmd_walk(session, args), 0)
+        sent = b"".join(session.sent)
+        self.assertNotIn(b":SENSe:FREQuency:NPLCycles", sent)
+        self.assertNotIn(b":SENSe:CONTinuity:NPLCycles", sent)
+        self.assertIn(b":SENSe:VOLTage:DC:NPLCycles 1\r", sent)
+        session.close()
+
     def test_walk_requires_open_input_confirmation(self):
         session = Session(dry_run=False)
         args = session_module._build_parser().parse_args(["walk", "--json"])
@@ -170,6 +182,144 @@ class DryRunTests(unittest.TestCase):
             session_module.cmd_walk(session, args)
         session.close()
 
+
+    def test_config_plan_sets_rate_digits_filter_and_rel(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "config", "--function", "VOLT:DC",
+             "--nplc", "0.1", "--digits", "6",
+             "--filter", "on", "--filter-type", "moving", "--filter-count", "5",
+             "--rel", "on", "--rel-reference", "0.05"])
+        self.assertEqual(session_module.cmd_config(session, args), 0)
+        self.assertEqual(
+            session.sent,
+            [b':FUNCtion "VOLT:DC"\r',
+             b':SENSe:VOLTage:DC:NPLCycles 0.1\r',
+             b':SENSe:VOLTage:DC:DIGits 6\r',
+             b':SENSe:VOLTage:DC:AVERage:TCONtrol moving\r',
+             b':SENSe:VOLTage:DC:AVERage:COUNt 5\r',
+             b':SENSe:VOLTage:DC:AVERage:STATe ON\r',
+             b':SENSe:VOLTage:DC:REFerence 0.05\r',
+             b':SENSe:VOLTage:DC:REFerence:STATe ON\r',
+             b':FUNCtion?\r',
+             b':SENSe:VOLTage:DC:NPLCycles?\r',
+             b':SENSe:VOLTage:DC:DIGits?\r',
+             b':SENSe:VOLTage:DC:AVERage:STATe?\r',
+             b':SENSe:VOLTage:DC:AVERage:TCONtrol?\r',
+             b':SENSe:VOLTage:DC:AVERage:COUNt?\r',
+             b':SENSe:VOLTage:DC:REFerence?\r',
+             b':SENSe:VOLTage:DC:REFerence:STATe?\r'],
+        )
+        session.close()
+
+    def test_config_dry_run_needs_a_function(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(["--dry-run", "config"])
+        with self.assertRaises(SessionError):
+            session_module.cmd_config(session, args)
+        self.assertEqual(session.sent, [])
+        session.close()
+
+    def test_config_rejects_unsupported_settings(self):
+        cases = [
+            (["--function", "FREQ", "--nplc", "1"], "NPLC"),
+            (["--function", "CONT", "--filter", "on"], "filter"),
+            (["--function", "CONT", "--rel", "on"], "REL"),
+            (["--function", "VOLT:DC", "--digits", "8"], "DIGits"),
+            (["--function", "VOLT:DC", "--filter-count", "0"], "filter count"),
+        ]
+        for argv, message in cases:
+            with self.subTest(argv=argv):
+                session = Session(dry_run=True)
+                args = session_module._build_parser().parse_args(
+                    ["--dry-run", "config", *argv])
+                with self.assertRaises(SessionError) as caught:
+                    session_module.cmd_config(session, args)
+                self.assertIn(message, str(caught.exception))
+                self.assertEqual(session.sent, [])
+                session.close()
+
+    def test_config_current_function_needs_confirmation(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "config", "--function", "CURR:DC"])
+        with self.assertRaises(SessionError):
+            session_module.cmd_config(session, args)
+        self.assertEqual(session.sent, [])
+        session.close()
+
+    def test_config_current_function_with_confirmation_is_allowed(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "config", "--function", "CURR:DC",
+             "--allow-current", "--nplc", "1"])
+        self.assertEqual(session_module.cmd_config(session, args), 0)
+        self.assertIn(b":SENSe:CURRent:DC:NPLCycles 1\r", session.sent)
+        session.close()
+
+    def test_constants_dry_run_queries_the_documented_set(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(["--dry-run", "constants"])
+        self.assertEqual(session_module.cmd_constants(session, args), 0)
+        self.assertEqual(
+            session.sent,
+            [(query + "\r").encode() for _, query in session_module.CONSTANT_QUERIES],
+        )
+        session.close()
+
+    def test_constants_are_interpreted(self):
+        raw = {
+            "identity": b"KEITHLEY INSTRUMENTS INC.,MODEL 2000,0944865,A17  /A02  \r",
+            "options": b"0,0\r",
+            "scpi_version": b"1991.0\r",
+            "line_frequency": b"50\r",
+            "front_rear_switch": b"1\r",
+            "power_on_setup": b"SAV0\r",
+            "autozero": b"1\r",
+            "calibration_count": b"6\r",
+            "calibration_date": b"2008,06,20\r",
+            "calibration_due": b"2009,06,20\r",
+            "calibration_lock": b"0\r",
+        }
+        constants = session_module._interpret_constants(raw)
+        self.assertEqual(constants["identity"]["serial"], "0944865")
+        self.assertEqual(constants["identity"]["firmware_digital"], "A17")
+        self.assertEqual(constants["options"], "0,0")
+        self.assertEqual(constants["line_frequency_hz"], 50.0)
+        self.assertEqual(constants["input_switch"], "front")
+        self.assertTrue(constants["autozero"])
+        self.assertEqual(constants["calibration"]["count"], 6)
+        self.assertEqual(constants["calibration"]["lock"], "locked")
+        self.assertTrue(constants["calibration"]["due_in_past"])
+        self.assertEqual(constants["calibration"]["date"], "2008,06,20")
+
+    def test_zero_flag_value_is_off(self):
+        zero = session_module.parse_config(b"0\r")["configuration"]
+        one = session_module.parse_config(b"1\r")["configuration"]
+        self.assertFalse(session_module._flag({"configuration": zero}))
+        self.assertTrue(session_module._flag({"configuration": one}))
+
+    def test_calibration_due_comparison(self):
+        self.assertTrue(session_module._calibration_due_in_past(
+            "2009,06,20", date(2026, 10, 20)))
+        self.assertFalse(session_module._calibration_due_in_past(
+            "2030,01,01", date(2026, 10, 20)))
+        self.assertIsNone(session_module._calibration_due_in_past("not-a-date"))
+
+    def test_read_plan_records_rate_and_digits_readbacks(self):
+        session = Session(dry_run=True)
+        args = session_module._build_parser().parse_args(
+            ["--dry-run", "read", "--function", "VOLT:DC",
+             "--nplc", "0.5", "--digits", "5"])
+        self.assertEqual(session_module.cmd_read(session, args), 0)
+        self.assertEqual(session.sent[:3],
+                         [b":CONFigure:VOLT:DC\r",
+                          b":SENSe:VOLTage:DC:NPLCycles 0.5\r",
+                          b":SENSe:VOLTage:DC:DIGits 5\r"])
+        self.assertIn(b":SENSe:VOLTage:DC:NPLCycles?\r", session.sent)
+        self.assertIn(b":SENSe:VOLTage:DC:DIGits?\r", session.sent)
+        self.assertEqual(session.sent[-1], b":READ?\r")
+        session.close()
 
 class GuardTests(unittest.TestCase):
     def test_reset_is_refused_by_default(self):
@@ -194,6 +344,19 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(SessionError):
             Session(timeout=0)
 
+
+    def test_abbreviated_calibration_write_is_refused(self):
+        session = Session(dry_run=True)
+        with self.assertRaises(SessionError):
+            session.write(":CAL:PROT:CODE 'KI002000'")
+        self.assertEqual(session.sent, [])
+        session.close()
+
+    def test_calculate_is_not_mistaken_for_calibration(self):
+        session = Session(dry_run=True)
+        session.write(":CALCulate1:STATe ON")
+        self.assertEqual(session.sent, [b":CALCulate1:STATe ON\r"])
+        session.close()
 
 class FramingTests(unittest.TestCase):
     def _session(self, blob: bytes) -> Session:

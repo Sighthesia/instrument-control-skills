@@ -127,7 +127,7 @@
         "status": "pass",
         "evidence": {
           "command": "python3 -m unittest discover -s skills/keithley-2000-control/scripts -p 'test_*.py'",
-          "tests": 91,
+          "tests": 104,
           "network": "none; fixtures and captures only"
         }
       }
@@ -143,9 +143,22 @@
       "guards": [
         "--allow-current for CURR:DC/CURR:AC",
         "--confirm-open-input for walk",
-        "--allow-state-change for reset/clear/autozero/continuous writes"
+        "--allow-state-change for reset/clear/autozero/continuous writes",
+        "--allow-current also required when config selects CURR:DC/CURR:AC"
       ],
       "verified": "2026-10-20, serial 0944865, firmware A17 /A02, RS-232 9600"
-    }
+    },
+    "subcommands": [
+      "identify",
+      "constants",
+      "config",
+      "query",
+      "write",
+      "read",
+      "walk",
+      "errors",
+      "unblock"
+    ],
+    "port_lock": "non-blocking exclusive flock; a second concurrent session is refused"
   }
 }

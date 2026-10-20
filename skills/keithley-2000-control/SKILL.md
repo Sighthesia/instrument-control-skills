@@ -233,11 +233,29 @@ python3 scripts/keithley2000_session.py identify
 python3 scripts/keithley2000_session.py errors
 python3 scripts/keithley2000_session.py read --function VOLT:DC --count 3 --output captures/
 python3 scripts/keithley2000_session.py read --function VOLT:DC --no-configure
+python3 scripts/keithley2000_session.py read --function VOLT:DC --nplc 0.1 --digits 6
 python3 scripts/keithley2000_session.py walk --confirm-open-input --output captures/
+python3 scripts/keithley2000_session.py config
+python3 scripts/keithley2000_session.py config --nplc 0.1 --digits 6 --filter on --filter-type moving --filter-count 10
+python3 scripts/keithley2000_session.py config --rel on --rel-reference 0.05
+python3 scripts/keithley2000_session.py config --rel on --rel-acquire
+python3 scripts/keithley2000_session.py constants
 python3 scripts/keithley2000_session.py query ':FUNCtion?'
 python3 scripts/keithley2000_session.py write ':CONFigure:VOLT:DC'
 python3 scripts/keithley2000_session.py unblock
 ```
+
+`config` prints the active function's NPLC, digits, filter, and REL. With
+setters it writes, queries every value back, and drains the queue; `--output`
+saves `config.json` plus the session log. It selects a function with
+`:FUNCtion`, not `:CONFigure`, so it does not reset the other settings.
+`--rel-acquire` uses the latest valid reading, so it needs one already
+available (continuous acquisition or a preceding read). Supported fields differ
+by function: NPLC excludes frequency/period/continuity/diode; digits exclude
+continuity/diode; the filter excludes frequency/period/continuity/diode; REL
+excludes continuity/diode. `config --function CURR:DC` needs
+`--allow-current`, because changing to the current function changes the input
+path.
 
 Guards, all verified against the 2026-10-20 capture:
 
@@ -252,6 +270,10 @@ Guards, all verified against the 2026-10-20 capture:
 - `--no-configure` reads the current setup untouched; with continuous
   initiation ON this reproduces `-213` and the result is reported `UNVERIFIED`
   with freshness `not_newly_triggered`.
+- The transport takes a non-blocking exclusive `flock` when it opens the port.
+  A second session fails with "serial port is already open"; never run two
+  helper processes against the same instrument in parallel. Interleaved queries
+  produce shifted, plausible-looking readbacks.
 - A timed-out query means the session is desynchronised; do not retry it. An
   armed `BUS`/`EXTernal` trigger with a pending `:FETCh?` blocks the output
   queue and every later query. Run `unblock` (device clear `0x03`, then
@@ -266,10 +288,11 @@ Guards, all verified against the 2026-10-20 capture:
 
 ## Read-only instrument constants
 
-Query these when the record needs firmware, option, calibration, or power
-context. All are queries; the session guard still refuses calibration writes.
+`constants` reads the whole set and interprets the fields; `--output` saves
+`constants.json` and the session log. The individual queries are:
 
 ```text
+python3 scripts/keithley2000_session.py constants
 python3 scripts/keithley2000_session.py query '*OPT?'
 python3 scripts/keithley2000_session.py query ':SYSTem:VERSion?'
 python3 scripts/keithley2000_session.py query ':SYSTem:LFRequency?'

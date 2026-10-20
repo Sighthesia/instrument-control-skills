@@ -14,6 +14,10 @@ Safety defaults:
   leads and reports overflow as expected behaviour.
 * reset/clear/calibration writes are refused unless ``--allow-state-change`` is
   given; no subcommand needs them for a normal measurement.
+* ``config`` changes only the requested NPLC/digits/filter/REL values, reads
+  them back, and drains the error queue; ``constants`` is query-only.
+* A non-blocking ``flock`` prevents two sessions from sharing the port; a second
+  concurrent command fails instead of interleaving responses.
 
 The guard list is a prefix match on the command text, not a security boundary:
 an abbreviation that does not match the listed prefixes will be forwarded.
@@ -23,10 +27,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import hashlib
 import json
 import sys
 import time
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -52,12 +58,47 @@ FORBIDDEN_WRITES = (
     "*CLS",
     "*TRG",
     ":SYSTem:PRESet",
+    ":SYST:PRES",
     ":CALibration",
+    ":CAL:PROT",
     ":SYSTem:AZERo:STATe",
+    ":SYST:AZER",
     ":INITiate:CONTinuous",  # allowed only through explicit restore flows
+    ":INIT:CONT",
 )
 
 CURRENT_FUNCTIONS = {"CURR:DC", "CURR:AC"}
+NPLC_FUNCTIONS = {"VOLT:DC", "VOLT:AC", "CURR:DC", "CURR:AC", "RES", "FRES", "TEMP"}
+DIGITS_FUNCTIONS = {"VOLT:DC", "VOLT:AC", "CURR:DC", "CURR:AC", "RES", "FRES",
+                    "FREQ", "PER", "TEMP"}
+FILTER_FUNCTIONS = {"VOLT:DC", "VOLT:AC", "CURR:DC", "CURR:AC", "RES", "FRES", "TEMP"}
+REFERENCE_FUNCTIONS = {"VOLT:DC", "VOLT:AC", "CURR:DC", "CURR:AC", "RES", "FRES",
+                       "FREQ", "PER", "TEMP"}
+REFERENCE_LIMITS = {
+    "VOLT:DC": (-1010.0, 1010.0),
+    "VOLT:AC": (-757.5, 757.5),
+    "CURR:DC": (-3.1, 3.1),
+    "CURR:AC": (-3.1, 3.1),
+    "RES": (0.0, 120e6),
+    "FRES": (0.0, 120e6),
+    "FREQ": (0.0, 1.5e7),
+    "PER": (0.0, 1.0),
+    "TEMP": (-200.0, 1372.0),
+}
+
+CONSTANT_QUERIES = (
+    ("identity", "*IDN?"),
+    ("options", "*OPT?"),
+    ("scpi_version", ":SYSTem:VERSion?"),
+    ("line_frequency", ":SYSTem:LFRequency?"),
+    ("front_rear_switch", ":SYSTem:FRSWitch?"),
+    ("power_on_setup", ":SYSTem:POSetup?"),
+    ("autozero", ":SYSTem:AZERo:STATe?"),
+    ("calibration_count", ":CAL:PROT:COUN?"),
+    ("calibration_date", ":CAL:PROT:DATE?"),
+    ("calibration_due", ":CAL:PROT:NDUE?"),
+    ("calibration_lock", ":CAL:PROT:LOCK?"),
+)
 
 WALK_FUNCTIONS = (
     ("VOLTage:DC", "voltage-dc"),
@@ -136,6 +177,20 @@ class Session:
         )
         self._connection.reset_input_buffer()
         self._connection.reset_output_buffer()
+        try:
+            import fcntl
+        except ImportError:  # non-POSIX host; no advisory lock available
+            fcntl = None
+        if fcntl is not None:
+            try:
+                fcntl.flock(self._connection.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except (OSError, AttributeError) as exc:
+                self._connection.close()
+                self._connection = None
+                raise SessionError(
+                    "serial port is already open by another session; "
+                    "close it before starting a second command"
+                ) from exc
 
     def close(self) -> None:
         if self._connection is not None:
@@ -328,7 +383,17 @@ def _configure(session: Session, function: str, args: argparse.Namespace,
     if args.elements:
         setting(f":FORMat:ELEments {args.elements}")
     if args.nplc is not None:
-        setting(f":SENSe:{path}:NPLC {args.nplc}")
+        if token not in NPLC_FUNCTIONS:
+            raise SessionError(f"{token} does not support NPLC")
+        if not 0.01 <= args.nplc <= 10:
+            raise SessionError("NPLC must be in 0.01..10")
+        setting(f":SENSe:{path}:NPLCycles {args.nplc:g}")
+    if getattr(args, "digits", None) is not None:
+        if token not in DIGITS_FUNCTIONS:
+            raise SessionError(f"{token} does not support DIGits")
+        if not 4 <= args.digits <= 7:
+            raise SessionError("DIGits must be in 4..7")
+        setting(f":SENSe:{path}:DIGits {args.digits}")
     if args.range is not None:
         setting(f"{targets['range']} {args.range}")
     if args.autorange is not None:
@@ -340,6 +405,10 @@ def _configure(session: Session, function: str, args: argparse.Namespace,
         queries.append(f"{targets['range']}?")
     if targets["autorange"]:
         queries.append(f"{targets['autorange']}?")
+    if args.nplc is not None:
+        queries.append(f":SENSe:{path}:NPLCycles?")
+    if getattr(args, "digits", None) is not None:
+        queries.append(f":SENSe:{path}:DIGits?")
     if token == "TEMP":
         queries.append(":SENSe:TEMPerature:TCouple:TYPE?")
         queries.append(":UNIT:TEMPerature?")
@@ -397,6 +466,290 @@ def _save_raw(directory: Path, name: str, artifact: dict[str, Any]) -> None:
         return
     directory.mkdir(parents=True, exist_ok=True)
     (directory / f"{name}.txt").write_bytes(base64.b64decode(blob))
+
+
+def _config_queries(token: str, path: str) -> dict[str, str]:
+    queries = {"function": ":FUNCtion?"}
+    if token in NPLC_FUNCTIONS:
+        queries["nplc"] = f":SENSe:{path}:NPLCycles?"
+    if token in DIGITS_FUNCTIONS:
+        queries["digits"] = f":SENSe:{path}:DIGits?"
+    if token in FILTER_FUNCTIONS:
+        queries["filter_state"] = f":SENSe:{path}:AVERage:STATe?"
+        queries["filter_type"] = f":SENSe:{path}:AVERage:TCONtrol?"
+        queries["filter_count"] = f":SENSe:{path}:AVERage:COUNt?"
+    if token in REFERENCE_FUNCTIONS:
+        queries["reference"] = f":SENSe:{path}:REFerence?"
+        queries["reference_state"] = f":SENSe:{path}:REFerence:STATe?"
+    return queries
+
+
+def _flag(artifact: dict[str, Any]) -> bool:
+    value = artifact["configuration"].get("value")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value != 0
+    return str(value).strip().upper() in {"1", "ON"}
+
+
+def _filter_type(value: Any) -> str:
+    text = str(value).strip().upper()
+    return {"MOV": "moving", "MOVING": "moving", "REP": "repeat", "REPEAT": "repeat"}.get(text, text.lower())
+
+
+def _settings_from_readbacks(readbacks: dict[str, Any]) -> dict[str, Any]:
+    settings: dict[str, Any] = {}
+    if "function" in readbacks:
+        configuration = readbacks["function"]["configuration"]
+        settings["function"] = configuration.get("function") or configuration.get("value")
+    if "nplc" in readbacks:
+        settings["nplc"] = float(readbacks["nplc"]["configuration"]["value"])
+    if "digits" in readbacks:
+        settings["digits"] = int(round(float(readbacks["digits"]["configuration"]["value"])))
+    if "filter_state" in readbacks:
+        settings["filter"] = {
+            "enabled": _flag(readbacks["filter_state"]),
+            "type": _filter_type(readbacks["filter_type"]["configuration"]["value"]),
+            "count": int(float(readbacks["filter_count"]["configuration"]["value"])),
+        }
+    if "reference" in readbacks:
+        settings["rel"] = {
+            "enabled": _flag(readbacks["reference_state"]),
+            "reference": float(readbacks["reference"]["configuration"]["value"]),
+        }
+    return settings
+
+
+def _print_settings(settings: dict[str, Any]) -> None:
+    print(f"function: {settings.get('function')}")
+    print(f"NPLC    : {settings.get('nplc', '-')}")
+    print(f"digits  : {settings.get('digits', '-')}")
+    filt = settings.get("filter")
+    if filt:
+        print(f"filter  : {'on' if filt['enabled'] else 'off'} "
+              f"({filt['type']}, count {filt['count']})")
+    else:
+        print("filter  : -")
+    rel = settings.get("rel")
+    if rel:
+        print(f"REL     : {'on' if rel['enabled'] else 'off'} "
+              f"(reference {rel['reference']:g})")
+    else:
+        print("REL     : -")
+
+
+def cmd_config(session: Session, args: argparse.Namespace) -> int:
+    if args.function:
+        token = _function_token(args.function)
+        if token in CURRENT_FUNCTIONS and not args.allow_current:
+            raise SessionError(
+                "selecting a current function requires --allow-current and the front "
+                "AMPS/INPUT LO path already wired in series"
+            )
+    else:
+        if args.dry_run:
+            raise SessionError("config --dry-run requires --function to plan the queries")
+        raw = session.query(":FUNCtion?")
+        artifact = parse_config(raw, query=":FUNCtion?")
+        token = artifact["configuration"].get("function")
+        if token is None:
+            raise SessionError(f"cannot determine the active function from {raw!r}")
+    path = sense_path(token)
+    if path is None:
+        raise SessionError(f"unknown function {token!r}")
+
+    if args.nplc is not None:
+        if token not in NPLC_FUNCTIONS:
+            raise SessionError(f"{token} does not support NPLC")
+        if not 0.01 <= args.nplc <= 10:
+            raise SessionError("NPLC must be in 0.01..10")
+    if args.digits is not None:
+        if token not in DIGITS_FUNCTIONS:
+            raise SessionError(f"{token} does not support DIGits")
+        if not 4 <= args.digits <= 7:
+            raise SessionError("DIGits must be in 4..7")
+    if args.filter is not None or args.filter_type is not None or args.filter_count is not None:
+        if token not in FILTER_FUNCTIONS:
+            raise SessionError(f"{token} has no averaging filter")
+    if args.filter_count is not None and not 1 <= args.filter_count <= 100:
+        raise SessionError("filter count must be in 1..100")
+    if args.rel is not None or args.rel_reference is not None or args.rel_acquire:
+        if token not in REFERENCE_FUNCTIONS:
+            raise SessionError(f"{token} has no REL/reference function")
+    if args.rel_reference is not None:
+        low, high = REFERENCE_LIMITS[token]
+        if not low <= args.rel_reference <= high:
+            raise SessionError(f"reference must be in {low:g}..{high:g} for {token}")
+
+    requested = {
+        key: value for key, value in {
+            "function": token if args.function else None,
+            "nplc": args.nplc,
+            "digits": args.digits,
+            "filter": args.filter,
+            "filter_type": args.filter_type,
+            "filter_count": args.filter_count,
+            "rel": args.rel,
+            "rel_reference": args.rel_reference,
+            "rel_acquire": args.rel_acquire or None,
+        }.items() if value is not None
+    }
+
+    commands: list[str] = []
+
+    def apply(command: str) -> None:
+        session.write(command)
+        commands.append(command)
+
+    if args.function:
+        apply(f':FUNCtion "{token}"')
+    if args.nplc is not None:
+        apply(f":SENSe:{path}:NPLCycles {args.nplc:g}")
+    if args.digits is not None:
+        apply(f":SENSe:{path}:DIGits {args.digits}")
+    if args.filter_type is not None:
+        apply(f":SENSe:{path}:AVERage:TCONtrol {args.filter_type}")
+    if args.filter_count is not None:
+        apply(f":SENSe:{path}:AVERage:COUNt {args.filter_count}")
+    if args.filter is not None:
+        apply(f":SENSe:{path}:AVERage:STATe {'ON' if args.filter == 'on' else 'OFF'}")
+    if args.rel_reference is not None:
+        apply(f":SENSe:{path}:REFerence {args.rel_reference:g}")
+    if args.rel is not None:
+        apply(f":SENSe:{path}:REFerence:STATe {'ON' if args.rel == 'on' else 'OFF'}")
+    if args.rel_acquire:
+        apply(f":SENSe:{path}:REFerence:ACQuire")
+
+    readbacks: dict[str, Any] = {}
+    for label, query in _config_queries(token, path).items():
+        raw = session.query(query)
+        if args.dry_run:
+            continue
+        readbacks[label] = parse_config(raw, query=query)
+    if args.dry_run:
+        return 0
+
+    settings = _settings_from_readbacks(readbacks)
+    queue = session.drain_errors()
+    envelope = {
+        "schema_version": "keithley2000-config-v1",
+        "requested": requested,
+        "commands": commands,
+        "settings": settings,
+        "readbacks": readbacks,
+        "error_queue": queue,
+    }
+    if args.output:
+        out = Path(args.output)
+        out.mkdir(parents=True, exist_ok=True)
+        session.save_log(out / "session.json")
+        (out / "config.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+    if args.json:
+        json.dump(envelope, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        _print_settings(settings)
+        if any(record["code"] != 0 for record in queue["records"]):
+            print(f"error queue: {[(r['code'], r['message']) for r in queue['records']]}")
+    return 0
+
+
+def _constant_text(raw: bytes) -> str:
+    return raw.decode("ascii", "replace").strip().rstrip("\r")
+
+
+def _calibration_due_in_past(text: str, today: date | None = None) -> bool | None:
+    try:
+        year, month, day = [int(part) for part in text.split(",")]
+        due = date(year, month, day)
+    except (TypeError, ValueError):
+        return None
+    return due < (today or date.today())
+
+
+def _interpret_constants(raw_map: dict[str, bytes]) -> dict[str, Any]:
+    text = {label: _constant_text(raw) for label, raw in raw_map.items()}
+    identity = parse_identity(raw_map["identity"]).get("identity", {})
+    options = text["options"]
+    due_in_past = _calibration_due_in_past(text["calibration_due"])
+    try:
+        calibration_count: int | None = int(float(text["calibration_count"]))
+    except ValueError:
+        calibration_count = None
+    try:
+        line_frequency: float | None = float(text["line_frequency"])
+    except ValueError:
+        line_frequency = None
+    return {
+        "identity": identity,
+        "options": options,
+        "options_interpretation": ("no scanner option reported" if options == "0,0"
+                                    else "see raw response"),
+        "scpi_version": text["scpi_version"],
+        "line_frequency_hz": line_frequency,
+        "input_switch": {"1": "front", "0": "rear"}.get(text["front_rear_switch"],
+                                                        text["front_rear_switch"]),
+        "power_on_setup": text["power_on_setup"],
+        "autozero": text["autozero"] in {"1", "ON"},
+        "calibration": {
+            "count": calibration_count,
+            "date": text["calibration_date"],
+            "due": text["calibration_due"],
+            "due_in_past": due_in_past,
+            "lock": {"0": "locked", "1": "unlocked"}.get(text["calibration_lock"],
+                                                         text["calibration_lock"]),
+        },
+    }
+
+
+def cmd_constants(session: Session, args: argparse.Namespace) -> int:
+    raw_map: dict[str, bytes] = {}
+    for label, query in CONSTANT_QUERIES:
+        raw_map[label] = session.query(query)
+    if args.dry_run:
+        return 0
+    constants = _interpret_constants(raw_map)
+    readbacks = {
+        label: {"query": query, "raw": _constant_text(raw_map[label]),
+                **parse_config(raw_map[label], query=query)}
+        for label, query in CONSTANT_QUERIES if label != "identity"
+    }
+    queue = session.drain_errors()
+    envelope = {
+        "schema_version": "keithley2000-constants-v1",
+        "constants": constants,
+        "readbacks": readbacks,
+        "error_queue": queue,
+    }
+    if args.output:
+        out = Path(args.output)
+        out.mkdir(parents=True, exist_ok=True)
+        session.save_log(out / "session.json")
+        (out / "constants.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+    if args.json:
+        json.dump(envelope, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        ident = constants["identity"]
+        print(f"vendor   : {ident.get('vendor')}")
+        print(f"model    : {ident.get('model')}")
+        print(f"serial   : {ident.get('serial')}")
+        print(f"firmware : {ident.get('firmware_digital')} / {ident.get('firmware_display')}")
+        print(f"options  : {constants['options']} ({constants['options_interpretation']})")
+        print(f"SCPI     : {constants['scpi_version']}")
+        print(f"line     : {constants['line_frequency_hz']:g} Hz"
+              if constants["line_frequency_hz"] is not None else "line     : -")
+        print(f"inputs   : {constants['input_switch']}")
+        print(f"power-on : {constants['power_on_setup']}")
+        print(f"autozero : {'on' if constants['autozero'] else 'off'}")
+        cal = constants["calibration"]
+        print(f"cal count: {cal['count']}")
+        print(f"cal date : {cal['date']}")
+        due_note = " (overdue)" if cal["due_in_past"] else ""
+        print(f"cal due  : {cal['due']}{due_note}")
+        print(f"cal lock : {cal['lock']}")
+        if any(record["code"] != 0 for record in queue["records"]):
+            print(f"error queue: {[(r['code'], r['message']) for r in queue['records']]}")
+    return 0
 
 
 def cmd_identify(session: Session, args: argparse.Namespace) -> int:
@@ -525,7 +878,12 @@ def cmd_walk(session: Session, args: argparse.Namespace) -> int:
     out = Path(args.output) if args.output else None
     for function, tag in WALK_FUNCTIONS:
         token = _function_token(function)
-        configuration = _configure(session, function, args)
+        config_args = copy.copy(args)
+        if token not in NPLC_FUNCTIONS:
+            config_args.nplc = None
+        if token not in DIGITS_FUNCTIONS:
+            config_args.digits = None
+        configuration = _configure(session, function, config_args)
         extra_unit = _temperature_unit(configuration) if token == "TEMP" else None
         reading = _read_once(session, function, args, 1, extra_unit)
         queue = session.drain_errors() if not args.dry_run else {"note": "dry-run"}
@@ -579,6 +937,25 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("identify", parents=[common], help="query *IDN? and parse it")
 
+    constants = sub.add_parser("constants", parents=[common],
+                               help="read-only identity, options, and calibration metadata")
+    constants.add_argument("--output")
+
+    config = sub.add_parser("config", parents=[common],
+                            help="read or change NPLC, digits, filter, and REL")
+    config.add_argument("--function", help="select this function before configuring")
+    config.add_argument("--nplc", type=float)
+    config.add_argument("--digits", type=int)
+    config.add_argument("--filter", choices=("on", "off"))
+    config.add_argument("--filter-type", dest="filter_type", choices=("moving", "repeat"))
+    config.add_argument("--filter-count", dest="filter_count", type=int)
+    config.add_argument("--rel", choices=("on", "off"))
+    config.add_argument("--rel-reference", dest="rel_reference", type=float)
+    config.add_argument("--rel-acquire", dest="rel_acquire", action="store_true")
+    config.add_argument("--allow-current", action="store_true",
+                        help="confirm the AMPS/INPUT LO path is already wired in series")
+    config.add_argument("--output")
+
     query = sub.add_parser("query", parents=[common],
                            help="send one query and show the raw response")
     query.add_argument("query_command", metavar="COMMAND")
@@ -600,6 +977,7 @@ def _build_parser() -> argparse.ArgumentParser:
     read.add_argument("--count", type=int, default=1)
     read.add_argument("--range", dest="range", type=float)
     read.add_argument("--nplc", type=float)
+    read.add_argument("--digits", type=int)
     read.add_argument("--unit")
     read.add_argument("--elements", help="e.g. READ,CHAN,UNIT")
     read.add_argument("--autorange", dest="autorange", action="store_true", default=None)
@@ -617,6 +995,7 @@ def _build_parser() -> argparse.ArgumentParser:
     walk.add_argument("--elements", help="e.g. READ,CHAN,UNIT")
     walk.add_argument("--unit")
     walk.add_argument("--nplc", type=float)
+    walk.add_argument("--digits", type=int)
     walk.add_argument("--range", dest="range", type=float)
     walk.add_argument("--autorange", dest="autorange", action="store_true", default=None)
     walk.add_argument("--no-autorange", dest="autorange", action="store_false")
@@ -631,6 +1010,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "identify":
             return cmd_identify(session, args)
+        if args.command == "constants":
+            return cmd_constants(session, args)
+        if args.command == "config":
+            return cmd_config(session, args)
         if args.command == "query":
             return cmd_query(session, args)
         if args.command == "write":

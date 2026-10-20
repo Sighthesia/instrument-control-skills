@@ -105,7 +105,11 @@ with continuous initiation active; `:INITiate:CONTinuous ON` combined with
 - `scripts/keithley2000_session.py` — the only script that opens RS-232;
   `--dry-run` records the exact bytes, the guard flags block resets and
   unconfirmed current measurements, and each `read` saves raw bytes plus a
-  session log when `--output` is given.
+  session log when `--output` is given. `config` reads or sets NPLC, digits,
+  filter, and REL with automatic readback; `constants` reads identity, options,
+  input switch, line frequency, power-on setup, autozero, and calibration
+  metadata. The helper holds an exclusive `flock`: a second concurrent session
+  fails instead of interleaving responses.
 
 Do not send a second query while a response is unread: an undefined query such
 as `:SENSe:FREQuency:RANGe?` produces no response at all, so the host must time
