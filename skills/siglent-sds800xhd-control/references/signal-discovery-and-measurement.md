@@ -147,7 +147,30 @@ Why the capture flow must not use it:
 
 To stop a rolling display for inspection, use the front-panel Run/Stop key or `:TRIGger:STOP`; pressing Run/Stop again restarts a rolling acquisition and **clears the display**. Clearing the screen destroys the reference for any earlier screenshot, so capture the screenshot before stopping.
 
-All of this is `documented`; the target firmware has not been exercised in Roll mode.
+### Sample Rate in Roll Mode
+
+There is no enumerable list. The programming guide describes `:ACQuire:SRATe` only as "NR3; a value above the settable maximum is matched to a settable value" (printed p. 22) and gives no discrete rate table; neither manual has a sample-rate specification appendix for this series. Do not write a fixed table into a script or claim a rate set from arithmetic alone.
+
+What the manuals do bound:
+
+- Roll needs a timebase of 50 ms/div or slower (user manual printed p. 44). A 10-division screen is therefore at least 0.5 s of captured time.
+- Roll "limits the memory depth" (programming guide printed p. 20) without stating the limit.
+- Maximum depth by active channel count (programming guide printed p. 48): single channel 10k/100k/1M/10M/100M, dual 10k/100k/1M/10M/50M, four-channel 10k/100k/1M/10M/25M.
+
+So rate = depth / window, and the window is at least 0.5 s. The resulting order-of-magnitude ceiling, before Roll's own depth cut, is roughly 200 MSa/s single channel, 100 MSa/s dual, and 50 MSa/s four-channel. Roll's undocumented depth limit only lowers these. Roll is a slow-event mode; a high sample rate here is a sign of a wrong setup, not a goal.
+
+Query the live values instead of predicting them:
+
+```text
+:ACQuire:MODE?      # confirm ROLL, YT, or XY
+:ACQuire:MDEPth?    # depth actually applied
+:ACQuire:POINts?    # points actually captured
+:ACQuire:SRATe?     # rate actually in force
+```
+
+Record all four together. The relation `points / rate` must agree with the observed capture window; a mismatch means one of the four responses does not describe the same acquisition. These four reads are safe at any time and do not change acquisition context.
+
+Still unknown and deliberately not guessed: the actual Roll depth limit, whether the channel count cuts it further, whether `:ACQuire:SRATe` is accepted while in Roll, and the hardware's real discrete rate divisors. All of this is `documented`; the target firmware has not been exercised in Roll mode.
 
 ## Signal Discovery
 
@@ -212,6 +235,7 @@ Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repositor
 - Numeric precision (`:FORMat:DATA`): printed p. 15.
 - Acquisition mode, interpolation, memory management, memory depth, sample rate, acquisition type: printed pp. 17-23.
 - Roll mode availability, horizontal-delay/zoom limits, and display behaviour: user manual printed p. 44 (the only place it is described; the programming guide lists `ROLL` as a value only).
+- Sample-rate bounds in Roll mode: derived from the 50 ms/div minimum and the per-channel depth table (programming guide printed pp. 20, 22, 48). No discrete rate list exists in either manual.
 - Acquisition points, frame count, sample rate: printed pp. 21-23.
 - Channel coupling, probe, V/div, switch, bandwidth limit, invert, impedance, unit, skew, label, reference: printed pp. 24-30.
 - Simple/advanced measurement, statistics, history: printed pp. 164-183.

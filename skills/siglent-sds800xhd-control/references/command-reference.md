@@ -55,8 +55,8 @@
 |---|---|---|---|---|
 | `:ACQuire:NUMACq?` | query | — | 已采集帧数；水平/垂直变更等影响采集的操作会使其复位；不是通用平均完成标志。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23) |
 | `:ACQuire:POINts?` / `ACQ:POIN?` | query | — | 当前记录点数（`scope_record_points`）；用于与描述符点数比对判断 `COMPLETE`/`INCOMPLETE`。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py |
-| `:ACQuire:SRATe?` | query | — | 当前采样率（Sa/s）。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
-| `:ACQuire:SRATe` / `ACQ:SRAT` | set | `<rate>`，浮点 NR3，如 `5.00E9`；手册未给离散档位表，只说明“超过可设定值会自动匹配” | **仅在 `:ACQuire:MMANagement FSRate` 固定采样率模式下有效**；写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。手册印刷 p. 22。证据等级 `documented`。 | signal-discovery-and-measurement.md (manual pp. 22-23) |
+| `:ACQuire:SRATe?` | query | — | 当前采样率（Sa/s）。**没有离散档位表**：手册只说“超过可设定值会自动匹配”，因此不能预先枚举，必须在设备上读取。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `:ACQuire:SRATe` / `ACQ:SRAT` | set | `<rate>`，浮点 NR3，如 `5.00E9`；手册未给离散档位表，只说明“超过可设定值会自动匹配” | **仅在 `:ACQuire:MMANagement FSRate` 固定采样率模式下有效**；写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。Roll 模式下是否可写未见手册说明，属 `UNVERIFIED`。手册印刷 p. 22。证据等级 `documented`。 | signal-discovery-and-measurement.md (manual pp. 22-23) |
 | `:ACQuire:MMANagement?` | query | 返回 `AUTO`、`FSRate`、`FMDepth` | 存储管理方式；决定采样率与存储深度哪一个由用户控制。写采样率或深度前应先确认此模式。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
 | `:ACQuire:MMANagement` / `ACQ:MMAN` | set | `AUTO`、`FSRate`、`FMDepth` | `AUTO` 保持最大采样率并按时基推两者；`FSRate` 固定采样率、深度随时基；`FMDepth` 固定深度、采样率随时基。改变采集上下文，写入后回读。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
 | `:ACQuire:MODE` | set/query | `YT`、`XY`、`ROLL` | 采集模式。`ROLL` 为滚动流式显示：**`SAST?` 只报 `Roll` 不报 `Ready`**，因此不能用于本 Skill 的 `Ready -> Stop` 单次采集；只在 50 ms/div 及更慢时可用，水平延迟无效，运行中不支持 Zoom，并限制存储深度。详见 `signal-discovery-and-measurement.md` 的 Roll Mode 一节。手册印刷 pp. 18-19 + 用户手册印刷 p. 44。 | signal-discovery-and-measurement.md (manual pp. 18-19)<br>scripts/scope_protocol.py |
@@ -267,6 +267,7 @@
 - **通道/垂直写入**：已记录 `SCALe`、`OFFSet`、`SWITch`、`COUPling`、`PROBe`、`BWLimit`、`INVert`、`IMPedance`、`UNIT`、`SKEW`、`LABel`、`LABel:TEXT`、`VISible`、`CHANnel:REFerence`（手册印刷 pp. 24-30）。
 - **数字通道与选件**：MSO 数字通道（`:DIGital:*`，选件）、`:WGEN:*`（外部 SAG1021I 发生器选件，不是本机内置）、`:METEr:*`（仅手持 SHS 系列）均不属于本机基础能力，刻意不收录。
 - **时基/采集写入**：已记录 `ACQ:MDEP`、`ACQ:SRAT`、`ACQ:MMAN`、`ACQ:MODE`、`ACQ:TYPE`、`ACQ:SEQuence`、`TIM:DEL`、`TIM:REF:POS`、`TDIV`；`ACQ:AMODe`、`ACQ:INTerpolation`、`ACQ:CSWeep` 已列但未实现为脚本参数；数字通道、平均/ERES 与记录深度的交互只按手册记录，未实测。
+- **采样率可取值集合**：两份手册都没有离散档位表，只有“超过可设定值自动匹配”的说明。Roll 模式下的采样率由 50 ms/div 下限与（未公开的）深度限制共同约束，只能现场读 `:ACQuire:MDEPth?`/`:ACQuire:POINts?`/`:ACQuire:SRATe?` 获取，不得用公式代替实测。
 - **触发系统**：已记录 `TRIGger:MODE`（含 `FTRIG`）、`TRIGger:TYPE` 的 24 种类型、`TRIGger:STATus?`、`TRIGger:RUN/STOP` 与边沿触发序列；各类型的具体参数（脉宽、欠幅上下限、释抑、耦合、噪声抑制、串行协议阈值/速率）未逐条记录，手册印刷 pp. 245-410。
 - **测量**：简单测量已记录 `MEASure` 总开关、`MEASure:MODE`、`SIMPle:ITEM` 的 52 项参数与 `VALue?`；高级测量已记录槽位使能、`TYPE` 写入、双源、值、统计、历史；门限/参考电平设置（`THReshold`）、统计复位与 `MAXCount`、`ASTRategy`、门控（`GATE`）未记录。
 - **波形传输**：只记录了现代 WAV 与旧式 `C<n>:WF? DAT2/DESC`；`WAV:SOURce` 的数字通道/数学等扩展源、历史帧/存储媒介选择（`MEMory`/`SAVE` 类）未记录。
