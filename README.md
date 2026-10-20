@@ -37,4 +37,46 @@ verified only when exercised on a real instrument; supporting evidence such as
 screenshots and the firmware version may be recorded in the Skill or README
 table, but is not mandatory.
 
+### What the authoring conventions cover
+
+Read these before writing a new device Skill; they are normative for the new
+Skill's communication and data handling:
+
+| Area | Reference | Rules |
+|---|---|---|
+| Authoring stages | `authoring-workflow.md` | Instrument boundary, evidence table, the `read_frame → parse_metadata → extract_payload → normalize → validate` split, test-before-hardware, conservative publication |
+| Instrument types | `instrument-types-and-examples.md` | Choosing an example by data claim and response format; the five teaching formats and their main checks |
+| Response framing | `response-framing.md` | Line-oriented text, CSV, IEEE 488.2 definite-length blocks, length-prefixed binary, segmented/packetized records; failure mapping and allocation limits |
+| Metadata and payload | `metadata-payload-validation.md` | Metadata versus payload, applicable length/segment/checksum/axis checks, normalization limited to evidenced semantics |
+| Integrity status | `status-and-reports.md` | `COMPLETE`/`INCOMPLETE`/`INVALID`/`UNVERIFIED`/`UNSUPPORTED`; per-check `pass`/`fail`/`not_checked`; report shape and analysis gates |
+| Data-specific checks | `waveform-checks.md`, `scalar-checks.md`, `axes-and-sequences.md` | Point/byte counts, segment coverage, axes and units, reading count and instrument status, ordering and duplicate records |
+| Evidence and provenance | `evidence-and-provenance.md` | Model, firmware, interface, command, raw response, SHA-256, parser version, manual citation, calibration binding |
+| Offline testing | `replay-testing.md` | Valid and negative fixtures, expected results, no sockets or VISA in tests |
+
+### Research and standards basis
+
+The guide is written from published specifications and established open-source
+instrument libraries; no implementation code is copied and none of these projects
+becomes a runtime dependency.
+
+- **IEEE 488.2** binary block framing (`#<length-of-length><length><payload>`) is
+  the reference for oscilloscope waveform transfers and other definite-length
+  responses.
+- **Vendor programming manuals** (for example SCPI manuals) are the only accepted
+  source for command, field, and unit claims; they are cited by revision and page
+  and never copied into the repository.
+- **PyVISA** ([reading and writing values](https://pyvisa.readthedocs.io/en/stable/introduction/rvalues.html))
+  documents the decisions a transfer must make explicit: datatype, endianness,
+  header, termination, and expected point count.
+- **PyVISA-sim** ([simulated instruments](https://pyvisa.readthedocs.io/projects/pyvisa-sim/en/latest/definitions.html))
+  informs query/response dialogues, end-of-message rules, and raw-byte replay
+  testing.
+- **PyMeasure** ([adapters](https://pymeasure.readthedocs.io/en/latest/api/adapters.html),
+  [advanced communication](https://pymeasure.readthedocs.io/en/latest/dev/adding_instruments/advanced_communication.html))
+  supports keeping transport below instrument semantics and framing/checksums
+  above the byte layer.
+- **QCoDeS community drivers** ([Qcodes_contrib_drivers](https://github.com/QCoDeS/Qcodes_contrib_drivers))
+  model the separation of driver, examples, and tests, with support responsibility
+  on the contributor.
+
 Keep `README.md` and `README.zh-CN.md` in sync when submitting.

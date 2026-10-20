@@ -18,6 +18,11 @@ skills/<skill-name>/
 
 ## Writing a new Skill
 
+Before authoring, read `skills/write-new-instrument-control/SKILL.md` and load
+only the `references/` documents matching each stage. It is the normative source
+for communication framing, data-integrity, and provenance conventions; do not
+re-derive those rules from memory.
+
 1. Model the directory on the parser templates, authoring references, and
    examples already shipped in this repository; do not invent a new layout.
 2. Set the frontmatter `name` equal to the directory name; register the Skill in
