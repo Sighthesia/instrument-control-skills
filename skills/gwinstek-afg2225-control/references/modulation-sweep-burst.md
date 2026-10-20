@@ -7,8 +7,8 @@ Manual: *AFG-2225 Series User Manual*, pp. 218-270. Support level:
 
 AM, FM, FSK, PM, SUM. Each has State/Source/Internal Function/Internal
 Frequency plus a depth/deviation/rate/amplitude parameter. Pages 218-239.
-Only one modulation type should be active at a time; enabling one may need
-the others disabled.
+Enabling one modulation type disables the other modulation modes; only one is
+active at a time.
 
 | Family | Commands (short form) | Key ranges | Page |
 |---|---|---|---|

@@ -1,6 +1,6 @@
 # Arbitrary Waveform (AFG-2225)
 
-Manual: *AFG-2225 Series User Manual*, pp. 260-265. Support level:
+Manual: *AFG-2225 Series User Manual*, pp. 260-265, 271. Support level:
 `documented`.
 
 ## Memory and points
@@ -14,7 +14,9 @@ Manual: *AFG-2225 Series User Manual*, pp. 260-265. Support level:
 ## Upload workflow
 
 1. `SOURce[1|2]:FUNCtion USER` to select the arbitrary waveform.
-2. Set frequency/amplitude/offset via APPLy or low-level commands.
+2. Set frequency/amplitude/offset with low-level commands, or with
+   `SOURce[1|2]:APPLy:USER`; do not use a non-USER APPLy shape, which would
+   switch away from the arbitrary waveform and turn the output on.
 3. Download 1-4096 points into volatile memory via `DATA:DAC`.
 4. Rate = Hz × points.
 
@@ -65,6 +67,15 @@ with an oscilloscope before relying on a binary upload.
 | `SOURce[1|2]:ARB:EDIT:PROTect:ALL` | 265 |
 | `SOURce[1|2]:ARB:EDIT:UNProtect` | 265 |
 | `SOURce[1|2]:ARB:OUTPut` | 265 |
+
+`ARB:EDIT:COPY [start[,length[,paste]]]` copies a segment; `DELete [start
+[,length]]` deletes one; `POINt [address[,data]]` and `LINE [addr1[,data1
+[,addr2[,data2]]]]` edit points/lines. Addresses are `0..4095`, data is `±511`.
+`ARB:OUTPut [start[,length]]` outputs the current volatile waveform or a
+segment; the manual prints start/length limits of `0..4096` with `start + length`
+not exceeding the current waveform (pp. 262-265). The `DATA:DAC` start address
+is separately documented as `0..4095`. Do not delete or protect a waveform
+that is currently output.
 
 ## Save/recall caveat
 

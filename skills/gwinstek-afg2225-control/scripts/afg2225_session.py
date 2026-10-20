@@ -196,14 +196,16 @@ def cmd_arb(session: Session, args) -> int:
 
     command = base64.b64decode(artifact["command_bytes_base64"])
     _set_load(session, args.channel, args.load)
-    session.send(command, read_response=False)
+    # Follow the manual's overview order: select USER, set frequency, then load
+    # the volatile waveform.  The helper does not assert the output state.
     session.send(f"SOUR{args.channel}:FUNC USER".encode("ascii"), read_response=False)
     if args.frequency is not None:
         session.send(f"SOUR{args.channel}:FREQ {args.frequency}".encode("ascii"), read_response=False)
     else:
         print("frequency not set; set SOUR<n>:FREQ so rate = frequency x points")
+    session.send(command, read_response=False)
     print(f"points={len(values)} format={args.data_format} byte_order={artifact['byte_order']}")
-    print("output remains OFF; use the output subcommand when the load is ready")
+    print("verify OUTP? before connecting a load; this helper does not auto-enable output")
     return 0 if artifact["integrity"]["status"] not in {"INVALID", "INCOMPLETE", "UNSUPPORTED"} else 1
 
 

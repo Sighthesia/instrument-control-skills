@@ -211,8 +211,365 @@ def _text(frame: Frame) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Identity
+# Response stages: metadata -> payload -> normalization -> validation
 # ---------------------------------------------------------------------------
+
+_NUMERIC_RE = re.compile(
+    r"^(?P<number>[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?)\s*(?P<unit>[A-Za-z%°Ωµμμ]+)?$"
+)
+_ERROR_QUEUE_RE = re.compile(r"^\s*(?P<code>[+-]?\d+)(?:\s*,\s*|\s+)(?P<message>.+?)\s*$")
+
+
+def _is_no_error_text(line: str) -> bool:
+    return re.fullmatch(r'"?no error"?', line, re.IGNORECASE) is not None
+
+
+def _is_known_error_queue_sentinel(code: int, message: str) -> bool:
+    normalized = message.strip().strip("\"'").strip().casefold()
+    return (code == 0 and normalized == "no error") or (
+        abs(code) == 350 and normalized == "queue overflow"
+    )
+
+
+def parse_metadata(frame: Frame, *, response_type: str = "auto") -> dict[str, Any]:
+    """Decode one ASCII response line and classify its raw tokens.
+
+    This stage performs framing-to-text conversion and token classification
+    only.  It does not normalize units, validate semantic ranges, or attach
+    provenance; those are separate stages.
+    """
+
+    if response_type not in {"auto", "identity", "numeric", "error-queue"}:
+        raise ProtocolError("response_type must be auto, identity, numeric, or error-queue", "INVALID")
+
+    line = _text(frame)
+    if not line:
+        raise ProtocolError("response line is empty", "INCOMPLETE")
+
+    if response_type == "auto":
+        if _is_no_error_text(line) or _ERROR_QUEUE_RE.fullmatch(line):
+            response_type = "error-queue"
+            mode = "auto"
+        else:
+            raise ProtocolError(
+                "automatic classification is limited to documented error-queue sentinels",
+                "UNSUPPORTED",
+            )
+    else:
+        mode = "explicit"
+
+    if response_type == "identity":
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 3 or len(parts) > 4:
+            raise ProtocolError(
+                "identity response does not have the expected comma-separated fields",
+                "INVALID",
+            )
+        return {
+            "response_type": "identity",
+            "line": line,
+            "fields": parts,
+            "mode": mode,
+        }
+
+    if response_type == "numeric":
+        match = _NUMERIC_RE.fullmatch(line)
+        if not match:
+            if re.search(r"\b(?:NAN|INF(?:INITY)?)\b", line, re.IGNORECASE):
+                raise ProtocolError("non-finite numeric response", "INVALID")
+            raise ProtocolError("response is not a supported numeric value", "INVALID")
+        return {
+            "response_type": "numeric",
+            "line": line,
+            "numeric_token": match.group("number"),
+            "raw_unit": match.group("unit"),
+            "mode": mode,
+        }
+
+    if _is_no_error_text(line):
+        code = 0
+        message = "No error"
+    else:
+        match = _ERROR_QUEUE_RE.fullmatch(line)
+        if not match:
+            raise ProtocolError(
+                "error-queue response must contain an integer code and message",
+                "INVALID",
+            )
+        code = int(match.group("code"))
+        message = match.group("message").strip().strip("\"'").strip()
+    return {
+        "response_type": "error-queue",
+        "line": line,
+        "code": code,
+        "message": message,
+        "mode": mode,
+    }
+
+
+def extract_payload(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Expose raw fields without unit conversion or semantic classification."""
+
+    response_type = metadata.get("response_type")
+    if response_type == "identity":
+        fields = metadata["fields"]
+        return {
+            "vendor": fields[0],
+            "model": fields[1],
+            "serial_field": fields[2] if len(fields) > 2 else "",
+            "firmware": fields[3] if len(fields) > 3 else "",
+        }
+    if response_type == "numeric":
+        return {
+            "numeric_token": metadata["numeric_token"],
+            "raw_unit": metadata["raw_unit"],
+        }
+    if response_type == "error-queue":
+        return {"code": metadata["code"], "message": metadata["message"]}
+    raise ProtocolError("metadata has no supported response_type", "UNSUPPORTED")
+
+
+def normalize(
+    metadata: dict[str, Any],
+    payload: dict[str, Any],
+    *,
+    quantity: str | None = None,
+    unit: str | None = None,
+) -> dict[str, Any]:
+    """Normalize extracted fields without changing the source bytes.
+
+    The returned artifact contains ``status``, ``checks``, and ``reasons``;
+    :func:`validate` moves the checks/reasons into the final integrity block.
+    Semantic failures are raised as :class:`ProtocolError` so the high-level
+    parser can return a conservative failure artifact with the raw bytes.
+    """
+
+    response_type = metadata.get("response_type")
+
+    if response_type == "identity":
+        vendor = payload["vendor"]
+        model = payload["model"]
+        serial_field = payload["serial_field"]
+        firmware = payload["firmware"]
+
+        if vendor.upper().replace("  ", " ") != EXPECTED_VENDOR:
+            raise ProtocolError(f"unexpected vendor {vendor!r}", "INVALID")
+        if model.upper() != EXPECTED_MODEL:
+            raise ProtocolError(f"unexpected model {model!r}", "INVALID")
+
+        if serial_field == "":
+            raise ProtocolError("serial number is missing", "INCOMPLETE")
+        if serial_field.upper().startswith("SN:"):
+            serial = serial_field[3:].strip()
+        else:
+            raise ProtocolError("serial field is missing the SN: prefix", "INVALID")
+        if not serial:
+            raise ProtocolError("serial number is missing", "INCOMPLETE")
+        if firmware == "":
+            raise ProtocolError("firmware version is missing", "INCOMPLETE")
+        if not re.fullmatch(r"V\d+\.\d+", firmware, re.IGNORECASE):
+            raise ProtocolError(f"malformed firmware version {firmware!r}", "INVALID")
+
+        identity = {
+            "vendor": vendor.upper().replace("  ", " "),
+            "model": model.upper(),
+            "serial": serial,
+            "firmware": firmware,
+        }
+        return {
+            "schema_version": "afg2225-protocol-v1",
+            "kind": "identity",
+            "vendor": identity["vendor"],
+            "model": identity["model"],
+            "serial": identity["serial"],
+            "firmware": identity["firmware"],
+            "identity": identity,
+            "status": "COMPLETE",
+            "checks": [
+                {
+                    "name": "identity_parse",
+                    "status": "pass",
+                    "evidence": {"model": identity["model"]},
+                }
+            ],
+            "reasons": [],
+        }
+
+    if response_type == "numeric":
+        if not isinstance(quantity, str) or not quantity.strip():
+            raise ProtocolError("quantity is required for numeric normalization", "INVALID")
+
+        token = payload["numeric_token"]
+        suffix = payload["raw_unit"]
+
+        try:
+            value = Decimal(token)
+        except InvalidOperation as exc:
+            raise ProtocolError("numeric token is not valid", "INVALID") from exc
+        if not value.is_finite():
+            raise ProtocolError("non-finite numeric response", "INVALID")
+
+        expected: tuple[str | None, Decimal] | None
+        explicit_unit = unit is not None
+        if explicit_unit:
+            if not isinstance(unit, str):
+                raise ProtocolError("unit must be a string", "INVALID")
+            expected = _normalize_unit(unit)
+            if expected is None:
+                raise ProtocolError(f"unsupported supplied unit {unit!r}", "INVALID")
+        else:
+            default_unit = QUANTITY_UNITS.get(quantity.lower().strip())
+            if default_unit == "":
+                expected = (None, Decimal(1))
+            elif default_unit is None:
+                expected = None
+            else:
+                expected = _normalize_unit(default_unit)
+
+        if suffix:
+            observed = _normalize_unit(suffix)
+            if observed is None:
+                raise ProtocolError(f"unrecognized response unit {suffix!r}", "INVALID")
+        else:
+            observed = expected
+
+        if observed is None:
+            status = "INCOMPLETE"
+            reason = "unit could not be resolved from response or quantity"
+            canonical_unit = None
+            multiplier = Decimal(1)
+            checks = [
+                {
+                    "name": "unit_resolution",
+                    "status": "fail",
+                    "evidence": {"reason": reason},
+                }
+            ]
+        else:
+            canonical_unit, multiplier = observed
+            allowed = QUANTITY_ALLOWED_UNITS.get(quantity.lower().strip())
+            if allowed is not None and canonical_unit not in allowed:
+                raise ProtocolError(
+                    "response unit does not belong to the declared quantity",
+                    "INVALID",
+                )
+            if (
+                expected is not None
+                and expected[0] != canonical_unit
+                and (explicit_unit or allowed is None)
+            ):
+                raise ProtocolError("response unit conflicts with supplied unit", "INVALID")
+            status = "COMPLETE"
+            reason = ""
+            checks = [
+                {
+                    "name": "numeric_parse",
+                    "status": "pass",
+                    "evidence": {"token": token, "unit": canonical_unit},
+                }
+            ]
+
+        try:
+            normalized_value = value * multiplier
+            raw_float = float(value)
+            float_value = float(normalized_value)
+        except (OverflowError, ValueError) as exc:
+            raise ProtocolError(
+                "numeric value is outside the supported finite range",
+                "INVALID",
+            ) from exc
+        if not math.isfinite(float_value) or not math.isfinite(raw_float):
+            raise ProtocolError(
+                "numeric value is outside the supported finite range",
+                "INVALID",
+            )
+
+        return {
+            "schema_version": "afg2225-protocol-v1",
+            "kind": "numeric",
+            "quantity": quantity,
+            "value": float_value,
+            "raw_value": raw_float,
+            "numeric_token": token,
+            "unit": canonical_unit,
+            "raw_unit": suffix,
+            "status": status,
+            "checks": checks,
+            "reasons": [reason] if reason else [],
+        }
+
+    if response_type == "error-queue":
+        code = payload["code"]
+        message = payload["message"]
+        mode = metadata.get("mode", "explicit")
+
+        if mode == "auto" and not _is_known_error_queue_sentinel(code, message):
+            return {
+                "schema_version": "afg2225-protocol-v1",
+                "kind": "unknown",
+                "code": code,
+                "message": message,
+                "record_type": None,
+                "status": "UNSUPPORTED",
+                "checks": [
+                    {
+                        "name": "error_queue_classification",
+                        "status": "fail",
+                        "evidence": {"reason": "explicit_error_queue_mode_required"},
+                    }
+                ],
+                "reasons": ["explicit_error_queue_mode_required"],
+            }
+
+        normalized = message.casefold()
+        if code == 0 and normalized == "no error":
+            status = "COMPLETE"
+            reasons: list[str] = []
+        elif abs(code) == 350 and normalized == "queue overflow":
+            status = "INCOMPLETE"
+            reasons = ["instrument_error_queue_overflow"]
+        else:
+            status = "UNVERIFIED"
+            reasons = ["instrument_reported_error_or_status"]
+
+        return {
+            "schema_version": "afg2225-protocol-v1",
+            "kind": "status-record",
+            "record_type": "error-queue",
+            "code": code,
+            "message": message,
+            "status": status,
+            "checks": [
+                {
+                    "name": "error_queue_record",
+                    "status": "pass",
+                    "evidence": {"code": code},
+                }
+            ],
+            "reasons": reasons,
+        }
+
+    raise ProtocolError("metadata has no supported response_type", "UNSUPPORTED")
+
+
+def validate(artifact: dict[str, Any], raw: bytes) -> dict[str, Any]:
+    """Attach raw evidence and the integrity block to a normalized artifact."""
+
+    artifact = dict(artifact)
+    status = artifact.get("status")
+    if status not in {"COMPLETE", "INCOMPLETE", "INVALID", "UNVERIFIED", "UNSUPPORTED"}:
+        raise ProtocolError("artifact has no supported integrity status", "INVALID")
+    checks = artifact.pop("checks", [])
+    reasons = artifact.pop("reasons", [])
+    artifact["integrity"] = {
+        "status": status,
+        "checks": checks,
+        "reasons": reasons,
+        **_raw_evidence(raw),
+        "support_level": SUPPORT_LEVEL,
+        "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
+    }
+    return artifact
 
 
 def _identity_failure(raw: bytes, status: str, reason: str) -> dict[str, Any]:
@@ -227,215 +584,19 @@ def _identity_failure(raw: bytes, status: str, reason: str) -> dict[str, Any]:
         "status": status,
         "integrity": {
             "status": status,
-            "checks": [{"name": "identity_parse", "status": "fail", "evidence": {"reason": reason}}],
+            "checks": [
+                {
+                    "name": "identity_parse",
+                    "status": "fail",
+                    "evidence": {"reason": reason},
+                }
+            ],
             "reasons": [reason],
             **_raw_evidence(raw),
             "support_level": SUPPORT_LEVEL,
             "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
         },
     }
-
-
-def parse_identity(raw: bytes) -> dict[str, Any]:
-    """Validate and parse a ``*IDN?`` response.
-
-    Contract: ``GW INSTEK,AFG-2225,SN:XXXXXXXX,Vm.mm`` (manual p. 193).
-    A different model is ``INVALID``; a missing serial/firmware is
-    ``INCOMPLETE``; malformed fields are ``INVALID``.
-    """
-
-    raw = bytes(raw)
-    try:
-        frame = read_frame(raw)
-        line = _text(frame)
-    except ProtocolError as exc:
-        return _identity_failure(raw, exc.status, str(exc))
-
-    if not line:
-        return _identity_failure(raw, "INCOMPLETE", "identity response is empty")
-
-    parts = [part.strip() for part in line.split(",")]
-    if len(parts) < 3 or len(parts) > 4:
-        return _identity_failure(raw, "INVALID", "identity response does not have the expected comma-separated fields")
-
-    vendor = parts[0]
-    model = parts[1] if len(parts) > 1 else ""
-    serial_field = parts[2] if len(parts) > 2 else ""
-    firmware = parts[3] if len(parts) > 3 else ""
-
-    if vendor.upper().replace("  ", " ") != EXPECTED_VENDOR:
-        return _identity_failure(raw, "INVALID", f"unexpected vendor {vendor!r}")
-    if model.upper() != EXPECTED_MODEL:
-        return _identity_failure(raw, "INVALID", f"unexpected model {model!r}")
-
-    serial = ""
-    if serial_field == "":
-        return _identity_failure(raw, "INCOMPLETE", "serial number is missing")
-    if serial_field.upper().startswith("SN:"):
-        serial = serial_field[3:].strip()
-    else:
-        return _identity_failure(raw, "INVALID", "serial field is missing the SN: prefix")
-
-    if not serial:
-        return _identity_failure(raw, "INCOMPLETE", "serial number is missing")
-
-    if firmware == "":
-        return _identity_failure(raw, "INCOMPLETE", "firmware version is missing")
-    if not re.fullmatch(r"V\d+\.\d+", firmware, re.IGNORECASE):
-        return _identity_failure(raw, "INVALID", f"malformed firmware version {firmware!r}")
-
-    identity = {
-        "vendor": vendor.upper().replace("  ", " "),
-        "model": model.upper(),
-        "serial": serial,
-        "firmware": firmware,
-    }
-    status = "COMPLETE"
-    return {
-        "schema_version": "afg2225-protocol-v1",
-        "kind": "identity",
-        "vendor": identity["vendor"],
-        "model": identity["model"],
-        "serial": identity["serial"],
-        "firmware": identity["firmware"],
-        "identity": identity,
-        "status": status,
-        "integrity": {
-            "status": status,
-            "checks": [{"name": "identity_parse", "status": "pass", "evidence": {"model": identity["model"]}}],
-            "reasons": [],
-            **_raw_evidence(raw),
-            "support_level": SUPPORT_LEVEL,
-            "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
-        },
-    }
-
-
-# ---------------------------------------------------------------------------
-# Numeric
-# ---------------------------------------------------------------------------
-
-
-_NUMERIC_RE = re.compile(
-    r"^(?P<number>[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?)\s*(?P<unit>[A-Za-z%°Ωµμμ]+)?$"
-)
-
-
-def parse_numeric(raw: bytes, *, quantity: str, unit: str | None = None) -> dict[str, Any]:
-    """Parse a signed NR3/NRf response with an optional documented suffix.
-
-    ``quantity`` declares the implied unit when the response is unitless.
-    NaN/Inf, non-numeric tokens, and unrecognized/extra units are rejected.
-    """
-
-    raw = bytes(raw)
-    try:
-        frame = read_frame(raw)
-        line = _text(frame)
-    except ProtocolError as exc:
-        status = exc.status
-        return _numeric_failure(raw, status, str(exc), quantity, unit)
-
-    if not line:
-        return _numeric_failure(raw, "INCOMPLETE", "numeric response is empty", quantity, unit)
-
-    match = _NUMERIC_RE.fullmatch(line)
-    if not match:
-        if re.search(r"\b(?:NAN|INF(?:INITY)?)\b", line, re.IGNORECASE):
-            return _numeric_failure(raw, "INVALID", "non-finite numeric response", quantity, unit)
-        return _numeric_failure(raw, "INVALID", "response is not a supported numeric value", quantity, unit)
-
-    token = match.group("number")
-    suffix = match.group("unit")
-
-    try:
-        value = Decimal(token)
-    except InvalidOperation:
-        return _numeric_failure(raw, "INVALID", "numeric token is not valid", quantity, unit)
-    if not value.is_finite():
-        return _numeric_failure(raw, "INVALID", "non-finite numeric response", quantity, unit)
-
-    # Resolve the caller's expected unit.  An empty quantity unit (for example
-    # a cycle count) is intentionally unitless, not an unresolved unit.
-    expected: tuple[str | None, Decimal] | None
-    explicit_unit = unit is not None
-    if explicit_unit:
-        expected = _normalize_unit(unit)
-        if expected is None:
-            return _numeric_failure(raw, "INVALID", f"unsupported supplied unit {unit!r}", quantity, unit)
-    else:
-        default_unit = QUANTITY_UNITS.get(quantity.lower().strip())
-        if default_unit == "":
-            expected = (None, Decimal(1))
-        elif default_unit is None:
-            expected = None
-        else:
-            expected = _normalize_unit(default_unit)
-            if expected is None:  # pragma: no cover - table is internally consistent
-                return _numeric_failure(raw, "INVALID", "quantity has no documented unit", quantity, unit)
-
-    # Resolve the observed suffix, or use the expected unit when the response
-    # is unitless (the manual's normal NR3 query format).
-    observed: tuple[str | None, Decimal] | None
-    if suffix:
-        observed = _normalize_unit(suffix)
-        if observed is None:
-            return _numeric_failure(raw, "INVALID", f"unrecognized response unit {suffix!r}", quantity, unit)
-    else:
-        observed = expected
-
-    if observed is None:
-        status = "INCOMPLETE"
-        reason = "unit could not be resolved from response or quantity"
-        canonical_unit = None
-        multiplier = Decimal(1)
-    else:
-        canonical_unit, multiplier = observed
-        allowed = QUANTITY_ALLOWED_UNITS.get(quantity.lower().strip())
-        if allowed is not None and canonical_unit not in allowed:
-            return _numeric_failure(raw, "INVALID", "response unit does not belong to the declared quantity", quantity, unit)
-        if expected is not None and expected[0] != canonical_unit and (explicit_unit or allowed is None):
-            return _numeric_failure(raw, "INVALID", "response unit conflicts with supplied unit", quantity, unit)
-        status = "COMPLETE"
-        reason = ""
-
-    try:
-        normalized_value = value * multiplier
-        raw_float = float(value)
-        float_value = float(normalized_value)
-    except (OverflowError, ValueError):
-        return _numeric_failure(raw, "INVALID", "numeric value is outside the supported finite range", quantity, unit)
-    if not math.isfinite(float_value) or not math.isfinite(raw_float):
-        return _numeric_failure(raw, "INVALID", "numeric value is outside the supported finite range", quantity, unit)
-
-    result = {
-        "schema_version": "afg2225-protocol-v1",
-        "kind": "numeric",
-        "quantity": quantity,
-        "value": float_value,
-        "raw_value": raw_float,
-        "numeric_token": token,
-        "unit": canonical_unit,
-        "raw_unit": suffix,
-        "status": status,
-        "integrity": {
-            "status": status,
-            "checks": [],
-            "reasons": [reason] if reason else [],
-            **_raw_evidence(raw),
-            "support_level": SUPPORT_LEVEL,
-            "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
-        },
-    }
-    if status == "COMPLETE":
-        result["integrity"]["checks"].append(
-            {"name": "numeric_parse", "status": "pass", "evidence": {"token": token}}
-        )
-    else:
-        result["integrity"]["checks"].append(
-            {"name": "unit_resolution", "status": "fail", "evidence": {"reason": reason}}
-        )
-    return result
 
 
 def _numeric_failure(raw, status, reason, quantity, unit) -> dict[str, Any]:
@@ -450,102 +611,14 @@ def _numeric_failure(raw, status, reason, quantity, unit) -> dict[str, Any]:
         "status": status,
         "integrity": {
             "status": status,
-            "checks": [{"name": "numeric_parse", "status": "fail", "evidence": {"reason": reason}}],
+            "checks": [
+                {
+                    "name": "numeric_parse",
+                    "status": "fail",
+                    "evidence": {"reason": reason},
+                }
+            ],
             "reasons": [reason],
-            **_raw_evidence(raw),
-            "support_level": SUPPORT_LEVEL,
-            "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
-        },
-    }
-
-
-# ---------------------------------------------------------------------------
-# Error queue
-# ---------------------------------------------------------------------------
-
-
-_ERROR_QUEUE_RE = re.compile(r"^\s*(?P<code>[+-]?\d+)(?:\s*,\s*|\s+)(?P<message>.+?)\s*$")
-
-
-def _is_known_error_queue_sentinel(code: int, message: str) -> bool:
-    normalized = message.strip().strip("\"'").strip().casefold()
-    return (code == 0 and normalized == "no error") or (
-        abs(code) == 350 and normalized == "queue overflow"
-    )
-
-
-def parse_error_queue(raw: bytes, *, response_type: str = "auto") -> dict[str, Any]:
-    """Parse a ``SYSTem:ERRor?`` response.
-
-    In ``auto`` mode only documented sentinels (``0 No error`` and
-    ``±350 Queue overflow``) are classified.  Other messages require
-    ``response_type="error-queue"``.
-    """
-
-    raw = bytes(raw)
-    if response_type not in {"auto", "error-queue"}:
-        return _error_queue_failure(raw, "INVALID", "response_type must be auto or error-queue")
-
-    try:
-        frame = read_frame(raw)
-        line = _text(frame)
-    except ProtocolError as exc:
-        return _error_queue_failure(raw, exc.status, str(exc))
-
-    if not line:
-        return _error_queue_failure(raw, "INCOMPLETE", "error-queue response is empty")
-
-    if re.fullmatch(r'"?no error"?', line, re.IGNORECASE):
-        # The manual says the empty queue returns "No error"; some firmware
-        # variants include the SCPI code and some may not.  Preserve the raw
-        # bytes and record code 0 without inventing a different message.
-        code = 0
-        message = "No error"
-    else:
-        match = _ERROR_QUEUE_RE.fullmatch(line)
-        if not match:
-            return _error_queue_failure(raw, "INVALID", "error-queue response must contain an integer code and message")
-        code = int(match.group("code"))
-        message = match.group("message").strip().strip("\"'").strip()
-
-    if response_type == "auto" and not _is_known_error_queue_sentinel(code, message):
-        return {
-            "schema_version": "afg2225-protocol-v1",
-            "kind": "unknown",
-            "code": code,
-            "message": message,
-            "record_type": None,
-            "status": "UNSUPPORTED",
-            "integrity": {
-                "status": "UNSUPPORTED",
-                "checks": [{"name": "error_queue_classification", "status": "fail", "evidence": {"reason": "explicit_error_queue_mode_required"}}],
-                "reasons": ["explicit_error_queue_mode_required"],
-                **_raw_evidence(raw),
-                "support_level": SUPPORT_LEVEL,
-                "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
-            },
-        }
-
-    # Classify.
-    normalized = message.casefold()
-    if code == 0 and normalized == "no error":
-        status = "COMPLETE"
-    elif abs(code) == 350 and normalized == "queue overflow":
-        status = "INCOMPLETE"
-    else:
-        status = "UNVERIFIED"
-
-    return {
-        "schema_version": "afg2225-protocol-v1",
-        "kind": "status-record",
-        "record_type": "error-queue",
-        "code": code,
-        "message": message,
-        "status": status,
-        "integrity": {
-            "status": status,
-            "checks": [{"name": "error_queue_record", "status": "pass" if status != "INVALID" else "fail", "evidence": {"code": code}}],
-            "reasons": ["instrument_error_queue_overflow"] if status == "INCOMPLETE" else (["instrument_reported_error_or_status"] if status == "UNVERIFIED" else []),
             **_raw_evidence(raw),
             "support_level": SUPPORT_LEVEL,
             "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
@@ -563,13 +636,63 @@ def _error_queue_failure(raw, status, reason) -> dict[str, Any]:
         "status": status,
         "integrity": {
             "status": status,
-            "checks": [{"name": "error_queue_parse", "status": "fail", "evidence": {"reason": reason}}],
+            "checks": [
+                {
+                    "name": "error_queue_parse",
+                    "status": "fail",
+                    "evidence": {"reason": reason},
+                }
+            ],
             "reasons": [reason],
             **_raw_evidence(raw),
             "support_level": SUPPORT_LEVEL,
             "parser": f"{PARSER_NAME}/{PARSER_VERSION}",
         },
     }
+
+
+def parse_identity(raw: bytes) -> dict[str, Any]:
+    """Validate and parse a ``*IDN?`` response through the documented stages."""
+
+    raw = bytes(raw)
+    try:
+        frame = read_frame(raw)
+        metadata = parse_metadata(frame, response_type="identity")
+        payload = extract_payload(metadata)
+        artifact = normalize(metadata, payload)
+        return validate(artifact, raw)
+    except ProtocolError as exc:
+        return _identity_failure(raw, exc.status, str(exc))
+
+
+def parse_numeric(raw: bytes, *, quantity: str, unit: str | None = None) -> dict[str, Any]:
+    """Parse a numeric response through metadata, payload, normalization, and validation."""
+
+    raw = bytes(raw)
+    try:
+        frame = read_frame(raw)
+        metadata = parse_metadata(frame, response_type="numeric")
+        payload = extract_payload(metadata)
+        artifact = normalize(metadata, payload, quantity=quantity, unit=unit)
+        return validate(artifact, raw)
+    except ProtocolError as exc:
+        return _numeric_failure(raw, exc.status, str(exc), quantity, unit)
+
+
+def parse_error_queue(raw: bytes, *, response_type: str = "auto") -> dict[str, Any]:
+    """Parse a ``SYSTem:ERRor?`` response through the documented stages."""
+
+    raw = bytes(raw)
+    if response_type not in {"auto", "error-queue"}:
+        return _error_queue_failure(raw, "INVALID", "response_type must be auto or error-queue")
+    try:
+        frame = read_frame(raw)
+        metadata = parse_metadata(frame, response_type=response_type)
+        payload = extract_payload(metadata)
+        artifact = normalize(metadata, payload)
+        return validate(artifact, raw)
+    except ProtocolError as exc:
+        return _error_queue_failure(raw, exc.status, str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -822,7 +945,8 @@ def build_arb_artifact(
     command_b64 = base64.b64encode(command).decode("ascii")
     artifact = {
         "schema_version": "afg2225-protocol-v1",
-        "kind": "arbitrary-waveform",
+        "kind": "waveform",
+        "artifact": "arbitrary-dac-command",
         "points": len(values),
         "min": min(values),
         "max": max(values),

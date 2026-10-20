@@ -14,7 +14,7 @@ REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `documented`.
 - The manual asks the operator to set COM port, baud rate, stop bit, data
   bit, and parity, but lists no defaults. `115200 8N1` used by the optional
   transport is an **assumption**, not a manual default.
-- Terminators: LF, CR, or LF/CR (also CR/LF). In terminal programs use
+- Terminators: LF, CR, or LF/CR; EOI is also listed. In terminal programs use
   `^j` or `^m` (manual pp. 182, 187).
 - All panel keys lock in remote mode except F5 (REM/LOCK) (manual p. 182).
 
@@ -70,14 +70,38 @@ REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `documented`.
 2. Send `*IDN?`; preserve raw bytes; validate vendor/model/serial/firmware.
 3. Query `SYSTem:VERSion?` when firmware evidence is needed.
 4. Clear only authorized status (`*CLS`); `*RST` only if operator authorizes.
-5. Drain `SYSTem:ERRor?` until `0 No error`.
+5. Drain `SYSTem:ERRor?` until `0 No error`/`No error`.
 6. Configure waveform/output settings.
-7. Turn output on explicitly.
+7. Turn output on only when authorized; verify `OUTP<n>?` rather than assuming
+   a low-level command changed the output state.
 8. Verify readback where a query exists.
 9. Drain the error queue again.
+
+## Save/recall (manual pp. 271-272)
+
+| Command | Meaning |
+|---|---|
+| `*SAV {0..9}` | Save the current instrument state to a non-volatile slot. |
+| `*RCL {0..9}` | Recall a saved instrument state. |
+| `MEMory:STATe:DELete {0..9}` | Delete one saved state. |
+| `MEMory:STATe:DELete ALL` | Delete all saved states. |
+
+`*SAV` saves instrument state, not waveform data. Do not delete or overwrite
+operator-owned slots automatically.
 
 ## Query pairing
 
 One transport session, one query, one response. Do not send a second query
 while an earlier response is unread. Preserve raw bytes and SHA-256 for
 every response.
+
+## Manual citation index
+
+| Topic | PDF pages |
+|---|---:|
+| USB connection and remote terminal | 180-182 |
+| Command syntax and forms | 184-188 |
+| System/common commands | 193-195 |
+| Status register commands | 196-198 |
+| Remote/local | 199 |
+| Error queue and status model | 287-292 |

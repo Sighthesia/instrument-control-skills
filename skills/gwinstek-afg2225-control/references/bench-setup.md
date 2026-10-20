@@ -1,7 +1,7 @@
 # Bench Setup and Panel Connectors (AFG-2225)
 
-Manual: *AFG-2225 Series User Manual*, pp. 13-20, 181, 293. Support level:
-`documented`.
+Manual: *AFG-2225 Series User Manual*, pp. 7-9, 13-20, 181, 293. Support
+level: `documented`.
 
 ## Outputs
 

@@ -103,7 +103,7 @@ the *AFG-2225 Series User Manual* (GW Instek part no. 82RF-22250M01). Its USB
 CDC identity is external evidence, not manual text:
 
 - **Linux kernel** — commit
-  [`cf84a691a61606a2e7269907d3727e2d9fa148ee`](https://github.com/koenkooi/linux/commit/cf84a691a61606a2e7269907d3727e2d9fa148ee)
+  [`cf84a691a61606a2e7269907d3727e2d9fa148ee`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=cf84a691a61606a2e7269907d3727e2d9fa148ee)
   adds `USB_DEVICE(0x2184, 0x001c)` for the AFG-2225 to `cdc-acm` (CDC-ACM, not
   USBTMC; byte-swapped `bInterfaceSubClass` 0x20).
 - **avian2/gwinstek-tools** — [repository](https://github.com/avian2/gwinstek-tools)

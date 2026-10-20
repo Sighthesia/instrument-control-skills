@@ -1,6 +1,7 @@
 {
   "schema_version": "afg2225-protocol-v1",
-  "kind": "arbitrary-waveform",
+  "kind": "waveform",
+  "artifact": "arbitrary-dac-command",
   "points": 8,
   "min": -511,
   "max": 511,

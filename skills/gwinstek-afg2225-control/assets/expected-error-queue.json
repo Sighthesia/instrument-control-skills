@@ -1,0 +1,27 @@
+{
+  "schema_version": "afg2225-protocol-v1",
+  "kind": "status-record",
+  "record_type": "error-queue",
+  "code": -138,
+  "message": "Suffix not allowed",
+  "status": "UNVERIFIED",
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "error_queue_record",
+        "status": "pass",
+        "evidence": {
+          "code": -138
+        }
+      }
+    ],
+    "reasons": [
+      "instrument_reported_error_or_status"
+    ],
+    "raw_sha256": "696a452af01c3226a149e0935981a35cea1c260e9c2bb5e490aa3f2bc279c799",
+    "raw_response_base64": "LTEzOCBTdWZmaXggbm90IGFsbG93ZWQK",
+    "support_level": "documented",
+    "parser": "afg2225-protocol/0.1.0"
+  }
+}

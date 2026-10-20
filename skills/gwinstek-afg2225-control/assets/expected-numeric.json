@@ -1,0 +1,29 @@
+{
+  "schema_version": "afg2225-protocol-v1",
+  "kind": "numeric",
+  "quantity": "frequency",
+  "value": 1000000.0,
+  "raw_value": 1000000.0,
+  "numeric_token": "+1.0000000000000E+06",
+  "unit": "Hz",
+  "raw_unit": null,
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "numeric_parse",
+        "status": "pass",
+        "evidence": {
+          "token": "+1.0000000000000E+06",
+          "unit": "Hz"
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "50bbda6630ebb91f1c47f2be30945356a2649963d6272cca072506e34d21cdd9",
+    "raw_response_base64": "KzEuMDAwMDAwMDAwMDAwMEUrMDYK",
+    "support_level": "documented",
+    "parser": "afg2225-protocol/0.1.0"
+  }
+}

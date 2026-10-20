@@ -40,7 +40,7 @@
 
 - [x] Initial scaffolding
 - [x] Implementation
-- [x] Automated offline tests: 82 passed; hardware verification not performed
+- [x] Automated offline tests: 89 passed; hardware verification not performed
 - [x] README synchronization
 - [x] Final acceptance audit
 
@@ -55,3 +55,7 @@
 - [x] Set `OUTP:LOAD` before APPLy/ARB and select `FUNC USER` after an ARB upload.
 - [x] Correct amplitude, pulse-width, FUNC, load, voltage-unit, and modulation range tables.
 - [x] Remove unsupported `*RST` error-queue and continuous-acquisition claims.
+- [x] Refactor response handling into independent `read_frame` -> `parse_metadata` -> `extract_payload` -> `normalize` -> `validate` stages, with stage-level tests.
+- [x] Add expected-result fixtures for numeric and error-queue replies and a fixture provenance README.
+- [x] Align the ARB workflow with the manual's `FUNC USER` -> frequency -> `DATA:DAC` overview order.
+- [x] Add evidence/support-level sections and explicit integrity-status semantics to `SKILL.md`.

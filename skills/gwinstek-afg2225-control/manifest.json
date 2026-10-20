@@ -11,17 +11,17 @@
     "serial": null
   },
   "source": {
-    "operation": "arbitrary waveform CSV/DAC upload command construction",
+    "operation": "offline response parsing and arbitrary waveform CSV/DAC command construction",
     "transport": "offline saved bytes; optional USB CDC serial transport (not exercised)",
     "manual": {
       "title": "AFG-2225 Series User Manual",
       "revision": "GW Instek part no. 82RF-22250M01",
       "url": "https://www.gwinstek.com/en-global/products/detail/AFG-2225",
-      "location": "REMOTE INTERFACE, PDF pp. 180-265; local copy ref/编程手册.pdf"
+      "location": "REMOTE INTERFACE, PDF pp. 180-292; local copy ref/编程手册.pdf"
     }
   },
   "data": {
-    "kind": "arbitrary-waveform",
+    "kind": "waveform",
     "raw_path": "assets/fixtures/arb-valid.csv",
     "raw_sha256": "6f899f11c72c51218a3a342877ba2f15a94373bccc1a4bfc268366626d4bde5b",
     "raw_provenance": "Synthetic fixture following the manual's documented DATA:DAC example; not a real instrument capture."

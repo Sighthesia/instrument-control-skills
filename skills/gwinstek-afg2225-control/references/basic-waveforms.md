@@ -44,9 +44,11 @@ APPLy command forces 50 % symmetry; use the low-level commands to change them.
   the reference termination matters.
 - dBm is unavailable in high-Z mode (manual p. 214).
 - Constraint: `|Voffset| < Vmax - Vpp/2` (manual p. 210).
-- `OUTPut` state defaults to off. Low-level `FUNC`/`FREQ`/`AMPL`/`DCO`
-  commands do not implicitly turn the output on; send `OUTPut ON` explicitly
-  unless APPLy was used. APPLy turns it on.
+- `OUTPut` state defaults to off. The manual describes `FUNC` as selecting and
+  outputting a waveform, but the output on/off state is controlled by
+  `OUTPut`. Do not assume a low-level command enabled the output: query
+  `OUTP<n>?` and send `OUTPut ON` explicitly unless APPLy was used. APPLy is
+  documented to turn the output on.
 
 ## Pulse commands
 

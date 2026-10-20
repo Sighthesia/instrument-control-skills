@@ -46,6 +46,7 @@ class SessionDryRunTests(unittest.TestCase):
         output = buf.getvalue()
         self.assertIn("DATA:DAC VOLATILE", output)
         self.assertIn("SOUR1:FUNC USER", output)
+        self.assertLess(output.index("SOUR1:FUNC USER"), output.index("DATA:DAC VOLATILE"))
 
     def test_apply_requires_load(self):
         err = io.StringIO()

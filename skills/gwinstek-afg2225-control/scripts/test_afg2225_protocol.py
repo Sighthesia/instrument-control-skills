@@ -22,13 +22,17 @@ from afg2225_protocol import (  # noqa: E402
     build_data_dac_binary,
     decode_ieee_block,
     encode_ieee_block,
+    extract_payload,
     load_arb_csv,
     main,
+    normalize,
     parse_error_queue,
     parse_identity,
+    parse_metadata,
     parse_numeric,
     read_frame,
     scale_normalized,
+    validate,
     validate_arb_samples,
 )
 
@@ -63,6 +67,53 @@ class FrameTests(unittest.TestCase):
     def test_trailing_bytes(self):
         with self.assertRaises(ProtocolError):
             read_frame(b"abc\ndef")
+
+
+class StageTests(unittest.TestCase):
+    def test_identity_stages(self):
+        raw = b"GW INSTEK,AFG-2225,SN:AFG2225000001,V1.23\n"
+        frame = read_frame(raw)
+        metadata = parse_metadata(frame, response_type="identity")
+        payload = extract_payload(metadata)
+        artifact = normalize(metadata, payload)
+        result = validate(artifact, raw)
+        self.assertEqual(payload["vendor"], "GW INSTEK")
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(result["integrity"]["status"], "COMPLETE")
+
+    def test_numeric_stages(self):
+        raw = b"1kHz\n"
+        frame = read_frame(raw)
+        metadata = parse_metadata(frame, response_type="numeric")
+        payload = extract_payload(metadata)
+        artifact = normalize(metadata, payload, quantity="frequency")
+        result = validate(artifact, raw)
+        self.assertEqual(payload["numeric_token"], "1")
+        self.assertEqual(result["value"], 1000.0)
+        self.assertEqual(result["unit"], "Hz")
+
+    def test_error_queue_stages(self):
+        raw = b"-138 Suffix not allowed\n"
+        frame = read_frame(raw)
+        metadata = parse_metadata(frame, response_type="error-queue")
+        payload = extract_payload(metadata)
+        artifact = normalize(metadata, payload)
+        result = validate(artifact, raw)
+        self.assertEqual(payload["code"], -138)
+        self.assertEqual(result["status"], "UNVERIFIED")
+
+    def test_auto_metadata_only_accepts_sentinels(self):
+        frame = read_frame(b"0 No error\n")
+        metadata = parse_metadata(frame)
+        self.assertEqual(metadata["response_type"], "error-queue")
+        with self.assertRaises(ProtocolError):
+            parse_metadata(read_frame(b"+1.0E+06\n"))
+
+    def test_normalize_requires_quantity(self):
+        frame = read_frame(b"1.0\n")
+        metadata = parse_metadata(frame, response_type="numeric")
+        with self.assertRaises(ProtocolError):
+            normalize(metadata, extract_payload(metadata))
 
 
 class IdentityTests(unittest.TestCase):
@@ -186,6 +237,7 @@ class ErrorQueueTests(unittest.TestCase):
         raw = (FIXTURES / "error-suffix.txt").read_bytes()
         r = parse_error_queue(raw)
         self.assertEqual(r["status"], "UNSUPPORTED")
+        self.assertEqual(r["code"], -138)
 
     def test_suffix_explicit(self):
         raw = (FIXTURES / "error-suffix.txt").read_bytes()
@@ -391,6 +443,26 @@ class ArbArtifactTests(unittest.TestCase):
         art = build_arb_artifact(vals, start=0, data_format="ascii", source="assets/fixtures/arb-valid.csv")
         self.assertEqual(art["points"], expected["points"])
         self.assertEqual(art["command_bytes_base64"], expected["command_bytes_base64"])
+        self.assertEqual(art["command_sha256"], expected["command_sha256"])
+
+
+class ExpectedResultTests(unittest.TestCase):
+    def test_expected_numeric(self):
+        expected = json.loads((ROOT / "assets" / "expected-numeric.json").read_text())
+        raw = (FIXTURES / "frequency.txt").read_bytes()
+        result = parse_numeric(raw, quantity="frequency", unit="Hz")
+        self.assertEqual(result["status"], expected["status"])
+        self.assertEqual(result["value"], expected["value"])
+        self.assertEqual(result["unit"], expected["unit"])
+        self.assertEqual(result["integrity"]["raw_sha256"], hashlib.sha256(raw).hexdigest())
+
+    def test_expected_error_queue(self):
+        expected = json.loads((ROOT / "assets" / "expected-error-queue.json").read_text())
+        raw = (FIXTURES / "error-suffix.txt").read_bytes()
+        result = parse_error_queue(raw, response_type="error-queue")
+        self.assertEqual(result["status"], expected["status"])
+        self.assertEqual(result["code"], expected["code"])
+        self.assertEqual(result["integrity"]["raw_sha256"], hashlib.sha256(raw).hexdigest())
 
 
 class CliTests(unittest.TestCase):
