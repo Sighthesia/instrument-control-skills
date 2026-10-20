@@ -33,38 +33,24 @@ skills 目录（OpenCode 例如 `~/.config/opencode/skills/`）。
 指南本身不连接真实硬件。设备 Skill 是否算已验证，以在真实仪器上实际运行为
 准；可以在 Skill 或 README 表格中补充截图、固件版本等证据，但不强制。
 
-### 编写规范覆盖的内容
+### 参考依据
 
-新建设备 Skill 前应先阅读以下文档；它们对通信与数据处理具有约束力：
+新建设备 Skill 会遵循编写指南中关于响应分帧（行式文本、CSV、IEEE 488.2 块、
+长度前缀与分段二进制）、元数据/载荷分离、完整性状态与报告结构、标量/波形/坐标轴
+检查、溯源、离线回放测试的规定。
 
-| 领域 | 参考文档 | 规则 |
-|---|---|---|
-| 编写阶段 | `authoring-workflow.md` | 仪器边界、证据表、`read_frame → parse_metadata → extract_payload → normalize → validate` 划分、先测试后上机、保守发布 |
-| 仪器类型 | `instrument-types-and-examples.md` | 按数据断言与响应格式选择示例；五种教学格式及其主要检查 |
-| 响应分帧 | `response-framing.md` | 行式文本、CSV、IEEE 488.2 定长块、长度前缀二进制、分段/分包记录；失败映射与分配上限 |
-| 元数据与载荷 | `metadata-payload-validation.md` | 元数据与载荷分离、按证据执行长度/分段/校验和/坐标轴检查、仅归一化有证据支持的语义 |
-| 完整性状态 | `status-and-reports.md` | `COMPLETE`/`INCOMPLETE`/`INVALID`/`UNVERIFIED`/`UNSUPPORTED`；单项检查 `pass`/`fail`/`not_checked`；报告结构与分析门控 |
-| 数据专项检查 | `waveform-checks.md`、`scalar-checks.md`、`axes-and-sequences.md` | 点数/字节数、分段覆盖、坐标轴与单位、读数数量与仪器状态、顺序与重复记录 |
-| 证据与溯源 | `evidence-and-provenance.md` | 型号、固件、接口、命令、原始响应、SHA-256、解析器版本、手册引用、校准绑定 |
-| 离线测试 | `replay-testing.md` | 正向与负向夹具、期望结果、测试中不得使用 socket 或 VISA |
+编写指南与波形分析器还参考了公开标准与成熟的开源仪器项目；它们都不是运行时依赖：
 
-### 研究参考与标准依据
+- **IEEE 488.2** 块分帧，用于定长波形传输。
+- **IEEE Std 181 / IEC 60469** 提供上升时间、脉宽、过冲与振铃等转换/脉冲/畸变
+  术语。
+- **PyVISA、PyVISA-sim、PyMeasure、QCoDeS** 用于传输选项、回放测试以及传输层与
+  语义分离。
+- **M4**（VLDB 2014）用于有损预览，**NumPy `memmap`** 用于分块读取，
+  **SciPy `find_peaks`/`welch`** 作为未来检测器参考。
+- **厂商编程手册** 用于所有命令、字段和单位断言。
 
-指南依据公开规范与成熟的开源仪器库编写；不复制其实现代码，也不把其中任何
-项目作为运行时依赖。
-
-- **IEEE 488.2** 二进制块分帧（`#<长度位数><长度><载荷>`）是示波器波形传输及
-  其他定长响应的参考。
-- **厂商编程手册**（例如 SCPI 手册）是命令、字段和单位断言的唯一可接受来源；
-  按修订版与页码引用，绝不复制进仓库。
-- **PyVISA**（[读写数值](https://pyvisa.readthedocs.io/en/stable/introduction/rvalues.html)）
-  说明了每次传输必须显式决定的事项：数据类型、字节序、头部、终止符与期望点数。
-- **PyVISA-sim**（[模拟仪器](https://pyvisa.readthedocs.io/projects/pyvisa-sim/en/latest/definitions.html)）
-  为查询/响应会话、消息结束规则和原始字节回放测试提供参考。
-- **PyMeasure**（[适配器](https://pymeasure.readthedocs.io/en/latest/api/adapters.html)、
-  [高级通信](https://pymeasure.readthedocs.io/en/latest/dev/adding_instruments/advanced_communication.html)）
-  支持把传输层置于仪器语义之下，把分帧/校验和置于字节层之上。
-- **QCoDeS 社区驱动**（[Qcodes_contrib_drivers](https://github.com/QCoDeS/Qcodes_contrib_drivers)）
-  体现驱动、示例与测试分离，支持责任归贡献者的做法。
+阈值交叉、脉宽与 runt 宽度、振铃筛查均为启发式实现，不声称符合任何标准。
+完整索引、链接与注意事项见 [`docs/references.md`](docs/references.md)。
 
 提交时保持 `README.md` 与 `README.zh-CN.md` 同步。
