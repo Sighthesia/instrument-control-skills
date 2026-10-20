@@ -11,6 +11,7 @@ Use this skill whenever an AI needs to operate an SDS800X HD series oscilloscope
 
 - Never send `ARM`. `TRMD SINGLE` is the only accepted single-shot start operation on firmware `4.8.12.1.1.6.5`. `TRMD` is a firmware-verified short form; the manual's documented spelling is `:TRIGger:MODE SINGle`, which is the same operation (manual printed pp. 243-244). The manual contains no `ARM` command at all, and the target firmware rejected it; both facts stay, but attribute them correctly.
 - A valid capture requires the observed state transition `Ready -> Stop`. A `Stop` observed without a prior `Ready` is not proof of a new capture.
+- Roll mode (`:ACQuire:MODE ROLL`) never reports `Ready`; it is a streaming display, not a capture path. Leave it with `:ACQuire:MODE YT` before arming, and never treat `Roll` as `Ready` or as a `Stop` precursor.
 - After `Stop`, do not send `STOP`, `ARM`, `RUN`, `TRMD`, trigger/timebase/channel configuration, `WFSU`, or a TCP reconnect while reading the frame.
 - In an immutable legacy read, issue every channel's `WF? DAT2` first. Only after all payloads are saved may the caller explicitly issue `WF? DESC`.
 - Keep `immutable_capture` and `configured_capture` explicit. Never silently send `WFSU`, restore `TRMD`, or clean up the instrument.

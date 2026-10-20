@@ -66,6 +66,13 @@ def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float
     while time.monotonic() < deadline:
         state = scope.query_ascii("SAST?").strip()
         normalized = state.upper()
+        if normalized == "ROLL":
+            scope.mark_state("Roll")
+            raise ScopeProtocolError(
+                "scope is in Roll mode (:ACQuire:MODE ROLL); Roll never reaches Ready, "
+                "so it cannot support the Ready -> Stop single-shot flow. Leave Roll "
+                "(:ACQuire:MODE YT) before arming a capture"
+            )
         if normalized == "READY":
             scope.mark_state("Ready")
         elif normalized == "STOP":

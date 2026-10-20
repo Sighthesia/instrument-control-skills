@@ -178,6 +178,7 @@ class ScopeSession:
         self.events: list[CommandEvent] = []
         self.stopped = False
         self.ready_seen = False
+        self.roll_seen = False
         self.expected_channels: set[str] = {"C1", "C2", "C3", "C4"}
         self.dat2_channels: set[str] = set()
         self.capture_mode = "immutable_capture"
@@ -276,6 +277,8 @@ class ScopeSession:
         normalized = state.strip().upper()
         if normalized == "READY":
             self.ready_seen = True
+        elif normalized == "ROLL":
+            self.roll_seen = True
         elif normalized == "STOP":
             if not self.ready_seen:
                 raise ScopeProtocolError("Stop observed before Ready")
@@ -362,6 +365,12 @@ def configure_left_aligned_trigger(
     timebase = _parse_numeric(scope.query_ascii("TIM:SCAL?"), "TIM:SCAL?")
     if timebase <= 0:
         raise ScopeProtocolError("TIM:SCAL? must return a positive timebase")
+    acquire_mode = scope.query_ascii("ACQ:MODE?").strip().upper()
+    if acquire_mode != "YT":
+        raise ScopeProtocolError(
+            f"left-aligned trigger needs YT acquisition mode, scope reports {acquire_mode!r}; "
+            "ROLL ignores horizontal delay and never reaches Ready"
+        )
     delay = (5.0 - margin) * timebase
     scope.write(f"TIM:DEL {delay:.9E}")
     normalized_depth = configure_memory_depth(scope, memory_depth=memory_depth, channel_count=channel_count)
@@ -445,6 +454,15 @@ def scope_wait_ready(scope: ScopeSession, timeout_s: float = 30.0, poll_s: float
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         state = scope.query_ascii("SAST?").strip()
+        if state.upper() == "ROLL":
+            # Roll mode never reports Ready: it streams continuously. Fail with a
+            # readable reason instead of silently timing out after 30 s.
+            scope.mark_state(state)
+            raise ScopeProtocolError(
+                "scope is in Roll mode (:ACQuire:MODE ROLL); Roll never reaches Ready, "
+                "so it cannot support the Ready -> Stop single-shot flow. Leave Roll "
+                "(:ACQuire:MODE YT) before arming a capture"
+            )
         scope.mark_state(state)
         if state.upper() == "READY":
             return
@@ -525,7 +543,7 @@ def scope_read_immutable_frame(scope: ScopeSession, channels: Iterable[str] = ("
     result: dict[str, Any] = {
         "mode": "immutable_capture",
         "channels": {},
-        "state": {"ready_seen": scope.ready_seen, "stopped": scope.stopped},
+        "state": {"ready_seen": scope.ready_seen, "roll_seen": scope.roll_seen, "stopped": scope.stopped},
     }
     for channel in selected_channels:
         block = scope.query_block(f"{channel}:WF? DAT2", allow_after_stop=True)
@@ -593,6 +611,7 @@ def scope_restore_run_mode(scope: ScopeSession) -> None:
     scope.write("TRMD AUTO", allow_after_stop=True, explicit_release=True)
     scope.stopped = False
     scope.ready_seen = False
+    scope.roll_seen = False
 
 
 def scope_release_capture(scope: ScopeSession) -> None:
@@ -600,6 +619,7 @@ def scope_release_capture(scope: ScopeSession) -> None:
 
     scope.stopped = False
     scope.ready_seen = False
+    scope.roll_seen = False
 
 
 def scope_disconnect(scope: ScopeSession) -> None:

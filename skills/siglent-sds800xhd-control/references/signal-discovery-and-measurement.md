@@ -107,7 +107,7 @@ Manual-supported, not hardware-tested in this Skill. These change the acquisitio
 
 | Command | Values | Why it matters |
 |---|---|---|
-| `:ACQuire:MODE` | `YT`, `XY`, `ROLL` | `ROLL` limits usable memory depth; `XY` changes what the horizontal axis means. |
+| `:ACQuire:MODE` | `YT`, `XY`, `ROLL` | `ROLL` limits usable memory depth and ignores horizontal delay; `XY` changes what the horizontal axis means. See [Roll Mode](#roll-mode). |
 | `:ACQuire:AMODe` | `FAST`, `SLOW` | Fast capture improves the odds of catching an anomaly but is not a substitute for a real trigger. |
 | `:ACQuire:TYPE` | `NORMal`, `PEAK`, `AVERage,<times>`, `ERES,<bits>` | `PEAK` can show glitches narrower than one sample; averaging and ERES limit depth and are unavailable while segmented acquisition is on. `<times>` is 4..8192 in powers of two; `<bits>` is 0.5..4.0 in 0.5 steps (manual printed p. 23). |
 | `:ACQuire:INTerpolation` | `ON` (Sinc), `OFF` (linear) | Changes how samples are joined; do not compare measurements taken under different interpolation. |
@@ -115,6 +115,39 @@ Manual-supported, not hardware-tested in this Skill. These change the acquisitio
 | `:ACQuire:SEQuence:COUNt` | integer; upper bound depends on memory depth | Record it with any segmented capture. |
 | `:ACQuire:RESolution` | `8Bits`, `10Bits` (the manual's description mentions SDS2000X Plus; confirm on the connected model instead of assuming it) | ADC resolution. Do not confuse it with the math `ERES` bit setting, which is 0.5-3.0 not 0.5-4.0. |
 | `:ACQuire:CSWeep` | — (event) | Clears sweeps and restarts acquisition, like the front-panel Clear Sweeps key. It is a state change, not cleanup. |
+
+## Roll Mode
+
+Roll is a streaming display mode, not a trigger mode, and it is **incompatible with this Skill's `Ready -> Stop` capture flow**. Enter it only for slow observation, and never as part of an automated single-shot capture.
+
+How to enter and leave (manual printed p. 18, user manual printed p. 44):
+
+```text
+:ACQuire:MODE ROLL       # enter Roll; equivalent to the front-panel Roll key
+:ACQuire:MODE?           # read back; confirm YT/XY/ROLL before trusting a flow
+:ACQuire:MODE YT         # leave Roll and return to normal triggered display
+```
+
+The front-panel `Roll` key toggles the same state; pressing it again exits. Both paths are documented, but only the SCPI path is usable in a remote session.
+
+Documented behaviour and preconditions:
+
+- The waveform scrolls right to left and is written from the right edge, like a strip chart. It suits events occurring a few times per second.
+- **Only available at 50 ms/div and slower.** Below that the mode is not offered.
+- **Horizontal position/delay has no effect.** `:TIMebase:DELay` and the whole left-aligned-trigger strategy are meaningless here; the script now refuses to run that strategy outside `YT`.
+- **Zoom is not available while Roll is running.**
+- Roll **limits the usable memory depth** (programming guide printed p. 20).
+- Search-event totals: `YT` and stopped `Roll` cap at 1000 events; running `Roll` has no cap (user manual p. 21 region).
+
+Why the capture flow must not use it:
+
+- `:TRIGger:STATus?` reports `Roll` rather than `Ready`, so a `Ready -> Stop` proof can never be satisfied. `scope_wait_ready()` and `capture_scope.wait_state()` now raise an explicit `Roll mode` error instead of timing out silently.
+- `SAST?` returning `Roll` is recorded as `roll_seen`, not as `ready_seen`; a later `Stop` is still rejected as "Stop observed before Ready".
+- The manual does not describe how `TRMD SINGLE` interacts with Roll. Treat that combination as unverified and do not depend on it.
+
+To stop a rolling display for inspection, use the front-panel Run/Stop key or `:TRIGger:STOP`; pressing Run/Stop again restarts a rolling acquisition and **clears the display**. Clearing the screen destroys the reference for any earlier screenshot, so capture the screenshot before stopping.
+
+All of this is `documented`; the target firmware has not been exercised in Roll mode.
 
 ## Signal Discovery
 
@@ -178,6 +211,7 @@ Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repositor
 - Device ID / `*OPC?`: printed pp. 13-14.
 - Numeric precision (`:FORMat:DATA`): printed p. 15.
 - Acquisition mode, interpolation, memory management, memory depth, sample rate, acquisition type: printed pp. 17-23.
+- Roll mode availability, horizontal-delay/zoom limits, and display behaviour: user manual printed p. 44 (the only place it is described; the programming guide lists `ROLL` as a value only).
 - Acquisition points, frame count, sample rate: printed pp. 21-23.
 - Channel coupling, probe, V/div, switch, bandwidth limit, invert, impedance, unit, skew, label, reference: printed pp. 24-30.
 - Simple/advanced measurement, statistics, history: printed pp. 164-183.

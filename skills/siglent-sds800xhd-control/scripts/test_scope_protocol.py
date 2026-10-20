@@ -263,6 +263,7 @@ class ProtocolTests(unittest.TestCase):
                     "TIM:SCAL?": "1.00E-04",
                     "TIM:DEL?": "4.00E-04",
                     "ACQ:MDEP?": "25M",
+                    "ACQ:MODE?": "YT",
                     "TIM:REF:POS?": "10",
                 }
 
@@ -322,6 +323,57 @@ class ProtocolTests(unittest.TestCase):
 
         with self.assertRaises(ScopeProtocolError):
             configure_memory_depth(FakeScope(), memory_depth="100M", channel_count=1)
+
+    def test_left_aligned_trigger_rejects_roll_mode_before_writing(self):
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.commands = []
+
+            def write(self, command, **kwargs):
+                self.commands.append(command)
+
+            def query_ascii(self, command, **kwargs):
+                if command == "TIM:SCAL?":
+                    return "1.00E-01"
+                if command == "ACQ:MODE?":
+                    return "ROLL"
+                raise AssertionError(f"unexpected query after Roll detection: {command}")
+
+        scope = FakeScope()
+        with self.assertRaises(ScopeProtocolError) as caught:
+            configure_left_aligned_trigger(scope, margin_div=1.0)
+        self.assertIn("ROLL", str(caught.exception))
+        self.assertEqual(scope.commands, [])
+
+    def test_wait_ready_fails_fast_in_roll_mode(self):
+        from scope_protocol import ScopeSession, scope_wait_ready
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+
+            def query_ascii(self, command, **kwargs):
+                return "Roll"
+
+        scope = FakeScope()
+        with self.assertRaises(ScopeProtocolError) as caught:
+            scope_wait_ready(scope, timeout_s=5.0, poll_s=0.0)
+        self.assertIn("Roll mode", str(caught.exception))
+        self.assertTrue(scope.roll_seen)
+        self.assertFalse(scope.ready_seen)
+
+    def test_roll_state_is_recorded_without_claiming_ready(self):
+        from scope_protocol import ScopeSession
+
+        scope = ScopeSession("example.invalid")
+        scope.mark_state("Roll")
+        self.assertTrue(scope.roll_seen)
+        self.assertFalse(scope.ready_seen)
+        with self.assertRaises(ScopeProtocolError):
+            scope.mark_state("Stop")
 
     def test_capture_cli_rejects_left_aligned_options_without_trigger(self):
         from capture_scope import parse_args

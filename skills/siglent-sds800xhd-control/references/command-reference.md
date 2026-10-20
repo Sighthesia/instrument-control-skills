@@ -43,7 +43,7 @@
 | `STOP` | event | — | Stop 后禁止发送；在不可变读取期间发送会破坏帧证据。`scope_protocol` 将其列入 `FORBIDDEN_AFTER_STOP`。 | SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `RUN` | event | — | Stop 后禁止发送。 | SKILL.md<br>scripts/scope_protocol.py |
 | `ARM` | event | — | **禁止发送**。固件 `4.8.12.1.1.6.5` 上 `ARM` 被明确拒绝；`scope_arm_single` 只发送 `TRMD SINGLE`。 | SKILL.md<br>programming-guide.md<br>scripts/scope_protocol.py |
-| `:TRIGger:STATus?` | query | — | 返回 `Arm`、`Ready`、`Auto`、`Trig'd`、`Stop` 或 `Roll`。手册印刷 p. 244。 | signal-discovery-and-measurement.md (manual p. 244) |
+| `:TRIGger:STATus?` / `SAST?` | query | — | 返回 `Arm`、`Ready`、`Auto`、`Trig'd`、`Stop` 或 `Roll`。**`Roll` 不是 `Ready`**：Roll 模式永远不会进入 `Ready`，`Ready -> Stop` 规则无法满足，脚本会立即报错而不是超时。手册印刷 p. 244。 | signal-discovery-and-measurement.md (manual p. 244)<br>scripts/scope_protocol.py |
 | `:TRIGger:FREQuency?` | query | — | 硬件频率计数器（Hz）；`0` 表示无有效计数结果，不等于无信号。默认 3 位有效数字，用 `:FORMat:DATA` 提高到 7 位。手册印刷 p. 243。 | signal-discovery-and-measurement.md (manual p. 243) |
 | `:TRIGger:MODE` / `TRMD` | set/query | `SINGle`、`NORMal`、`AUTO`、`FTRIG` | `TRMD` 是固件实测短形式，**手册未列出该拼写**；手册形式为 `:TRIGger:MODE`（印刷 pp. 243-244）。`FTRIG` 无视触发条件强制一帧，会破坏 `Ready -> Stop` 证据链，本 Skill 不使用。Stop 后禁止发送。 | signal-discovery-and-measurement.md (manual pp. 243-244)<br>SKILL.md<br>scripts/scope_protocol.py |
 | `:TRIGger:TYPE` | set/query | `EDGE`、`PULSE`、`SLOPe`、`INTerval`、`PATTern`、`RUNT`、`WINDow`、`DROPout`、`VIDeo`、`QUALified`、`NEDGe`、`DELay`、`SHOLd`、`IIC`、`SPI`、`UART`、`LIN`、`CAN`、`FLEXray`、`CANFd`、`IIS`、`M1553`、`SENT`、`A429`（24 种） | 只有 `EDGE` 在本 Skill 中验证过；毛刺/欠幅排查必须先选 `RUNT` 或 `PULSE` 再设其参数，否则搜索无从配置。串行/视频类型参数在印刷 pp. 267-410，取决于选件与数字通道。手册印刷 p. 245。 | signal-discovery-and-measurement.md (manual p. 245) |
@@ -59,7 +59,7 @@
 | `:ACQuire:SRATe` / `ACQ:SRAT` | set | `<rate>`，浮点 NR3，如 `5.00E9`；手册未给离散档位表，只说明“超过可设定值会自动匹配” | **仅在 `:ACQuire:MMANagement FSRate` 固定采样率模式下有效**；写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。手册印刷 p. 22。证据等级 `documented`。 | signal-discovery-and-measurement.md (manual pp. 22-23) |
 | `:ACQuire:MMANagement?` | query | 返回 `AUTO`、`FSRate`、`FMDepth` | 存储管理方式；决定采样率与存储深度哪一个由用户控制。写采样率或深度前应先确认此模式。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
 | `:ACQuire:MMANagement` / `ACQ:MMAN` | set | `AUTO`、`FSRate`、`FMDepth` | `AUTO` 保持最大采样率并按时基推两者；`FSRate` 固定采样率、深度随时基；`FMDepth` 固定深度、采样率随时基。改变采集上下文，写入后回读。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
-| `:ACQuire:MODE` | set/query | `YT`、`XY`、`ROLL` | 采集模式；`ROLL` 会限制可用存储深度。手册印刷 pp. 18-19。 | signal-discovery-and-measurement.md (manual pp. 18-19) |
+| `:ACQuire:MODE` | set/query | `YT`、`XY`、`ROLL` | 采集模式。`ROLL` 为滚动流式显示：**`SAST?` 只报 `Roll` 不报 `Ready`**，因此不能用于本 Skill 的 `Ready -> Stop` 单次采集；只在 50 ms/div 及更慢时可用，水平延迟无效，运行中不支持 Zoom，并限制存储深度。详见 `signal-discovery-and-measurement.md` 的 Roll Mode 一节。手册印刷 pp. 18-19 + 用户手册印刷 p. 44。 | signal-discovery-and-measurement.md (manual pp. 18-19)<br>scripts/scope_protocol.py |
 | `:ACQuire:AMODe` | set/query | `FAST`、`SLOW` | 快采/慢采，影响波形捕获率。手册印刷 p. 17。 | signal-discovery-and-measurement.md (manual p. 17) |
 | `:ACQuire:TYPE` | set/query | `NORMal`、`PEAK`、`AVERage[,<times>]`、`ERES[,<bits>]`；`<times>` = 4..8192 的 2 次幂，`<bits>` = 0.5..4.0 步进 0.5 | 采集方式；**分段采集开启时平均/ERES 不可用**；平均与 ERES 会限制存储深度。手册印刷 p. 23。 | signal-discovery-and-measurement.md (manual p. 23) |
 | `:ACQuire:INTerpolation` | set/query | `ON`（Sinc）、`OFF`（线性） | 内插方式。手册印刷 pp. 17-18。 | signal-discovery-and-measurement.md (manual pp. 17-18) |
