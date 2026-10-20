@@ -29,26 +29,75 @@ APPLy command forces 50 % symmetry; use the low-level commands to change them.
 |---|---|---|
 | `SOURce[1|2]:FUNCtion` | SIN/SQU/RAMP/PULS/NOIS/USER | 206 |
 | `SOURce[1|2]:FREQuency` | 1 µHz-25 MHz (sine/square); 1 µHz-1 MHz (ramp); pulse 500 µHz-25 MHz | 207 |
-| `SOURce[1|2]:AMPlitude` | 1 mVpp-10 Vpp (50 Ω); 2 mVpp-20 Vpp (high-Z); 1-5 Vpp (50 Ω) at 20-25 MHz | 209 |
+| `SOURce[1|2]:AMPlitude` | 1 mVpp-10 Vpp (50 Ω); 2 mVpp-20 Vpp (high-Z); 1-5 Vpp (50 Ω) at 20-25 MHz; **2-10 Vpp (high-Z) at 20-25 MHz** | 209, 293 |
 | `SOURce[1|2]:DCOffset` | ±5 Vpk ac+dc (50 Ω); ±10 Vpk (high-Z); ±2.5 Vpk (50 Ω) at 20-25 MHz; `|Voffset| < Vmax - Vpp/2` | 210 |
 | `SOURce[1|2]:SQUare:DCYCle` | 1-99 % (≤100 kHz), 10-90 % (≤1 MHz), 50 % (25 MHz) | 211 |
 | `SOURce[1|2]:RAMP:SYMMetry` | 0-100 % | 212 |
 | `OUTPut[1|2]` | ON/OFF | 213 |
-| `OUTPut[1|2]:LOAD` | `DEFault` (50 Ω) / `INFinity` (>10 kΩ) | 213 |
-| `SOURce[1|2]:VOLTage:UNIT` | `VPP` / `VRMS` / `DBM` (dBm unavailable in high-Z) | 214 |
+| `OUTPut[1|2]:LOAD` | `DEFault` (50 Ω) / `INFinity` (>10 kΩ); reference only; not usable while ARB/MOD/SWEEP/BURST is active | 143, 213 |
+| `SOURce[1|2]:VOLTage:UNIT` | `VPP` / `VRMS` / `DBM` (dBm unavailable in high-Z); sets the **default unit for all subsequent amplitude commands** | 214-215 |
 
 ## Load impedance and amplitude math
 
-- Amplitude and offset **double** when load changes from 50 Ω to high-Z
-  (manual p. 209-210). Set `OUTPut:LOAD` before setting amplitude/offset when
-  the reference termination matters.
-- dBm is unavailable in high-Z mode (manual p. 214).
+- `OUTPut[1|2]:LOAD` **only sets a reference termination**; the manual is explicit
+  that it "is to be used as a reference only. If the actual load impedance is
+  different to that specified, then the actual amplitude and offset will vary
+  accordingly" (manual p. 143). A `LOAD INF` setting feeding a real 50 Ω load
+  produces half the expected amplitude.
+- **The load function "can only be used if the ARB, MOD, SWEEP or BURST
+  functions are not active"** (manual p. 143). Since APPLy turns off burst,
+  modulation, and sweep, sending `OUTPut:LOAD` before an APPLy is safe, but
+  sending it while any of those modes is active may be rejected or ignored.
+- Amplitude and offset **double** when the reference load changes from 50 Ω to
+  high-Z (manual pp. 209-210).
+- dBm is unavailable in high-Z mode; the units "will default to Vpp" (manual
+  p. 214). A dBm value that was set earlier is silently reinterpreted as Vpp
+  after switching to high-Z, so re-read `VOLTage:UNIT?` after any load change.
 - Constraint: `|Voffset| < Vmax - Vpp/2` (manual p. 210).
 - `OUTPut` state defaults to off. The manual describes `FUNC` as selecting and
   outputting a waveform, but the output on/off state is controlled by
   `OUTPut`. Do not assume a low-level command enabled the output: query
   `OUTP<n>?` and send `OUTPut ON` explicitly unless APPLy was used. APPLy is
   documented to turn the output on.
+
+## Amplitude units and how they change every number
+
+`SOURce[1|2]:VOLTage:UNIT` is a setter, not a label, and it is **global**:
+"the units set with the VOLTage:UNIT command will be used as the default unit
+for all amplitude units unless a different unit is specifically used"
+(manual pp. 214-215).
+
+```text
+SOURce[1|2]:VOLTage:UNIT {VPP|VRMS|DBM}
+SOURce[1|2]:VOLTage:UNIT?
+```
+
+Consequences:
+
+- A bare `SOUR1:AMPL 3.54` means 3.54 of whatever unit is current. The same
+  string is 3.54 Vpp or 3.54 Vrms (about 10 Vpp) depending on an earlier
+  setting, so a readback without `VOLTage:UNIT?` cannot be interpreted.
+- A per-command suffix (`3.54VRMS`, `10VPP`) overrides the default for that one
+  command. The bundled helper always appends `VPP`, which makes APPLy
+  deterministic but hides the instrument's current default.
+- dBm requires a known reference load; it is refusable in high-Z.
+- `FUNC` itself can rewrite the amplitude when it changes shape: the manual's
+  example is a 5 Vrms square wave becoming a 3.536 Vrms sine after a shape
+  change (manual p. 206). An `AMPL?` readback after `FUNC` therefore reports
+  the instrument's value, not the value that was requested.
+
+Record `VOLTage:UNIT?` and `OUTPut:LOAD?` with every amplitude.
+
+## ARB amplitude semantics
+
+`DATA:DAC` integers ±511 map to the **peak** amplitude of the configured Vpp, not
+to full scale: "for a waveform with an amplitude of 5 Vpp (0 offset), the value
+511 is the equivalent of 2.5 Volts… If the integer values do not span the full
+output range, the peak amplitude will be limited" (manual p. 261). A waveform
+written with ±300 codes therefore does not lose Vpp resolution — it produces
+the configured Vpp with fewer quantisation steps; the ±511 span is a resolution
+limit, not an amplitude limit.
+
 
 ## Pulse commands
 

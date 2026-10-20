@@ -59,10 +59,21 @@ Pages 249-258.
 
 - Frequency counter: `COUNter:STATe {ON|OFF}`, `COUNter:GATe {0.01|0.1|1|10}`,
   `COUNter:VALue?` returns Hz (pp. 266-267).
+- **`COUNter:STATe` is a required enable, and it is not implicitly on.** A
+  `COUNter:VALue?` read while the counter is off returns a number that looks
+  like a measurement but is not one. Send `COUNter:STATe ON`, wait at least one
+  gate time (0.01 s to 10 s per `COUNter:GATe`), then read; a value read
+  immediately after enabling may be stale or zero.
+- `COUNter:GATe` sets the gate; the longer the gate, the finer the resolution
+  and the slower the update. Record the gate with every reading.
 - Phase: `SOURce[1|2]:PHASe -180..180`; `SOURce[1|2]:PHASe:SYNChronize`
-  (pp. 267-268).
+  (pp. 267-268) is an **event**, not a per-channel setting: it synchronises
+  CH1 and CH2 and ignores the channel prefix.
 - Frequency coupling: `FREQuency:COUPle:MODE {OFF|OFFSet|RATio}`, offset, ratio;
-  amplitude coupling and tracking (pp. 268-270).
+  amplitude coupling and tracking (pp. 268-270). Coupling and tracking
+  **rewrite the other channel**: after `AMPLitude:COUPle:STATe ON` or `TRACk
+  ON|INVerted`, reading CH2 after writing CH1 returns a value the caller never
+  set. Disable coupling before treating a channel readback as independent.
 
 ## Trigger input/output
 

@@ -163,6 +163,13 @@ def cmd_apply(session: Session, args) -> int:
         command = f"SOUR{channel}:APPL:{short} {freq},{amp_token},{offset_token}"
     session.send(command.encode("ascii"), read_response=False)
     print(f"APPLy command turns output ON; amplitude={amp} Vpp offset={off} V")
+    if args.load == "highz":
+        print(
+            "warning: LOAD is only a reference setting; into a real 50 ohm load the "
+            "actual amplitude and offset are half the requested values "
+            "(manual pp. 143, 209-210)",
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -217,14 +224,18 @@ def cmd_off(session: Session, args) -> int:
 
 def cmd_snapshot(session: Session, args) -> int:
     channel = args.channel
+    # VOLT:UNIT decides what AMPL? means; without it an amplitude readback is
+    # uninterpretable (manual pp. 214-215). LOAD is only a reference setting.
     queries = [
         "*IDN?",
         f"SOUR{channel}:FUNC?",
         f"SOUR{channel}:FREQ?",
+        f"SOUR{channel}:VOLT:UNIT?",
         f"SOUR{channel}:AMPL?",
         f"SOUR{channel}:DCO?",
         f"OUTP{channel}?",
         f"OUTP{channel}:LOAD?",
+        f"COUN:STAT?",
     ]
     for q in queries:
         response = session.send(q.encode("ascii"), read_response=True)

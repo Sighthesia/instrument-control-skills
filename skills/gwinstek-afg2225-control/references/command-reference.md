@@ -53,7 +53,7 @@ inferred.
 | `OUTPut[1&#124;2]` | set/query | ON/OFF | Output state defaults to off. Verify with `OUTP<n>?` rather than assuming a low-level command enabled it. The manual's `OUTP1 ON` did not work for one community reporter (unverified). | basic-waveforms.md (manual p. 213)<br>remote-session.md<br>SKILL.md |
 | `OUTP<n>` | set/query | ON/OFF | Helper form; refuses `--channel` outside 1/2. | scripts/afg2225_session.py |
 | `OUTP<n>?` | query | — | Readback of output state; mandatory before connecting a load. Used in the snapshot sequence. | scripts/afg2225_session.py<br>SKILL.md |
-| `OUTPut[1&#124;2]:LOAD` | set/query | `DEFault` (50 Ω) / `INFinity` (>10 kΩ) | Reference setting only; if it disagrees with the real load, amplitude and offset are wrong. Amplitude and offset double from 50 Ω to high-Z. Set before amplitude/offset. | basic-waveforms.md (manual p. 213)<br>bench-setup.md (manual p. 213) |
+| `OUTPut[1&#124;2]:LOAD` | set/query | `DEFault` (50 Ω) / `INFinity` (>10 kΩ) | **仅作参考设置**：实际负载不同则幅度与偏置随之变化（手册 p. 143）。且**在 ARB/MOD/SWEEP/BURST 激活时不可用**（p. 143）。切到 high-Z 时幅度/偏置翻倍，dBm 自动回落 Vpp。 | basic-waveforms.md (manual pp. 143, 213)<br>bench-setup.md |
 | `OUTP<n>:LOAD` | set | `DEF` (50 Ω) / `INF` (high impedance) | Helper short form; emitted before every APPLy and ARB upload. | scripts/afg2225_session.py |
 | `OUTP<n>:LOAD?` | query | — | Readback of reference termination; used in the snapshot sequence. | scripts/afg2225_session.py |
 | `OUTP:TRIG` | set | — | Burst trigger output on the rear-panel Trigger OUT. | modulation-sweep-burst.md (manual p. 258) |
@@ -87,7 +87,8 @@ inferred.
 | `SOUR<n>:AMPL?` | query | — | Readback of amplitude; used in the snapshot sequence. | scripts/afg2225_session.py |
 | `SOURce[1&#124;2]:DCOffset` | set/query | ±5 Vpk ac+dc (50 Ω); ±10 Vpk (high-Z); ±2.5 Vpk (50 Ω) at 20-25 MHz; constraint `&#124;Voffset&#124; < Vmax - Vpp/2` | Offset doubles from 50 Ω to high-Z. Community report (unverified): positive DC offset with ARB can invert the signal; no automatic workaround. | basic-waveforms.md (manual pp. 210, 213)<br>SKILL.md |
 | `SOUR<n>:DCO?` | query | — | Helper short form for offset readback; used in the snapshot sequence. | scripts/afg2225_session.py |
-| `SOURce[1&#124;2]:VOLTage:UNIT` | set/query | `VPP` / `VRMS` / `DBM` | dBm unavailable in high-Z mode. | basic-waveforms.md (manual p. 214)<br>SKILL.md |
+| `SOURce[1&#124;2]:VOLTage:UNIT` | set/query | `VPP` / `VRMS` / `DBM` | **全局默认单位**：此后所有未带单位的幅度命令都按此解释；切到 high-Z 时 dBm 不可用且自动回落 Vpp。不读回该命令，任何幅度数值都无法解释。手册 pp. 214-215。 | basic-waveforms.md (manual pp. 214-215)<br>scripts/afg2225_session.py |
+| `SOURce<n>:VOLT:UNIT?` | query | — | 单位回读（短形式）；`snapshot` 已包含，必须与 `AMPL?` 一起记录。 | scripts/afg2225_session.py |
 | `SOURce[1&#124;2]:SQUare:DCYCle` | set/query | 1-99 % (≤100 kHz), 10-90 % (≤1 MHz), 50 % (25 MHz) | APPLy:SQU forces 50 %. | basic-waveforms.md (manual p. 211)<br>SKILL.md |
 | `SQU:DCYC` | set/query | — | Short form named in the low-level command list. | SKILL.md (manual pp. 200-215) |
 | `SOURce[1&#124;2]:RAMP:SYMMetry` | set/query | 0-100 % | APPLy:RAMP forces 50 %. | basic-waveforms.md (manual p. 212)<br>SKILL.md |
@@ -101,7 +102,7 @@ inferred.
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
 | `DATA:DAC VOLATILE,<start>,...` | set | `<start>` 0..4095; points 1..4096; `start + points <= 4096`; values ±511 | Writes volatile memory. ASCII decimal list is the default safe path. `FUNC USER` should be selected first. | arbitrary-waveform.md (manual pp. 260-261)<br>SKILL.md |
-| `DATA:DAC VOLATILE,<start>,{<binary block>&#124;v,...}` | set | IEEE 488.2 `#<digits><length><payload>`, two bytes per point (16-bit signed) | Binary byte order is **not** stated by the manual; requires an explicit `--byte-order little&#124;big` and stays `UNVERIFIED`. Manual example `DATA:DAC VOLATILE, #216 Binary Data` claims 5 values / 16 bytes but 5 × 2 = 10 bytes — preserve this defect, compute length from the point count. | arbitrary-waveform.md (manual p. 261)<br>scripts/afg2225_protocol.py<br>SKILL.md |
+| `DATA:DAC VOLATILE,<start>,{<binary block>&#124;v,...}` | set | IEEE 488.2 `#<digits><length><payload>`, two bytes per point (16-bit signed)；码值 ±511 | **±511 对应设定 Vpp 的峰值，不是满量程**：5 Vpp、0 偏置时 511 相当于 2.5 V；码值跨度不足只限制分辨率，不缩小 Vpp（手册 p. 261）。二进制字节序**手册未规定**，必须显式 `--byte-order little&#124;big` 并保持 `UNVERIFIED`。手册示例 `DATA:DAC VOLATILE, #216 Binary Data` 声称 5 值 / 16 字节但 5 × 2 = 10 字节 —— 保留该缺陷，长度按点数计算。 | arbitrary-waveform.md (manual p. 261)<br>scripts/afg2225_protocol.py<br>SKILL.md |
 | `DATA:DAC VOLATILE,0,-511,0,511` | set | ASCII list | Exact bytes built and asserted by the protocol tests. | scripts/afg2225_protocol.py<br>scripts/test_afg2225_protocol.py |
 | `SOURce[1&#124;2]:ARB:EDIT:COPY` | set | `[start[,length[,paste]]]`; addresses 0..4095 | Copies a segment. Do not copy over a waveform currently output. | arbitrary-waveform.md (manual pp. 262-265) |
 | `SOURce[1&#124;2]:ARB:EDIT:DELete` | set | `[start[,length]]`; addresses 0..4095 | Deletes a segment. Do not delete a waveform currently output. | arbitrary-waveform.md (manual p. 263) |
@@ -182,9 +183,9 @@ gate, and trigger sources. Trigger IN is the rear-panel external trigger/gate.
 
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
-| `COUNter:STATe` | set/query | `{ON&#124;OFF}` | Frequency-counter input is on the rear panel. | modulation-sweep-burst.md (manual pp. 266-267)<br>bench-setup.md (manual p. 266) |
-| `COUNter:GATe` | set/query | `{0.01&#124;0.1&#124;1&#124;10}` | Gate time. | modulation-sweep-burst.md (manual pp. 266-267) |
-| `COUNter:VALue?` | query | — | Returns Hz. | modulation-sweep-burst.md (manual pp. 266-267) |
+| `COUNter:STATe` | set/query | `{ON&#124;OFF}` | **必须显式使能**；未使能时 `VALue?` 仍返回看似正常的数字。使能后需等待至少一个 `GATe` 时间再读。手册 pp. 266-267。 | modulation-sweep-burst.md (manual pp. 266-267)<br>scripts/afg2225_session.py |
+| `COUNter:GATe` | set/query | `{0.01&#124;0.1&#124;1&#124;10}` | 闸门时间（秒）；越长分辨率越高、刷新越慢，须与读数一起记录。手册 pp. 266-267。 | modulation-sweep-burst.md (manual pp. 266-267) |
+| `COUNter:VALue?` | query | — | 返回 Hz；计数器关闭时读数无效。手册 pp. 266-267。 | modulation-sweep-burst.md (manual pp. 266-267) |
 
 ## Phase and coupling
 
@@ -195,6 +196,8 @@ gate, and trigger sources. Trigger IN is the rear-panel external trigger/gate.
 | `FREQuency:COUPle:MODE` | set/query | `{OFF&#124;OFFSet&#124;RATio}` | Frequency coupling mode. | modulation-sweep-burst.md (manual pp. 268-270) |
 | offset | set/query | — | Frequency-coupling offset. The reference gives the bare words "offset, ratio" after `FREQuency:COUPle:MODE`, with no full header; verify the header against the manual before use. | modulation-sweep-burst.md (manual pp. 268-270) |
 | ratio | set/query | — | Frequency-coupling ratio; same caveat as the offset row. | modulation-sweep-burst.md (manual pp. 268-270) |
+| `AMPLitude:COUPle:STATe` | set/query | `{ON&#124;OFF}` | 幅度耦合开关；开启后写 CH1 会同时改写 CH2 的幅度**和偏置**，此时读 CH2 得到的不是调用方设定的值。手册 pp. 268-270。 | modulation-sweep-burst.md (manual pp. 268-270) |
+| `TRACk` | set/query | `{ON&#124;OFF&#124;INVerted}` | 通道跟踪；`ON` 把 CH1 镜像到 CH2，`INVerted` 反相镜像。开启后 CH2 的读数不再独立。手册 pp. 268-270。 | modulation-sweep-burst.md (manual pp. 268-270) |
 
 ## Save / recall
 
@@ -213,6 +216,22 @@ path, and waveform save/load is a panel/AWES operation in the manual.
   uploads stay `UNVERIFIED` until confirmed on hardware with an oscilloscope.
   The manual's own byte-count example is defective (5 values / 16 bytes vs
   10 bytes).
+- **Amplitude units are global state**: `VOLTage:UNIT` sets the default unit for
+  every later amplitude command (pp. 214-215), so an amplitude number without a
+  matching `VOLTage:UNIT?` readback cannot be interpreted. The helper always
+  appends `VPP` for APPLy, which makes its own commands deterministic but hides
+  the instrument default; `snapshot` now reads the unit back.
+- **Load is a reference, not a measurement**: `OUTPut:LOAD` does not adapt to
+  the real load, and it is documented as unusable while ARB/MOD/SWEEP/BURST is
+  active (p. 143). A high-Z reference into a 50 Ω load gives half the requested
+  amplitude.
+- **`DATA:DAC` ±511 is peak, not full scale** (p. 261): a reduced code span
+  limits resolution, not Vpp.
+- **Counter defaults off**: `COUNter:VALue?` without `COUNter:STATe ON` returns a
+  number that is not a valid measurement.
+- **`FUNC` can rewrite amplitude and frequency** (p. 206), so an `AMPL?`/`FREQ?`
+  readback after a shape change may differ from what was requested.
+- **High-Z amplitude derating**: 2-10 Vpp at 20-25 MHz, not the flat 2-20 Vpp.
 - **Serial defaults**: the manual lists no baud/data/parity/stop defaults;
   `115200 8N1` in the transport helper is an assumption.
 - **`OUTP1 ON` vs `SOURCE1:OUTPUT ON`**: the community report that

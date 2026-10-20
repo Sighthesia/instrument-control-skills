@@ -37,6 +37,13 @@ test date.
   unverified observation.
 - A numerical response is not proof of a valid waveform. Preserve raw bytes
   and configuration context.
+- Amplitude is meaningless without `VOLTage:UNIT?` and `OUTPut:LOAD?`: the unit
+  is a global default, and the load is only a reference (manual pp. 143,
+  214-215).
+- `OUTPut:LOAD` cannot be used while ARB, modulation, sweep, or burst is active
+  (manual p. 143). Do not send it as blind prelude to every command.
+- The counter is off by default; a `COUNter:VALue?` read without
+  `COUNter:STATe ON` is not a measurement.
 
 ## Evidence and scope
 
