@@ -96,6 +96,17 @@ The design rationale behind these choices is recorded in
 vendor manual (2000-900-01 Rev. J / August 2010) with page citations per command;
 no open-source parser implementation is referenced.
 
+## GDS-1000B oscilloscope data handling
+
+`skills/gwinstek-gds1000b-control/` derives its command, range, and page claims
+from the *GDS-1000B Series Programming Manual*, Version 1.00, March 2015. Its
+waveform framing follows the manual's documented ASCII header plus IEEE 488.2
+block, signed big-endian 16-bit samples, and fixed AD factor 25. The documented
+voltage formula is labelled unverified because the manual's own example uses a
+different scale value from the header. The Skill also records the model profile
+(channel count, bandwidth, Ethernet) from the vendor specification table; USB
+CDC host behavior is treated as host/OS evidence, not a manual claim.
+
 ## Function generator data handling
 
 `skills/gwinstek-afg2225-control/` derives command, range, and page claims from

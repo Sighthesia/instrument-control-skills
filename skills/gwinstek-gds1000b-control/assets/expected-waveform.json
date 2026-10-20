@@ -1,0 +1,22 @@
+{
+  "status": "COMPLETE",
+  "points": 4,
+  "block_length": 8,
+  "payload_sha256": "5ea763c43a85d21bc83230e5e8ce9713a558737f138cd6b7e4da4977a01c2f0e",
+  "samples": [
+    0,
+    25,
+    -25,
+    50
+  ],
+  "sample_voltages_documented": [
+    0.0,
+    0.5,
+    -0.5,
+    1.0
+  ],
+  "calibration": {
+    "status": "UNVERIFIED",
+    "ad_factor": 25
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "status": "COMPLETE",
+  "identity": {
+    "vendor": "GW",
+    "model": "GDS-1102B",
+    "serial": "P123456",
+    "firmware": "V1.00"
+  },
+  "profile": {
+    "channels": 2,
+    "bandwidth_mhz": 100,
+    "ethernet": false,
+    "ethernet_dhcp_command": false,
+    "external_trigger": true
+  }
+}

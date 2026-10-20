@@ -1,0 +1,55 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "gds1000b-protocol",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "GW Instek",
+    "model": "GDS-1000B series",
+    "firmware": null,
+    "serial": null
+  },
+  "source": {
+    "operation": "offline response parsing for identity, individual measurements, the error queue, and acquisition-memory waveform responses",
+    "transport": "offline saved bytes; optional USB CDC serial or raw TCP transport (not exercised)",
+    "manual": {
+      "title": "GDS-1000B Series Programming Manual",
+      "revision": "Version 1.00, March 2015",
+      "url": "https://www.gwinstek.com/en-global/products/detail/GDS-1000B",
+      "location": "local copy ref/编程指令手册.pdf; command reference and response formats PDF pp. 33-168, error queue pp. 250-253"
+    }
+  },
+  "data": {
+    "kind": "waveform",
+    "raw_path": "assets/fixtures/waveform-valid.bin",
+    "raw_sha256": "78faa990a3c9c945df9b7f91b09d11e32e68a0abf97df43434159e62cfc59b75",
+    "raw_provenance": "Synthetic fixture built from the documented ACQuire<X>:MEMory? response shape (ASCII header, 'Waveform Data;', IEEE 488.2 block, big-endian signed 16-bit codes). Not a real instrument capture."
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": false,
+    "known_limitations": [
+      "No hardware verification is included; the optional USB CDC and TCP transports are untested.",
+      "Waveform voltage conversion is documented-only and uncalibrated; the manual header example and its calculation disagree (pp. 42-43).",
+      "The manual does not state USB CDC serial defaults; 115200 8N1 is an assumption.",
+      "Ethernet is available only on the 4-channel GDS-1054B/GDS-1074B/GDS-1104B; the socket server is off by default and must be enabled on the instrument.",
+      "No SCPI command returns screenshot or saved-file bytes; save/screenshot workflows are file-based on the instrument.",
+      "No automatic *RST, *SAV, *RCL, file overwrite, calibration, or firmware update.",
+      "Optional/licensed features (digital filter, bus decode) are documented as conditional and are not implemented in the scripts."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "pass",
+        "evidence": {
+          "synthetic": true,
+          "hardware_capture": false
+        }
+      }
+    ]
+  }
+}

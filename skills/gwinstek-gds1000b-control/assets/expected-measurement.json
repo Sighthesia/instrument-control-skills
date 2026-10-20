@@ -1,0 +1,7 @@
+{
+  "status": "COMPLETE",
+  "quantity": "frequency",
+  "command": ":MEASure:FREQuency?",
+  "value": 1032.0,
+  "unit": "Hz"
+}
