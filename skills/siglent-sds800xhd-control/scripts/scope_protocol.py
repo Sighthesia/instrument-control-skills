@@ -20,16 +20,85 @@ class ScopeProtocolError(RuntimeError):
     """Raised when a response or capture violates the protocol contract."""
 
 
+ACQUISITION_STATE_ALIASES = {
+    "ARM": "ARM",
+    "ARMED": "ARM",
+    "READY": "READY",
+    "AUTO": "AUTO",
+    "TRIGD": "TRIGD",
+    "TRIG'D": "TRIGD",
+    "TRIGGED": "TRIGD",
+    "TRIGGERED": "TRIGD",
+    "STOP": "STOP",
+    "STOPPED": "STOP",
+    "ROLL": "ROLL",
+    "ROLLING": "ROLL",
+    "WAIT": "WAIT",
+    "RUN": "RUN",
+}
+
+
+def normalize_acquisition_state(response: Any) -> str:
+    """Reduce a decorated ``SAST?`` reply to one canonical state token.
+
+    Firmware may answer with a bare state (``Stop``) or repeat the query as a
+    prefix (``SAST Stop``, ``:TRIGger:STATus? Stop``) in any case and with
+    surrounding whitespace or quoting. Only the trailing token is a state; the
+    raw reply stays available through :class:`AcquisitionState` so the evidence
+    is never rewritten by this normalization.
+    """
+
+    text = str(response).strip()
+    if not text:
+        raise ScopeProtocolError("empty acquisition-state response")
+    tokens = [token for token in re.split(r"[\s,;]+", text) if token]
+    token = tokens[-1].strip("\"'<>[]()").strip().upper()
+    canonical = ACQUISITION_STATE_ALIASES.get(token)
+    if canonical is None:
+        raise ScopeProtocolError(f"unrecognized acquisition state: {text!r}")
+    return canonical
+
+
+@dataclass(frozen=True)
+class AcquisitionState:
+    """One ``SAST?`` reply: raw bytes-as-text plus its canonical state."""
+
+    raw: str
+    normalized: str
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    """Parse a decorated integer readback, returning ``None`` when absent."""
+
+    match = re.search(r"[-+]?\d+", str(value))
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
 @dataclass
 class IEEEBlock:
     prefix: bytes
     header: bytes
     payload: bytes
     trailing: bytes = b""
+    bytes_per_point: Optional[int] = None
+    requested_points: Optional[int] = None
+    reported_points: Optional[int] = None
+    slices: Optional[list[dict[str, Any]]] = None
 
     @property
     def payload_length(self) -> int:
         return len(self.payload)
+
+    @property
+    def actual_points(self) -> Optional[int]:
+        if not self.bytes_per_point:
+            return None
+        return len(self.payload) // self.bytes_per_point
 
     @property
     def sha256(self) -> str:
@@ -182,6 +251,7 @@ class ScopeSession:
         self.expected_channels: set[str] = {"C1", "C2", "C3", "C4"}
         self.dat2_channels: set[str] = set()
         self.capture_mode = "immutable_capture"
+        self.state_log: list[AcquisitionState] = []
 
     def connect(self) -> None:
         if self.sock is not None:
@@ -273,8 +343,12 @@ class ScopeSession:
         event.response_sha256 = block.sha256
         return block
 
-    def mark_state(self, state: str) -> None:
-        normalized = state.strip().upper()
+    def mark_state(self, state: str) -> AcquisitionState:
+        """Record one observed acquisition state without trusting its decoration."""
+
+        normalized = normalize_acquisition_state(state)
+        observed = AcquisitionState(raw=str(state), normalized=normalized)
+        self.state_log.append(observed)
         if normalized == "READY":
             self.ready_seen = True
         elif normalized == "ROLL":
@@ -283,6 +357,12 @@ class ScopeSession:
             if not self.ready_seen:
                 raise ScopeProtocolError("Stop observed before Ready")
             self.stopped = True
+        return observed
+
+    def query_state(self) -> AcquisitionState:
+        """Query ``SAST?``, record it, and keep both raw reply and canonical state."""
+
+        return self.mark_state(self.query_ascii("SAST?", allow_after_stop=True))
 
     def set_expected_channels(self, channels: Iterable[str]) -> None:
         selected = {channel.upper() for channel in channels}
@@ -450,41 +530,40 @@ def scope_arm_single(scope: ScopeSession) -> None:
     scope.write("TRMD SINGLE")
 
 
-def scope_wait_ready(scope: ScopeSession, timeout_s: float = 30.0, poll_s: float = 0.2) -> None:
+def scope_wait_ready(scope: ScopeSession, timeout_s: float = 30.0, poll_s: float = 0.2) -> AcquisitionState:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        state = scope.query_ascii("SAST?").strip()
-        if state.upper() == "ROLL":
-            # Roll mode never reports Ready: it streams continuously. Fail with a
-            # readable reason instead of silently timing out after 30 s.
-            scope.mark_state(state)
+        state = scope.query_state()
+        if state.normalized == "ROLL":
             raise ScopeProtocolError(
                 "scope is in Roll mode (:ACQuire:MODE ROLL); Roll never reaches Ready, "
                 "so it cannot support the Ready -> Stop single-shot flow. Leave Roll "
                 "(:ACQuire:MODE YT) before arming a capture"
             )
-        scope.mark_state(state)
-        if state.upper() == "READY":
-            return
+        if state.normalized == "READY":
+            return state
         time.sleep(poll_s)
     raise ScopeProtocolError("timed out waiting for Ready")
 
 
-def scope_wait_stop(scope: ScopeSession, timeout_s: float = 360.0, poll_s: float = 0.2) -> None:
+def scope_wait_stop(scope: ScopeSession, timeout_s: float = 360.0, poll_s: float = 0.2) -> AcquisitionState:
     if not scope.ready_seen:
         raise ScopeProtocolError("scope_wait_stop requires a previously observed Ready")
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        state = scope.query_ascii("SAST?").strip()
-        scope.mark_state(state)
-        if state.upper() == "STOP":
-            return
+        state = scope.query_state()
+        if state.normalized == "STOP":
+            return state
         time.sleep(poll_s)
     raise ScopeProtocolError("timed out waiting for Stop")
 
 
 def scope_read_segment(scope: ScopeSession, channel: str, start: int, count: int) -> IEEEBlock:
-    """Read one modern WAV segment after the caller explicitly stopped capture."""
+    """Read one modern WAV segment after the caller explicitly stopped capture.
+
+    The caller supplies the requested segment size. The payload must hold
+    exactly that many points; a short reply aborts the read.
+    """
 
     if start < 0 or count <= 0:
         raise ScopeProtocolError("segment start must be non-negative and count must be positive")
@@ -492,8 +571,10 @@ def scope_read_segment(scope: ScopeSession, channel: str, start: int, count: int
         raise ScopeProtocolError("modern WAV segment reads require explicit configured_capture mode")
     scope.write(f"WAV:SOUR {channel}", allow_after_stop=True)
     scope.write("WAV:INT 1", allow_after_stop=True)
+    interval_readback = _optional_int(scope.query_ascii("WAV:INT?", allow_after_stop=True))
+    if interval_readback != 1:
+        raise ScopeProtocolError(f"requested WAV:INT 1, scope returned {interval_readback!r}")
     scope.write("WAV:STAR 0", allow_after_stop=True)
-    scope.write("WAV:POIN 0", allow_after_stop=True)
     initial = parse_wavedesc(scope.query_block("WAV:PRE?", allow_after_stop=True).payload)
     selection = decide_waveform_width(initial, "auto")
     scope.write(f"WAV:WIDT {selection['width_command']}", allow_after_stop=True)
@@ -507,24 +588,48 @@ def scope_read_segment(scope: ScopeSession, channel: str, start: int, count: int
     return read_wav_segment(scope, start, count, preamble)
 
 
-def read_wav_segment(scope: ScopeSession, start: int, count: int, preamble: dict[str, Any]) -> IEEEBlock:
-    """Read one segment using the width and byte order already verified in preamble."""
+def read_wav_segment(
+    scope: ScopeSession,
+    start: int,
+    count: int,
+    preamble: dict[str, Any],
+) -> IEEEBlock:
+    """Read one segment; the returned payload length is the point-count authority.
+
+    ``WAV:POIN?`` may echo the requested value even when the device silently
+    truncates the transfer, so it is kept as advisory evidence only. The actual
+    point count is ``len(payload) // bytes_per_point`` and must equal the
+    request exactly; anything else fails closed before the payload is saved or
+    merged.
+    """
 
     if start < 0 or count <= 0:
         raise ScopeProtocolError("segment start must be non-negative and count must be positive")
     bytes_per_point = int(preamble["data_width_bytes"])
+    if bytes_per_point <= 0:
+        raise ScopeProtocolError("preamble bytes_per_point must be positive")
     expected_bytes = count * bytes_per_point
     scope.write(f"WAV:STAR {start}", allow_after_stop=True)
     scope.write(f"WAV:POIN {count}", allow_after_stop=True)
-    selected_start = int(float(scope.query_ascii("WAV:STAR?", allow_after_stop=True)))
-    selected_count = int(float(scope.query_ascii("WAV:POIN?", allow_after_stop=True)))
-    if (selected_start, selected_count) != (start, count):
-        raise ScopeProtocolError(f"scope selected {selected_start},{selected_count}; expected {start},{count}")
+    reported_start = _optional_int(scope.query_ascii("WAV:STAR?", allow_after_stop=True))
+    reported_count = _optional_int(scope.query_ascii("WAV:POIN?", allow_after_stop=True))
+    if reported_start is not None and reported_start != start:
+        raise ScopeProtocolError(f"scope selected start {reported_start}; expected {start}")
     block = scope.query_block("WAV:DATA?", allow_after_stop=True)
-    if len(block.payload) != expected_bytes:
+    actual_bytes = len(block.payload)
+    if actual_bytes % bytes_per_point:
         raise ScopeProtocolError(
-            f"segment {start}: expected {expected_bytes} bytes ({count} points x {bytes_per_point} B), got {len(block.payload)}"
+            f"segment {start}: payload {actual_bytes} bytes is not divisible by {bytes_per_point} B/point"
         )
+    actual_points = actual_bytes // bytes_per_point
+    if actual_bytes != expected_bytes:
+        raise ScopeProtocolError(
+            f"segment {start}: requested {count} points ({expected_bytes} bytes), received {actual_points} points "
+            f"({actual_bytes} bytes); WAV:POIN? reported {reported_count!r} and is not evidence of the returned count"
+        )
+    block.bytes_per_point = bytes_per_point
+    block.requested_points = count
+    block.reported_points = reported_count
     return block
 
 
@@ -544,6 +649,7 @@ def scope_read_immutable_frame(scope: ScopeSession, channels: Iterable[str] = ("
         "mode": "immutable_capture",
         "channels": {},
         "state": {"ready_seen": scope.ready_seen, "roll_seen": scope.roll_seen, "stopped": scope.stopped},
+        "state_evidence": [asdict(entry) for entry in scope.state_log],
     }
     for channel in selected_channels:
         block = scope.query_block(f"{channel}:WF? DAT2", allow_after_stop=True)
@@ -567,13 +673,17 @@ def scope_validate_frame(**kwargs: Any) -> dict[str, Any]:
     return validate_frame(**kwargs)
 
 
-def scope_assume_existing_stop(scope: ScopeSession) -> None:
-    """Accept a currently stopped frame without claiming a new trigger."""
+def scope_assume_existing_stop(scope: ScopeSession) -> AcquisitionState:
+    """Accept a stopped frame without claiming a new Ready -> Stop transition."""
 
-    state = scope.query_ascii("SAST?").strip()
-    if state.upper() != "STOP":
-        raise ScopeProtocolError(f"expected an existing stopped frame, got {state!r}")
+    raw = scope.query_ascii("SAST?", allow_after_stop=True)
+    normalized = normalize_acquisition_state(raw)
+    state = AcquisitionState(raw=str(raw), normalized=normalized)
+    scope.state_log.append(state)
+    if normalized != "STOP":
+        raise ScopeProtocolError(f"expected an existing stopped frame, got {state.raw!r}")
     scope.stopped = True
+    return state
 
 
 def waveform_time_origin(descriptor: dict[str, Any]) -> float:

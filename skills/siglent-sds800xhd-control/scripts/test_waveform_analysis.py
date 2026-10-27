@@ -149,6 +149,19 @@ class WaveformAnalysisTests(unittest.TestCase):
             capture = load_capture(moved, "C1")
             self.assertEqual(capture["path"], (moved / "C1" / "waveform.bin").resolve())
 
+    def test_integrity_rejects_short_segment_even_when_requested_count_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = _write_capture(root, [0, 1, 2, 3])
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            segment = manifest["results"][0]["segments"][0]
+            segment["actual_payload_bytes"] = 3
+            segment["actual_points"] = 3
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1")
+            self.assertEqual(caught.exception.code, "DESCRIPTOR_MISMATCH")
+
     def test_integrity_rejects_hash_mismatch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -14,6 +14,7 @@ from scope_protocol import (
     configure_left_aligned_trigger,
     configure_memory_depth,
     read_wav_segment,
+    normalize_acquisition_state,
     parse_ieee_block,
     parse_wavedesc,
     decode_analog_byte,
@@ -96,6 +97,35 @@ class ProtocolTests(unittest.TestCase):
         eight_bit_descriptor = dict(parsed, comm_type=0, data_width_bytes=1, nominal_bits=8)
         self.assertEqual(decide_waveform_width(eight_bit_descriptor, "auto")["width_command"], "BYTE")
 
+    def test_decorated_acquisition_state_is_normalized(self):
+        from scope_protocol import ScopeSession, scope_assume_existing_stop, scope_wait_ready, scope_wait_stop
+
+        self.assertEqual(normalize_acquisition_state("  SAST Stop\r\n"), "STOP")
+        self.assertEqual(normalize_acquisition_state(":TRIGger:STATus? Ready"), "READY")
+
+        class FakeScope(ScopeSession):
+            def __init__(self, responses):
+                super().__init__("example.invalid")
+                self.responses = iter(responses)
+                self.stopped = False
+
+            def query_ascii(self, command, **kwargs):
+                self.assert_command = command
+                return next(self.responses)
+
+        existing = FakeScope(["SAST Stop"])
+        observed = scope_assume_existing_stop(existing)
+        self.assertEqual(observed.normalized, "STOP")
+        self.assertEqual(observed.raw, "SAST Stop")
+        self.assertTrue(existing.stopped)
+
+        capture = FakeScope(["SAST Ready", "SAST Stop"])
+        ready = scope_wait_ready(capture, timeout_s=1.0, poll_s=0.0)
+        stop = scope_wait_stop(capture, timeout_s=1.0, poll_s=0.0)
+        self.assertEqual(ready.normalized, "READY")
+        self.assertEqual(stop.normalized, "STOP")
+        self.assertEqual([entry.raw for entry in capture.state_log], ["SAST Ready", "SAST Stop"])
+
     def test_word_segment_payload_is_two_bytes_per_point(self):
         from scope_protocol import IEEEBlock, ScopeSession
 
@@ -120,6 +150,13 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(len(block_result.payload), 6)
         with self.assertRaises(ScopeProtocolError):
             read_wav_segment(FakeScope(b"\x01" * 3), 10, 3, preamble)
+
+        class EchoingTruncation(FakeScope):
+            def query_block(self, command, **kwargs):
+                return IEEEBlock(b"", b"#", b"\x00\x01" * 2)
+
+        with self.assertRaisesRegex(ScopeProtocolError, "not evidence"):
+            read_wav_segment(EchoingTruncation(b""), 10, 3, preamble)
         with self.assertRaises(ScopeProtocolError):
             read_wav_segment(FakeScope(b"\x00" * 5), 10, 3, preamble)
 

@@ -148,8 +148,8 @@
 | `WAV:INT?` | query | — | 抽点参数回读。 | scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `WAV:STARt` / `:WAVeform:STARt` | set | 从 0 起始的点索引 `<zero-based-point>` | 只控制切片起点，不改变记录长度；每段写后回读 `WAV:STAR?` 校验。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>screenshot-and-waveform.md<br>connection-and-storage.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `WAV:STAR?` | query | — | 起点回读，必须等于请求值。 | scripts/scope_protocol.py |
-| `WAV:POINt` / `:WAVeform:POINt` | set | 点数 `<count>` | 与 `STARt` 共同定义切片；每段写后回读 `WAV:POIN?` 校验。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>screenshot-and-waveform.md<br>connection-and-storage.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
-| `WAV:POIN?` | query | — | 点数回读，必须等于请求值。 | scripts/scope_protocol.py |
+| `WAV:POINt` / `:WAVeform:POINt` | set | 点数 `<count>` | 与 `STARt` 共同定义切片；请求值必须与实际 `WAV:DATA?` 载荷点数一致。`WAV:POIN?` 只作辅助证据，不能替代载荷长度校验。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>screenshot-and-waveform.md<br>connection-and-storage.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `WAV:POIN?` | query | — | 点数回读仅作辅助证据；已验证固件可回显请求值而实际载荷静默截断到 250000 点。必须以 `len(payload) / bytes_per_point` 校验实际点数，不一致即失败；250000 是实测固件行为，不是通用上限。 | scripts/scope_protocol.py<br>scripts/capture_scope.py<br>screenshot-and-waveform.md |
 | `WAV:DATA?` / `:WAVeform:DATA?` | query | — | IEEE 488.2 二进制块；BYTE 期望 `count` 字节、WORD 期望 `count * 2` 字节；保留前缀/头/载荷/SHA-256；短载荷即 `INCOMPLETE`/`INVALID`。手册 5.23（PDF pp. 411-422）。 | SKILL.md<br>programming-guide.md (manual 5.23, PDF pp. 411-422)<br>connection-and-storage.md<br>screenshot-and-waveform.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `:WAVeform:SEQuence?` | query | — | 分段采集启用后才有意义；返回 `<value1>,<value2>`，未启用分段时目标返回 `4294967295,1`，**不得**当作有效帧号；按 `PREamble?` 的 `read_frames`/`sum_frame` 计算分片读取次数。手册印刷 pp. 383-394。 | screenshot-and-waveform.md (manual pp. 383-394) |
 | `CHDR` | set | `OFF` | 关闭命令头开启状态命令；在采集准备序列中先于通道/触发设置。 | programming-guide.md<br>scripts/scope_protocol.py |

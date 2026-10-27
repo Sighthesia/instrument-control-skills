@@ -353,11 +353,17 @@ def load_capture(
     concatenated_digest = hashlib.sha256()
     for segment in segments:
         start = int(segment.get("requested_start", segment.get("start", -1)))
-        count = int(segment.get("requested_points", 0))
+        requested_points = int(segment.get("requested_points", 0))
         actual_bytes = int(segment.get("actual_payload_bytes", segment.get("payload_length", -1)))
-        if start != cursor or count <= 0 or actual_bytes != count * width:
+        if actual_bytes < 0 or actual_bytes % width:
+            raise AnalysisError("DESCRIPTOR_MISMATCH", f"Segment payload width mismatch at point {cursor}")
+        actual_points = actual_bytes // width
+        if start != cursor or requested_points <= 0 or actual_points != requested_points:
             raise AnalysisError("DESCRIPTOR_MISMATCH", f"Segment continuity/size mismatch at point {cursor}")
-        cursor += count
+        manifest_actual_points = segment.get("actual_points")
+        if manifest_actual_points is not None and _int_field(manifest_actual_points, "segment.actual_points", -1) != actual_points:
+            raise AnalysisError("DESCRIPTOR_MISMATCH", f"Segment actual point count mismatch at point {cursor}")
+        cursor += actual_points
         segment_path_value = segment.get("payload")
         if segment_path_value:
             segment_path = _resolve_artifact(segment_path_value, manifest_dir, Path(channel) / Path(segment_path_value).name)

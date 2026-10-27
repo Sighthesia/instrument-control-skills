@@ -20,6 +20,8 @@ WAV:MAXPoint?
 
 The guide says `WAV:MAXPoint?` returns the per-transfer maximum in points and that `START` plus `POINT` controls a slice. The official Python example on PDF pages 479-482 sets the start for each slice, reads `WAV:DATA?`, and concatenates exact binary-block payloads. The implementation in this skill retains every prefix/header/payload and validates both point ranges and `points * bytes_per_point` before concatenation.
 
+Observed firmware behavior on the verified SDS824X HD: a request above 250,000 points can return 250,000 payload points while `WAV:POIN?` echoes the request. The readback is therefore advisory only; actual points are `len(payload) // bytes_per_point`, and a mismatch is an incomplete/invalid segment rather than a reason to advance the start by a guessed amount. This 250,000 value is not claimed as a universal model or firmware limit.
+
 The path has now been verified on firmware `4.8.12.1.1.6.5` with the current stopped C4 frame in both historical BYTE and WORD transport modes. WORD used `COMM_TYPE=1`, `COMM_ORDER=LSB`, five `5,000,000`-point segments of `10,000,000` bytes each, and a merged output of `50,000,000` bytes. This verifies raw transfer completeness and byte order; it does not by itself calibrate WORD voltage scaling or prove 16 effective ADC bits.
 
 `WAV:PREamble?` returns an IEEE binary block. For an analog waveform, the documented little-endian offsets are:
@@ -73,4 +75,4 @@ stimulate DUT
 SAST?        -> Stop
 ```
 
-Once `Stop` is observed after `Ready`, do not send state-changing acquisition commands until the caller explicitly releases the frame.
+Once `Stop` is observed after `Ready`, do not send state-changing acquisition commands until the caller explicitly releases the frame. `SAST?` replies may include a command prefix such as `SAST Stop`; normalize the state token for control decisions while preserving the raw reply in capture evidence. For signal interpretation, scan original-resolution samples for narrow pulses, validate voltage scaling against a known logic channel, avoid same-frequency observers that alias with the measured signal, and require a hypothesis to explain all periodic observations before declaring a counter frozen.

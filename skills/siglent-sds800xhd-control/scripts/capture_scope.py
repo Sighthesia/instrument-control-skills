@@ -12,6 +12,7 @@ import hashlib
 import re
 import sys
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
@@ -20,6 +21,7 @@ from scope_protocol import (
     ScopeSession,
     Segment,
     decide_waveform_width,
+    normalize_acquisition_state,
     read_wav_segment,
     scope_assume_existing_stop,
     configure_left_aligned_trigger,
@@ -61,24 +63,26 @@ def configure_default_capture(scope: ScopeSession) -> None:
     scope_prepare_capture(scope)
 
 
-def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float) -> None:
+def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float) -> dict:
+    """Poll ``SAST?`` until the canonical state matches ``wanted``.
+
+    Decorated replies (``SAST Ready``, mixed case, extra whitespace) are
+    normalized for the decision while the raw reply is retained as evidence.
+    """
+
+    target = normalize_acquisition_state(wanted)
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        state = scope.query_ascii("SAST?").strip()
-        normalized = state.upper()
-        if normalized == "ROLL":
-            scope.mark_state("Roll")
+        observed = scope.query_state()
+        state = observed.normalized
+        if state == "ROLL":
             raise ScopeProtocolError(
                 "scope is in Roll mode (:ACQuire:MODE ROLL); Roll never reaches Ready, "
                 "so it cannot support the Ready -> Stop single-shot flow. Leave Roll "
                 "(:ACQuire:MODE YT) before arming a capture"
             )
-        if normalized == "READY":
-            scope.mark_state("Ready")
-        elif normalized == "STOP":
-            scope.mark_state("Stop")
-        if normalized == wanted.upper():
-            return
+        if state == target:
+            return {"wanted": target, "raw": observed.raw, "normalized": state}
         time.sleep(poll_s)
     raise ScopeProtocolError(f"timed out waiting for SAST?={wanted}")
 
@@ -104,9 +108,18 @@ def read_modern_segment(
     count: int,
     preamble: dict,
 ) -> tuple[Segment, dict]:
+    """Read and persist one segment; the payload length decides the point count.
+
+    ``read_wav_segment`` has already rejected a short reply, so the metadata here
+    records the verified actual count rather than echoing the request.
+    """
+
     block = read_wav_segment(scope, start, count, preamble)
-    actual_start = start
-    actual_count = count
+    actual_points = block.actual_points
+    if actual_points != count:
+        raise ScopeProtocolError(
+            f"segment {start}: requested {count} points, payload holds {actual_points}; refusing to persist"
+        )
     payload_path, raw_path, prefix_path = write_block_artifact(root, channel, stem, block)
     time_origin = preamble["horizontal_offset"] - preamble["timebase_s"] * 5
     segment = Segment(
@@ -122,12 +135,13 @@ def read_modern_segment(
         "channel": channel,
         "requested_start": start,
         "requested_points": count,
-        "scope_start": actual_start,
-        "scope_points": actual_count,
+        "scope_start": start,
+        "scope_points_reported": block.reported_points,
+        "scope_points_echo_is_not_evidence": True,
         "actual_payload_bytes": len(block.payload),
         "bytes_per_point": preamble["data_width_bytes"],
         "byte_offset": start * preamble["data_width_bytes"],
-        "actual_points": segment.actual_points,
+        "actual_points": actual_points,
         "time_start_s": segment.time_start_s,
         "time_end_s": segment.time_end_s,
         "sha256": block.sha256,
@@ -230,8 +244,10 @@ def read_modern_channel(
         channel_snapshot[key] = scope.query_ascii(command, allow_after_stop=True)
     scope.write(f"WAV:SOUR {channel}", allow_after_stop=True)
     scope.write("WAV:INT 1", allow_after_stop=True)
+    interval_readback = int(float(scope.query_ascii("WAV:INT?", allow_after_stop=True)))
+    if interval_readback != 1:
+        raise ScopeProtocolError(f"requested WAV:INT 1, scope returned {interval_readback}")
     scope.write("WAV:STAR 0", allow_after_stop=True)
-    scope.write("WAV:POIN 0", allow_after_stop=True)
     initial_preamble_block = scope.query_block("WAV:PRE?", allow_after_stop=True)
     initial_preamble = parse_wavedesc(initial_preamble_block.payload)
     width_selection = decide_waveform_width(initial_preamble, requested_width)
@@ -267,7 +283,9 @@ def read_modern_channel(
         raise ScopeProtocolError(f"invalid WAV:MAXP? response: {max_points_text!r}")
     max_points = int(max_points_value)
     probes = run_modern_probes(scope, root, channel, preamble, max_points, probe_points or [])
-    step = min(segment_points, max_points) if max_points > 0 else segment_points
+    step = min(segment_points, max_points)
+    if step <= 0:
+        raise ScopeProtocolError(f"invalid segment step {step} from WAV:MAXP?={max_points}")
     segments: list[Segment] = []
     segment_files: list[dict] = []
     start = 0
@@ -276,11 +294,16 @@ def read_modern_channel(
         count = min(step, expected_points - start)
         stem = f"segment-{index:06d}"
         segment, metadata = read_modern_segment(scope, root, channel, stem, start, count, preamble)
+        if segment.actual_points != count:
+            raise ScopeProtocolError(
+                f"segment {start}: requested {count} points, payload holds {segment.actual_points}; "
+                "refusing to advance the range"
+            )
         segments.append(segment)
         metadata["command_snapshot"] = channel_snapshot
         save_json(root / channel / f"{stem}.json", metadata)
         segment_files.append(metadata)
-        start += count
+        start += segment.actual_points
         index += 1
     segment_report = validate_segments(
         segments,
@@ -312,6 +335,7 @@ def read_modern_channel(
     preamble_prefix_path.write_bytes(preamble_block.prefix)
     result = {"channel": channel, "mode": scope.capture_mode, "preamble": preamble, "waveform_format": {**width_selection, "width_readback": width_readback, "wav_max_point": max_points, "maxpoint_unit": "points", "sparsing_readback": sparsing_readback, "byte_order": preamble["byte_order"], "byte_order_readback": byte_order_readback, "expected_payload_bytes": expected_points * bytes_per_point}, "preamble_payload": str(preamble_path), "preamble_raw_response": str(preamble_raw_path), "preamble_prefix": str(preamble_prefix_path), "segments": segment_files, "segment_report": segment_report, "frame_report": frame_report}
     result["probes"] = probes
+    result["state_evidence"] = [asdict(entry) for entry in scope.state_log]
     if segment_report["status"] == "COMPLETE":
         merged_path = merge_segment_payloads(root, channel, segment_files, "waveform.bin")
         result["merged_waveform"] = str(merged_path)
@@ -491,12 +515,15 @@ def main() -> int:
             manifest["capture_configuration"]["left_aligned_trigger"] = trigger_strategy
         if args.trigger:
             scope.write("TRMD SINGLE")
-            wait_state(scope, "READY", args.ready_timeout, args.poll)
-            wait_state(scope, "STOP", args.stop_timeout, args.poll)
+            manifest["ready_state"] = wait_state(scope, "READY", args.ready_timeout, args.poll)
+            manifest["stop_state"] = wait_state(scope, "STOP", args.stop_timeout, args.poll)
         elif args.existing_stopped:
-            scope_assume_existing_stop(scope)
+            existing = scope_assume_existing_stop(scope)
+            manifest["existing_stop_state"] = {"raw": existing.raw, "normalized": existing.normalized}
+            manifest["existing_stop_claims_new_transition"] = False
         else:
             raise SystemExit("Use --trigger for a new capture or --existing-stopped for the current stopped frame")
+        manifest["state_evidence"] = [asdict(entry) for entry in scope.state_log]
         if args.mode == "modern":
             snapshot = manifest["capture_configuration"]["acquisition"]
             scope_points = args.scope_record_points
