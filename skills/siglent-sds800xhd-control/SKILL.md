@@ -135,6 +135,16 @@ Use `scripts/scope_protocol.py` for all byte parsing.
 
 Use the bundled read-only analyzer after a capture has produced a complete `manifest.json`. It never reconnects to or writes the oscilloscope and it never replaces the raw `waveform.bin` evidence:
 
+### Mandatory analysis gate
+
+Before making any conclusion about periodic-signal presence/absence, drive, frequency stability/change, duty/pulse timing, or a long record's phases, the agent must:
+
+1. Run `structure` on the **full record** at original resolution with explicit hysteresis thresholds. Inspect `coverage.full_record_scanned`, `edges.items_complete`, `pulses.items_complete`, and `evidence.observation_status`. If any is incomplete, truncated, `UNVERIFIED`, or limited to a time subrange, state the limitation and do not make a record-wide claim.
+2. If the structure contains at least two complete cycles or the task asks whether a periodic regime changed, run `regimes` on the **same full record, channel, thresholds, and calibration context**. Inspect `data_integrity_status`, `segmentation_status`, `overall_status`, `coverage.count_reconciliation.reconciles`, regime/transition/cycle counts, unresolved phases, anomalies, and each returned item's completeness flags before drawing conclusions.
+3. Reconcile each claim with the returned per-cycle values and edge/pulse references. Report every regime and every unresolved candidate phase, including brief phases; do not summarize away a detected stage or anomaly. Use `window` only to inspect samples around referenced transitions/anomalies, never as a replacement for full-record structure.
+
+If the waveform is not periodic/pulse-like, explicitly mark regime segmentation as not applicable and state which structure evidence supports that choice. If cycle support is insufficient, or any output is truncated/prefix-only, report the stage analysis as unresolved/`UNVERIFIED`; do not silently skip the regime pass and do not convert missing evidence into a negative claim. `inspect`, `summarize`, a screenshot, `events` pagination, and an M4/stride preview alone do not satisfy this gate.
+
 ```text
 python3 scripts/analyze_waveform.py inspect --capture /path/to/capture --channel C4
 python3 scripts/analyze_waveform.py summarize --capture /path/to/capture --channel C4 --preview-buckets 256
