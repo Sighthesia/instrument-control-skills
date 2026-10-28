@@ -16,9 +16,17 @@ from waveform_analysis import (
     DEFAULT_JSON_BYTES,
     DEFAULT_PREVIEW_BUCKETS,
     DEFAULT_STRUCTURE_EDGE_LIMIT,
+    DEFAULT_REGIME_ANOMALY_Z,
+    DEFAULT_REGIME_MAX_CYCLES,
+    DEFAULT_REGIME_MEASURES,
+    DEFAULT_REGIME_MIN_CYCLES_PER_SIDE,
+    DEFAULT_REGIME_RELATIVE_TOLERANCE,
+    DEFAULT_REGIME_ABSOLUTE_TOLERANCE,
+    DEFAULT_REGIME_TRANSITION_MARGIN_CYCLES,
     DEFAULT_WINDOW_POINTS,
     AnalysisError,
     analyze_pulse_structure,
+    analyze_waveform_regimes,
     analyze_ringing,
     bound_json,
     error_envelope,
@@ -88,6 +96,24 @@ def build_parser() -> argparse.ArgumentParser:
     structure.add_argument("--chunk-points", type=int, default=DEFAULT_CHUNK_POINTS)
     structure.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float, help="optional relative display-time scan start")
     structure.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float, help="optional relative display-time scan end (exclusive)")
+
+    regimes = commands.add_parser("regimes", help="segment raw full-resolution cycles into stable measurement regimes and anomalies")
+    _add_capture_args(regimes)
+    regime_threshold = regimes.add_mutually_exclusive_group(required=True)
+    regime_threshold.add_argument("--threshold-codes", nargs=2, type=float, metavar=("LOW", "HIGH"))
+    regime_threshold.add_argument("--threshold-volts", nargs=2, type=float, metavar=("LOW", "HIGH"))
+    regimes.add_argument("--measures", default=DEFAULT_REGIME_MEASURES, help="auto or comma-separated per-cycle measures")
+    regimes.add_argument("--min-cycles-per-side", type=int, default=DEFAULT_REGIME_MIN_CYCLES_PER_SIDE)
+    regimes.add_argument("--relative-tolerance", type=float, default=DEFAULT_REGIME_RELATIVE_TOLERANCE)
+    regimes.add_argument("--absolute-tolerance", type=float, default=DEFAULT_REGIME_ABSOLUTE_TOLERANCE)
+    regimes.add_argument("--transition-margin-cycles", type=int, default=DEFAULT_REGIME_TRANSITION_MARGIN_CYCLES)
+    regimes.add_argument("--anomaly-z", type=float, default=DEFAULT_REGIME_ANOMALY_Z)
+    regimes.add_argument("--max-edges", type=int, default=DEFAULT_STRUCTURE_EDGE_LIMIT)
+    regimes.add_argument("--max-cycles", type=int, default=DEFAULT_REGIME_MAX_CYCLES)
+    regimes.add_argument("--cluster-gap-s", type=float)
+    regimes.add_argument("--chunk-points", type=int, default=DEFAULT_CHUNK_POINTS)
+    regimes.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float)
+    regimes.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float)
 
     window = commands.add_parser("window", help="retrieve a bounded raw sample window")
     _add_capture_args(window)
@@ -220,6 +246,31 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
             cluster_gap_s=args.cluster_gap_s,
             max_edges=args.max_edges,
             chunk_points=args.chunk_points,
+            start_time_s=args.start_time_s,
+            end_time_s=args.end_time_s,
+        )
+    if args.command == "regimes":
+        if args.threshold_codes:
+            low, high = args.threshold_codes
+            domain = "code"
+        else:
+            low, high = args.threshold_volts
+            domain = "voltage"
+        return analyze_waveform_regimes(
+            capture,
+            low=low,
+            high=high,
+            domain=domain,
+            measures=args.measures,
+            min_cycles_per_side=args.min_cycles_per_side,
+            relative_tolerance=args.relative_tolerance,
+            absolute_tolerance=args.absolute_tolerance,
+            transition_margin_cycles=args.transition_margin_cycles,
+            anomaly_z=args.anomaly_z,
+            max_edges=args.max_edges,
+            max_cycles=args.max_cycles,
+            chunk_points=args.chunk_points,
+            cluster_gap_s=args.cluster_gap_s,
             start_time_s=args.start_time_s,
             end_time_s=args.end_time_s,
         )

@@ -27,12 +27,37 @@ DEFAULT_CLUSTER_GAP_PERIOD_FACTOR = 3.0
 DEFAULT_CLUSTER_GAP_SAMPLE_INTERVALS = 8.0
 DEFAULT_WINDOW_POINTS = 2_000
 DEFAULT_JSON_BYTES = 256 * 1024
+DEFAULT_REGIME_MIN_CYCLES_PER_SIDE = 5
+DEFAULT_REGIME_RELATIVE_TOLERANCE = 0.08
+DEFAULT_REGIME_ABSOLUTE_TOLERANCE = 0.0
+DEFAULT_REGIME_TRANSITION_MARGIN_CYCLES = 1
+DEFAULT_REGIME_ANOMALY_Z = 3.5
+DEFAULT_REGIME_MAX_CYCLES = 5_000
+DEFAULT_REGIME_MEASURES = "auto"
 MAX_PREVIEW_BUCKETS = 2_000
 MAX_EVENT_PAGE = 100
 MAX_EVENT_SCAN_BUDGET = 20_000
 MAX_STRUCTURE_EDGE_LIMIT = 200_000
 MAX_WINDOW_POINTS = 2_000
 MAX_JSON_BYTES = 4 * 1024 * 1024
+MAX_REGIME_MIN_CYCLES_PER_SIDE = 1_000
+MAX_REGIME_MAX_CYCLES = 200_000
+MAX_REGIME_TRANSITION_MARGIN_CYCLES = 1_000
+MAX_REGIME_UNRESOLVED_RECORDS = 2_000
+
+REGIME_DETECTOR_ID = "robust_regime_step_v1"
+REGIME_DETECTOR_VERSION = "1.0"
+REGIME_CYCLE_DERIVATION = "adjacent_complete_rising_starts_on_sample_grid"
+# Deterministic internal constants of the robust step detector.
+_STEP_SCAN_GRID = 256
+_STEP_ALTERNATIVE_CANDIDATES = 4
+_STEP_FLATNESS_FRACTION = 0.4
+_STEP_NOISE_SIGMA = 3.0
+_STEP_UNCERTAINTY_SPAN_FACTOR = 0.5
+_MAD_TO_SIGMA = 1.4826
+_MODIFIED_Z_FACTOR = 0.6745
+_DRIFT_MIN_FIT_QUALITY = 0.5
+_DRIFT_MIN_MONOTONIC_FRACTION = 0.7
 
 
 class AnalysisError(RuntimeError):
@@ -1639,9 +1664,2348 @@ def analyze_ringing(
     }
 
 
+# ---------------------------------------------------------------------------
+# Waveform regime analysis
+#
+# Regimes are built only from complete cycles reconstructed out of adjacent
+# complete high pulses from ``analyze_pulse_structure``. Every detection step
+# below is deterministic, reports its own evidence, and never derives a
+# segmentation input from a preview, a stride, or a whole-record aggregate.
+# ---------------------------------------------------------------------------
+
+#: Supported per-cycle measures. Features sharing one ``dimension`` describe
+#: the same physical evidence (period/frequency, code/voltage) and therefore
+#: never count as independent segmentation evidence.
+_REGIME_FEATURE_REGISTRY: dict[str, dict[str, Any]] = {
+    "period_s": {
+        "dimension": "period",
+        "unit": "s",
+        "value_domain": "time",
+        "quantum": "sample_interval_s",
+        "description": "cycle period from the sample difference between adjacent complete rising starts",
+    },
+    "frequency_hz": {
+        "dimension": "period",
+        "unit": "Hz",
+        "value_domain": "time",
+        "quantum": "sample_interval_s_at_observed_period",
+        "description": "1/period_s; reciprocal representation of the period dimension",
+    },
+    "high_width_s": {
+        "dimension": "high_width",
+        "unit": "s",
+        "value_domain": "time",
+        "quantum": "sample_interval_s",
+        "description": "high-pulse width from the sample-grid pulse extent (pulse.width_s), never interpolated",
+    },
+    "low_width_s": {
+        "dimension": "low_width",
+        "unit": "s",
+        "value_domain": "time",
+        "quantum": "sample_interval_s",
+        "description": "low gap between the current pulse end sample and the next complete pulse start sample",
+    },
+    "duty_cycle": {
+        "dimension": "duty",
+        "unit": "ratio",
+        "value_domain": "ratio",
+        "quantum": "sample_interval_s_over_period",
+        "description": "high_width_s / period_s on the sample grid",
+    },
+    "peak_code": {
+        "dimension": "peak_code",
+        "unit": "code",
+        "value_domain": "code",
+        "quantum": "one_code",
+        "description": "maximum sample code inside the half-open cycle span",
+    },
+    "min_code": {
+        "dimension": "min_code",
+        "unit": "code",
+        "value_domain": "code",
+        "quantum": "one_code",
+        "description": "minimum sample code inside the half-open cycle span",
+    },
+    "peak_to_peak_code": {
+        "dimension": "peak_to_peak_code",
+        "unit": "code",
+        "value_domain": "code",
+        "quantum": "one_code",
+        "description": "peak_code - min_code inside the half-open cycle span",
+    },
+    "peak_v": {
+        "dimension": "peak_code",
+        "unit": "V",
+        "value_domain": "voltage",
+        "quantum": "code_scale_v",
+        "requires_calibration": "VALID",
+        "description": "calibrated voltage of peak_code; requires status VALID calibration",
+    },
+    "min_v": {
+        "dimension": "min_code",
+        "unit": "V",
+        "value_domain": "voltage",
+        "quantum": "code_scale_v",
+        "requires_calibration": "VALID",
+        "description": "calibrated voltage of min_code; requires status VALID calibration",
+    },
+    "peak_to_peak_v": {
+        "dimension": "peak_to_peak_code",
+        "unit": "V",
+        "value_domain": "voltage",
+        "quantum": "code_scale_v",
+        "requires_calibration": "VALID",
+        "description": "calibrated voltage of peak_to_peak_code; requires status VALID calibration",
+    },
+}
+
+_REGIME_AUTO_FEATURE_ORDER = (
+    "period_s",
+    "duty_cycle",
+    "high_width_s",
+    "low_width_s",
+    "peak_code",
+    "min_code",
+    "peak_to_peak_code",
+)
+
+
+def _regime_number(value: Any) -> Optional[float]:
+    number = _finite_number(value)
+    return None if number is None else float(number)
+
+
+def _regime_ratio(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    return _regime_number(numerator / denominator)
+
+
+def _regime_capped_ids(values: list[str], limit: int = 8) -> list[str]:
+    if len(values) <= limit:
+        return list(values)
+    head = limit // 2
+    return list(values[:head]) + list(values[-(limit - head) :])
+
+
+def _build_regime_cycles(
+    capture: dict[str, Any], structure: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Build complete cycles from adjacent complete pulses only.
+
+    A cycle spans ``[pulse.start_sample, next_pulse.start_sample)`` and exists
+    only when *both* bounding pulses are ``COMPLETE`` (each therefore has its
+    own observed rising and falling edge inside the scanned range) and they are
+    adjacent in the pulse table. Pulses that are incomplete, unpaired, or
+    separated by an incomplete pulse never contribute a period or width, so no
+    missing edge is inferred and no boundary pulse is padded.
+    """
+
+    samples = capture["samples"]
+    interval = float(capture["sample_interval_s"])
+    origin = float(capture["time_origin_s"])
+    calibrated = capture["calibration"]["status"] == "VALID"
+    pulses = structure.get("pulses", {}).get("items", [])
+    cycles: list[dict[str, Any]] = []
+    incomplete_pulses: list[dict[str, Any]] = []
+    unpaired_pulses: list[dict[str, Any]] = []
+    for position, pulse in enumerate(pulses):
+        if pulse.get("status") != "COMPLETE":
+            incomplete_pulses.append(pulse)
+            continue
+        following = pulses[position + 1] if position + 1 < len(pulses) else None
+        if following is None or following.get("status") != "COMPLETE":
+            unpaired_pulses.append(pulse)
+            continue
+        start_sample = int(pulse["start_sample"])
+        next_start = int(following["start_sample"])
+        end_sample = int(pulse["end_sample"])
+        if next_start <= start_sample or end_sample < start_sample or end_sample >= next_start:
+            unpaired_pulses.append(pulse)
+            continue
+        high_width_s = float(pulse["width_s"])
+        period_s = (next_start - start_sample) * interval
+        low_width_s = (next_start - end_sample) * interval
+        if period_s <= 0 or high_width_s < 0 or low_width_s < 0:
+            unpaired_pulses.append(pulse)
+            continue
+        region = np.asarray(samples[start_sample:next_start], dtype=np.int32)
+        if not region.size:
+            unpaired_pulses.append(pulse)
+            continue
+        peak_code = int(region.max())
+        min_code = int(region.min())
+        features: dict[str, Any] = {
+            "period_s": period_s,
+            "frequency_hz": 1.0 / period_s,
+            "high_width_s": high_width_s,
+            "low_width_s": low_width_s,
+            "duty_cycle": high_width_s / period_s,
+            "peak_code": float(peak_code),
+            "min_code": float(min_code),
+            "peak_to_peak_code": float(peak_code - min_code),
+        }
+        if calibrated:
+            features["peak_v"] = _calibrated(peak_code, capture)
+            features["min_v"] = _calibrated(min_code, capture)
+            features["peak_to_peak_v"] = features["peak_v"] - features["min_v"]
+        cycle_index = len(cycles)
+        cycles.append(
+            {
+                "cycle_id": f"g{cycle_index:05d}",
+                "index": cycle_index,
+                "start_sample": start_sample,
+                "end_sample_exclusive": next_start,
+                "sample_span": next_start - start_sample,
+                "start_time_s": origin + start_sample * interval,
+                "end_time_s": origin + next_start * interval,
+                "feature_basis": "sample_grid",
+                "features": features,
+                "pulse_id": pulse["pulse_id"],
+                "next_pulse_id": following["pulse_id"],
+                "rising_edge_id": pulse.get("rising_edge_id"),
+                "falling_edge_id": pulse.get("falling_edge_id"),
+                "next_rising_edge_id": following.get("rising_edge_id"),
+                "high_width_is_lower_bound": bool(pulse.get("width_is_lower_bound")),
+                "touches_capture_boundary": bool(pulse.get("touches_capture_boundary"))
+                or bool(following.get("touches_capture_boundary")),
+                "source_pulse_status": [pulse.get("status"), following.get("status")],
+            }
+        )
+    diagnostics = {
+        "incomplete_pulse_count": len(incomplete_pulses),
+        "incomplete_pulse_ids": _regime_capped_ids([str(pulse.get("pulse_id")) for pulse in incomplete_pulses]),
+        "incomplete_pulse_windows": [
+            {
+                "pulse_id": pulse.get("pulse_id"),
+                "status": pulse.get("status"),
+                "sample_range": [int(pulse.get("start_sample", 0)), int(pulse.get("end_sample", 0))],
+                "boundary_flags": list(pulse.get("boundary_flags") or []),
+            }
+            for pulse in incomplete_pulses[:4]
+        ],
+        "unpaired_complete_pulse_count": len(unpaired_pulses),
+        "unpaired_complete_pulse_ids": _regime_capped_ids([str(pulse.get("pulse_id")) for pulse in unpaired_pulses]),
+        "complete_pulse_count": structure.get("pulses", {}).get("complete_count"),
+        "pulse_count": structure.get("pulses", {}).get("count"),
+    }
+    return cycles, diagnostics
+
+
+def _regime_measure_plan(
+    requested: Any, capture: dict[str, Any]
+) -> tuple[str, list[str], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Validate requested measures and deduplicate evidence dimensions."""
+
+    calibrated = capture["calibration"]["status"] == "VALID"
+    if isinstance(requested, str):
+        text = requested.strip()
+        if text.lower() == "auto" or not text:
+            mode = "auto"
+            names: list[str] = list(_REGIME_AUTO_FEATURE_ORDER)
+        else:
+            mode = "explicit"
+            names = [item.strip() for item in text.split(",") if item.strip()]
+    elif isinstance(requested, (list, tuple)):
+        mode = "explicit"
+        names = [str(item).strip() for item in requested if str(item).strip()]
+    else:
+        raise AnalysisError("LIMIT_INVALID", "measures must be 'auto' or a list of supported feature names")
+    if not names:
+        raise AnalysisError("LIMIT_INVALID", "measures must contain at least one feature name")
+
+    unknown = [name for name in names if name not in _REGIME_FEATURE_REGISTRY]
+    if unknown:
+        raise AnalysisError(
+            "MEASURE_UNSUPPORTED",
+            f"Unsupported regime measure(s): {', '.join(unknown)}",
+            [
+                f"unknown_measure:{name}" for name in unknown
+            ]
+            + [f"supported_measures:{', '.join(sorted(_REGIME_FEATURE_REGISTRY))}"],
+        )
+
+    rejected: list[dict[str, Any]] = []
+    unavailable: list[dict[str, Any]] = []
+    ordered: list[str] = []
+    dimension_owner: dict[str, str] = {}
+    for name in names:
+        spec = _REGIME_FEATURE_REGISTRY[name]
+        if spec.get("requires_calibration") == "VALID" and not calibrated:
+            unavailable.append(
+                {
+                    "feature": name,
+                    "dimension": spec["dimension"],
+                    "reason": "voltage_calibration_not_valid",
+                    "detail": (
+                        f"{name} needs calibration.status == VALID; "
+                        f"observed status is {capture['calibration']['status']} so code-domain measures continue unaudited"
+                    ),
+                    "evidence": {"calibration_status": capture["calibration"]["status"]},
+                }
+            )
+            continue
+        owner = dimension_owner.get(spec["dimension"])
+        if owner is not None:
+            rejected.append(
+                {
+                    "feature": name,
+                    "dimension": spec["dimension"],
+                    "reason": f"duplicate_dimension_of:{owner}",
+                    "detail": (
+                        f"{name} and {owner} measure the same evidence dimension "
+                        f"'{spec['dimension']}' and therefore cannot be independent segmentation evidence"
+                    ),
+                    "evidence": {"duplicate_of": owner},
+                }
+            )
+            continue
+        dimension_owner[spec["dimension"]] = name
+        ordered.append(name)
+    return mode, ordered, rejected, unavailable, names
+
+
+def _regime_feature_resolution(
+    feature: str,
+    values: Any,
+    capture: dict[str, Any],
+    period_median: Optional[float],
+) -> Optional[float]:
+    """One-sample resolution of a per-cycle measure."""
+
+    interval = float(capture["sample_interval_s"])
+    spec = _REGIME_FEATURE_REGISTRY[feature]
+    quantum = spec["quantum"]
+    if quantum in ("sample_interval_s",):
+        return interval
+    if quantum == "sample_interval_s_at_observed_period":
+        if not period_median or period_median <= 0:
+            return None
+        observed = float(np.median(np.asarray(values, dtype=np.float64)))
+        if observed <= 0:
+            return None
+        return abs(1.0 / observed - 1.0 / (observed + interval))
+    if quantum == "sample_interval_s_over_period":
+        if not period_median or period_median <= 0:
+            return None
+        return interval / period_median
+    if quantum == "one_code":
+        return 1.0
+    if quantum == "code_scale_v":
+        scale = _finite_number(capture["calibration"].get("code_scale_v"))
+        return scale if scale and scale > 0 else None
+    return None
+
+
+def _step_candidate(
+    values: Any, segment_lo: int, segment_hi: int, split: int, single_deviance: float
+) -> dict[str, Any]:
+    left = values[segment_lo:split]
+    right = values[split:segment_hi]
+    left_median = float(np.median(left))
+    right_median = float(np.median(right))
+    left_mad = float(np.median(np.abs(left - left_median)))
+    right_mad = float(np.median(np.abs(right - right_median)))
+    loss = float(np.sum(np.abs(left - left_median)) + np.sum(np.abs(right - right_median)))
+    return {
+        "cycle_index": int(split),
+        "segment": [int(segment_lo), int(segment_hi)],
+        "left_median": left_median,
+        "right_median": right_median,
+        "left_mad": left_mad,
+        "right_mad": right_mad,
+        "loss": loss,
+        "single_deviance": single_deviance,
+        "loss_reduction": float(single_deviance - loss),
+        "effect": abs(right_median - left_median),
+    }
+
+
+def _ranked_split_candidates(
+    values: Any, segment_lo: int, segment_hi: int, min_side: int
+) -> list[dict[str, Any]]:
+    """Deterministic L1 step candidates for one segment, best first."""
+
+    span = segment_hi - segment_lo
+    if span < 2 * min_side:
+        return []
+    segment = values[segment_lo:segment_hi]
+    single_median = float(np.median(segment))
+    single_deviance = float(np.sum(np.abs(segment - single_median)))
+    first = segment_lo + min_side
+    last = segment_hi - min_side
+    count = last - first + 1
+    stride = max(1, count // _STEP_SCAN_GRID)
+    grid = list(range(first, last + 1, stride))
+    if grid[-1] != last:
+        grid.append(last)
+    scored: list[dict[str, Any]] = []
+    best: Optional[dict[str, Any]] = None
+    for split in grid:
+        candidate = _step_candidate(values, segment_lo, segment_hi, split, single_deviance)
+        scored.append(candidate)
+        if best is None or candidate["loss_reduction"] > best["loss_reduction"]:
+            best = candidate
+    if best is None:
+        return []
+    # Full-resolution refinement around the best grid point only; ties keep the
+    # smaller split index so the result is reproducible.
+    refine_lo = max(first, best["cycle_index"] - stride)
+    refine_hi = min(last, best["cycle_index"] + stride)
+    for split in range(refine_lo, refine_hi + 1):
+        candidate = _step_candidate(values, segment_lo, segment_hi, split, single_deviance)
+        scored.append(candidate)
+        if candidate["loss_reduction"] > best["loss_reduction"]:
+            best = candidate
+    scored.sort(key=lambda item: (-item["loss_reduction"], item["cycle_index"]))
+    distinct: list[dict[str, Any]] = []
+    for candidate in scored:
+        if all(abs(candidate["cycle_index"] - kept["cycle_index"]) >= min_side for kept in distinct):
+            distinct.append(candidate)
+        if len(distinct) >= _STEP_ALTERNATIVE_CANDIDATES:
+            break
+    return distinct
+
+
+def _step_gates(
+    values: Any,
+    candidate: dict[str, Any],
+    *,
+    threshold: float,
+    resolution: float,
+    minimum_effect: Optional[float] = None,
+) -> dict[str, Any]:
+    """Explicit, per-feature gates for a sustained step. No composite score."""
+
+    effect = candidate["effect"]
+    segment_lo, segment_hi = candidate["segment"]
+    split = candidate["cycle_index"]
+    required_effect = float(minimum_effect) if minimum_effect is not None else float(resolution)
+    noise = _MAD_TO_SIGMA * max(candidate["left_mad"], candidate["right_mad"])
+    flat_left = _regime_half_drift(values, segment_lo, split)
+    flat_right = _regime_half_drift(values, split, segment_hi)
+    flatness_limit = _STEP_FLATNESS_FRACTION * effect
+    reasons: list[str] = []
+    if effect <= 0 or effect < threshold:
+        reasons.append("effect_below_tolerance")
+    if resolution > 0 and effect < resolution:
+        reasons.append("effect_below_resolution")
+    elif required_effect > resolution and effect < required_effect:
+        reasons.append("effect_below_quantization_guard")
+    if noise > 0 and effect < _STEP_NOISE_SIGMA * noise:
+        reasons.append("effect_within_robust_noise")
+    for drift in (flat_left, flat_right):
+        if drift is not None and effect > 0 and drift > flatness_limit:
+            reasons.append("monotonic_drift_not_a_step")
+            break
+    return {
+        "pass": not reasons,
+        "reasons": reasons,
+        "effect": effect,
+        "threshold": threshold,
+        "resolution": resolution,
+        "minimum_effect": required_effect,
+        "robust_noise": noise,
+        "noise_gate": _STEP_NOISE_SIGMA * noise,
+        "flatness_left": flat_left,
+        "flatness_right": flat_right,
+        "flatness_limit": flatness_limit,
+        "flatness_fraction": _STEP_FLATNESS_FRACTION,
+    }
+
+
+def _regime_half_drift(values: Any, segment_lo: int, segment_hi: int) -> Optional[float]:
+    span = segment_hi - segment_lo
+    if span < 4:
+        return None
+    middle = segment_lo + span // 2
+    lower = float(np.median(values[segment_lo:middle]))
+    upper = float(np.median(values[middle:segment_hi]))
+    return abs(upper - lower)
+
+
+def _boundary_uncertainty_run(
+    values: Any,
+    boundary: dict[str, Any],
+    *,
+    min_side: int,
+    resolution: float,
+) -> tuple[int, int, float]:
+    """Full contiguous interval of near-equivalent change-point evidence."""
+
+    segment_lo, segment_hi = boundary["segment"]
+    split = boundary["cycle_index"]
+    span = segment_hi - segment_lo
+    noise = _MAD_TO_SIGMA * max(boundary["left_mad"], boundary["right_mad"])
+    scale = max(noise, 0.5 * resolution)
+    delta = _STEP_UNCERTAINTY_SPAN_FACTOR * span * scale
+    first = max(segment_lo + min_side, split - 2 * min_side)
+    last = min(segment_hi - min_side, split + 2 * min_side)
+    losses: dict[int, float] = {}
+    for index in range(first, last + 1):
+        candidate = _step_candidate(values, segment_lo, segment_hi, index, boundary["single_deviance"])
+        losses[index] = candidate["loss"]
+    base = losses[split]
+    run_lo = split
+    run_hi = split
+    while run_lo - 1 >= first and losses[run_lo - 1] <= base + delta:
+        run_lo -= 1
+    while run_hi + 1 <= last and losses[run_hi + 1] <= base + delta:
+        run_hi += 1
+    return run_lo, run_hi, float(delta)
+
+
+def _regime_mad(values: Any, center: float) -> float:
+    if not values.size:
+        return 0.0
+    return float(np.median(np.abs(values - float(center))))
+
+
+def _l1_deviance(values: Any) -> float:
+    if not values.size:
+        return 0.0
+    return float(np.sum(np.abs(values - float(np.median(values)))))
+
+
+def _phase_part_loss(
+    values: Any, segment_lo: int, run_start: int, run_end: int, segment_hi: int
+) -> tuple[float, float, float, float, float]:
+    """L1 loss and the three robust medians of a three-part (left/phase/right) model."""
+
+    left = values[segment_lo:run_start]
+    phase = values[run_start:run_end]
+    right = values[run_end:segment_hi]
+    loss = _l1_deviance(left) + _l1_deviance(phase) + _l1_deviance(right)
+    to_median = lambda part: float(np.median(part)) if part.size else float("nan")  # noqa: E731
+    return loss, to_median(left), to_median(phase), to_median(right), float(
+        max(
+            _regime_mad(left, np.median(left)) if left.size else 0.0,
+            _regime_mad(phase, np.median(phase)) if phase.size else 0.0,
+            _regime_mad(right, np.median(right)) if right.size else 0.0,
+        )
+    )
+
+
+def _refine_phase_bounds(
+    values: Any, segment_lo: int, segment_hi: int, run_start: int, run_end: int, min_side: int
+) -> tuple[int, int]:
+    """Coordinate descent on the two phase bounds with an L1 three-part loss."""
+
+    best = _phase_part_loss(values, segment_lo, run_start, run_end, segment_hi)[0]
+    for _ in range(2):
+        improved = False
+        tuned_start = run_start
+        for candidate in range(
+            max(segment_lo + 1, run_start - min_side), min(run_end - 1, run_start + min_side) + 1
+        ):
+            loss = _phase_part_loss(values, segment_lo, candidate, run_end, segment_hi)[0]
+            if loss < best - 1e-18:
+                best, tuned_start, improved = loss, candidate, True
+        run_start = tuned_start
+        tuned_end = run_end
+        for candidate in range(
+            max(run_start + 1, run_end - min_side), min(segment_hi - 1, run_end + min_side) + 1
+        ):
+            loss = _phase_part_loss(values, segment_lo, run_start, candidate, segment_hi)[0]
+            if loss < best - 1e-18:
+                best, tuned_end, improved = loss, candidate, True
+        run_end = tuned_end
+        if not improved:
+            break
+    return run_start, run_end
+
+
+def _phase_candidate_gates(
+    values: Any,
+    segment_lo: int,
+    segment_hi: int,
+    run_start: int,
+    run_end: int,
+    *,
+    min_side: int,
+    threshold: float,
+    resolution: float,
+    minimum_effect: float,
+) -> dict[str, Any]:
+    """Gates for a middle phase bracketed by two regimes. No composite score."""
+
+    loss, left_median, phase_median, right_median, part_mad = _phase_part_loss(
+        values, segment_lo, run_start, run_end, segment_hi
+    )
+    effect_left = phase_median - left_median
+    effect_right = phase_median - right_median
+    magnitude = min(abs(effect_left), abs(effect_right))
+    noise = _MAD_TO_SIGMA * part_mad
+    flat_left = _regime_half_drift(values, segment_lo, run_start)
+    flat_phase = _regime_half_drift(values, run_start, run_end)
+    flat_right = _regime_half_drift(values, run_end, segment_hi)
+    flatness_limit = _STEP_FLATNESS_FRACTION * magnitude
+    left_count = run_start - segment_lo
+    phase_count = run_end - run_start
+    right_count = segment_hi - run_end
+    reasons: list[str] = []
+    if effect_left * effect_right <= 0:
+        reasons.append("phase_not_bracketed_by_same_level")
+    if magnitude <= 0 or magnitude < threshold:
+        reasons.append("effect_below_tolerance")
+    if resolution > 0 and magnitude < resolution:
+        reasons.append("effect_below_resolution")
+    elif minimum_effect > resolution and magnitude < minimum_effect:
+        reasons.append("effect_below_quantization_guard")
+    if noise > 0 and magnitude < _STEP_NOISE_SIGMA * noise:
+        reasons.append("effect_within_robust_noise")
+    for drift in (flat_left, flat_phase, flat_right):
+        if drift is not None and magnitude > 0 and drift > flatness_limit:
+            reasons.append("monotonic_drift_not_a_step")
+            break
+    support_reasons: list[str] = []
+    if phase_count < min_side:
+        support_reasons.append("phase_support_below_min_cycles")
+    if left_count < min_side:
+        support_reasons.append("left_regime_support_below_min_cycles")
+    if right_count < min_side:
+        support_reasons.append("right_regime_support_below_min_cycles")
+    return {
+        "pass": not reasons,
+        "reasons": reasons,
+        "supportable": not support_reasons,
+        "support_reasons": support_reasons,
+        "effect": magnitude,
+        "effect_left": effect_left,
+        "effect_right": effect_right,
+        "threshold": threshold,
+        "resolution": resolution,
+        "minimum_effect": minimum_effect,
+        "robust_noise": noise,
+        "noise_gate": _STEP_NOISE_SIGMA * noise,
+        "flatness_left": flat_left,
+        "flatness_phase": flat_phase,
+        "flatness_right": flat_right,
+        "flatness_limit": flatness_limit,
+        "flatness_fraction": _STEP_FLATNESS_FRACTION,
+        "left_median": left_median,
+        "phase_median": phase_median,
+        "right_median": right_median,
+        "phase_loss": loss,
+        "counts": {"left": left_count, "phase": phase_count, "right": right_count},
+        "run": [int(run_start), int(run_end)],
+    }
+
+
+def _intermediate_phase_candidate(
+    values: Any,
+    segment_lo: int,
+    segment_hi: int,
+    *,
+    min_side: int,
+    threshold: float,
+    resolution: float,
+    minimum_effect: float,
+) -> Optional[dict[str, Any]]:
+    """Find a middle phase of any length bracketed by a common outer level.
+
+    A plain two-median split cannot see a short phase between two regimes at the
+    same level, because both outer sides dominate the median. This detector
+    seeds on a ``min_side`` window, extends the phase by level membership, and
+    refines both bounds with a three-part L1 loss.
+    """
+
+    span = segment_hi - segment_lo
+    if span < 2 * min_side + 1:
+        return None
+    first = segment_lo + min_side
+    last = segment_hi - min_side - 1
+    stride = max(1, (last - first + 1) // _STEP_SCAN_GRID)
+    seeds: list[tuple[float, int, int]] = []
+    for start in range(first, last + 1, stride):
+        end = min(start + min_side, segment_hi - min_side)
+        window = values[start:end]
+        if window.size < 2:
+            continue
+        outside = np.concatenate((values[segment_lo:start], values[end:segment_hi]))
+        if outside.size < 2:
+            continue
+        effect = abs(float(np.median(window)) - float(np.median(outside)))
+        if effect <= 0:
+            continue
+        seeds.append((effect, start, end))
+    if not seeds:
+        return None
+    seeds.sort(key=lambda item: (-item[0], item[1]))
+    level_tolerance = max(threshold, resolution)
+    best: Optional[dict[str, Any]] = None
+    for _seed_effect, start, end in seeds[:_STEP_ALTERNATIVE_CANDIDATES]:
+        phase_level = float(np.median(values[start:end]))
+        run_start, run_end = start, end
+        while run_start - 1 >= segment_lo and abs(float(values[run_start - 1]) - phase_level) <= level_tolerance:
+            run_start -= 1
+        while run_end < segment_hi and abs(float(values[run_end]) - phase_level) <= level_tolerance:
+            run_end += 1
+        run_start, run_end = _refine_phase_bounds(values, segment_lo, segment_hi, run_start, run_end, min_side)
+        if run_end - run_start < 2:
+            # A single deviating cycle stays an isolated anomaly, not a phase.
+            continue
+        gates = _phase_candidate_gates(
+            values,
+            segment_lo,
+            segment_hi,
+            run_start,
+            run_end,
+            min_side=min_side,
+            threshold=threshold,
+            resolution=resolution,
+            minimum_effect=minimum_effect,
+        )
+        if not gates["pass"]:
+            continue
+        if best is None or gates["effect"] > best["gates"]["effect"]:
+            best = {
+                "segment": [int(segment_lo), int(segment_hi)],
+                "run": [int(run_start), int(run_end)],
+                "gates": gates,
+            }
+    return best
+
+
+def _phase_boundary_run(
+    values: Any,
+    segment_lo: int,
+    segment_hi: int,
+    run_start: int,
+    run_end: int,
+    *,
+    which: str,
+    min_side: int,
+    resolution: float,
+) -> tuple[int, int, float]:
+    """Near-equivalent interval for one bound of an intermediate phase."""
+
+    _loss, _left, _phase, _right, part_mad = _phase_part_loss(values, segment_lo, run_start, run_end, segment_hi)
+    # L1-loss ambiguity should scale with accumulated robust noise, not record
+    # length times one sample quantum. The latter makes exact synthetic steps
+    # look uncertain across many cycles and can consume an entire short phase.
+    scale = max(_MAD_TO_SIGMA * part_mad, 0.5 * resolution)
+    delta = _STEP_UNCERTAINTY_SPAN_FACTOR * math.sqrt(max(1, segment_hi - segment_lo)) * scale
+    accepted = run_start if which == "start" else run_end
+    if which == "start":
+        scan_lo = max(segment_lo + 1, run_start - 2 * min_side)
+        scan_hi = min(run_end - 1, run_start + 2 * min_side)
+        losses = {
+            index: _phase_part_loss(values, segment_lo, index, run_end, segment_hi)[0]
+            for index in range(scan_lo, scan_hi + 1)
+        }
+    else:
+        scan_lo = max(run_start + 1, run_end - 2 * min_side)
+        scan_hi = min(segment_hi - 1, run_end + 2 * min_side)
+        losses = {
+            index: _phase_part_loss(values, segment_lo, run_start, index, segment_hi)[0]
+            for index in range(scan_lo, scan_hi + 1)
+        }
+    base = losses[accepted]
+    run_lo = accepted
+    run_hi = accepted
+    while run_lo - 1 >= scan_lo and losses[run_lo - 1] <= base + delta:
+        run_lo -= 1
+    while run_hi + 1 <= scan_hi and losses[run_hi + 1] <= base + delta:
+        run_hi += 1
+    return run_lo, run_hi, float(delta)
+
+
+def _detect_feature_boundaries(
+    values: Any,
+    *,
+    min_side: int,
+    threshold: float,
+    resolution: float,
+    minimum_effect: Optional[float] = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Recursive robust step detection for one feature.
+
+    Returns accepted boundaries, rejected step candidates, and middle phases
+    that are real level changes but cannot be supported (or bracketed) with
+    ``min_side`` complete cycles per side.
+    """
+
+    count = values.size
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    short_phases: list[dict[str, Any]] = []
+    if count < 2 * min_side:
+        return accepted, rejected, short_phases
+    effective_minimum = float(minimum_effect) if minimum_effect is not None else float(resolution)
+    stack: list[tuple[int, int]] = [(0, int(count))]
+    while stack:
+        segment_lo, segment_hi = stack.pop()
+        if segment_hi - segment_lo < 2 * min_side:
+            continue
+        candidates = _ranked_split_candidates(values, segment_lo, segment_hi, min_side)
+        chosen: Optional[dict[str, Any]] = None
+        chosen_gates: Optional[dict[str, Any]] = None
+        for candidate in candidates:
+            gates = _step_gates(
+                values,
+                candidate,
+                threshold=threshold,
+                resolution=resolution,
+                minimum_effect=minimum_effect,
+            )
+            if gates["pass"]:
+                chosen = candidate
+                chosen_gates = gates
+                break
+            if len(rejected) < 64:
+                rejected.append(
+                    {
+                        "cycle_index": candidate["cycle_index"],
+                        "segment": list(candidate["segment"]),
+                        "effect": _regime_number(candidate["effect"]),
+                        "threshold": _regime_number(threshold),
+                        "loss": _regime_number(candidate["loss"]),
+                        "reasons": gates["reasons"],
+                        "flatness_left": _regime_number(gates["flatness_left"]),
+                        "flatness_right": _regime_number(gates["flatness_right"]),
+                    }
+                )
+        if chosen is not None and chosen_gates is not None:
+            run_lo, run_hi, delta = _boundary_uncertainty_run(
+                values, chosen, min_side=min_side, resolution=resolution
+            )
+            accepted.append(
+                {
+                    **chosen,
+                    "gates": chosen_gates,
+                    "threshold": threshold,
+                    "resolution": resolution,
+                    "uncertain_run": [int(run_lo), int(run_hi)],
+                    "uncertainty_loss_threshold": _regime_number(delta),
+                    "detection": "step",
+                }
+            )
+            stack.append((chosen["cycle_index"], segment_hi))
+            stack.append((segment_lo, chosen["cycle_index"]))
+            continue
+        phase = _intermediate_phase_candidate(
+            values,
+            segment_lo,
+            segment_hi,
+            min_side=min_side,
+            threshold=threshold,
+            resolution=resolution,
+            minimum_effect=effective_minimum,
+        )
+        if phase is None:
+            continue
+        run_start, run_end = phase["run"]
+        gates = phase["gates"]
+        if not gates["supportable"]:
+            short_phases.append(
+                {
+                    "segment": phase["segment"],
+                    "run": [int(run_start), int(run_end)],
+                    "counts": gates["counts"],
+                    "effect": _regime_number(gates["effect"]),
+                    "left_median": _regime_number(gates["left_median"]),
+                    "phase_median": _regime_number(gates["phase_median"]),
+                    "right_median": _regime_number(gates["right_median"]),
+                    "threshold": _regime_number(threshold),
+                    "reasons": list(gates["support_reasons"]),
+                }
+            )
+            continue
+        single_deviance = _l1_deviance(values[segment_lo:segment_hi])
+        for which, split in (("start", run_start), ("end", run_end)):
+            run_lo, run_hi, delta = _phase_boundary_run(
+                values,
+                segment_lo,
+                segment_hi,
+                run_start,
+                run_end,
+                which=which,
+                min_side=min_side,
+                resolution=resolution,
+            )
+            # The stable-side support rule is applied to the full uncertain
+            # interval, not only its midpoint; keep at least min_side cycles
+            # outside each candidate phase boundary when clamping ambiguity.
+            if which == "start":
+                run_lo = min(run_lo, max(segment_lo + min_side, run_start))
+                run_hi = min(run_hi, max(run_lo, run_start))
+            else:
+                run_lo = max(run_lo, min(run_end, segment_hi - min_side))
+                run_hi = max(run_hi, min(run_end, segment_hi - min_side))
+            base = _step_candidate(values, segment_lo, segment_hi, split, single_deviance)
+            accepted.append(
+                {
+                    **base,
+                    "effect": float(gates["effect"]),
+                    "left_median": float(gates["left_median"]),
+                    "right_median": float(gates["right_median"]),
+                    "gates": gates,
+                    "threshold": threshold,
+                    "resolution": resolution,
+                    "uncertain_run": [int(run_lo), int(run_hi)],
+                    "uncertainty_loss_threshold": _regime_number(delta),
+                    "detection": "intermediate_phase",
+                    "phase": {
+                        "run": [int(run_start), int(run_end)],
+                        "bound": which,
+                        "counts": gates["counts"],
+                    },
+                }
+            )
+        stack.append((segment_lo, run_start))
+        stack.append((run_end, segment_hi))
+    accepted.sort(key=lambda item: item["cycle_index"])
+    return accepted, rejected, short_phases
+
+
+def _merge_feature_boundaries(
+    per_feature: dict[str, list[dict[str, Any]]],
+    *,
+    margin: int,
+    min_side: int,
+    count: int,
+) -> list[dict[str, Any]]:
+    """Merge per-feature boundaries into transitions with explicit support."""
+
+    windows: list[dict[str, Any]] = []
+    for order, (feature, boundaries) in enumerate(per_feature.items()):
+        for boundary in boundaries:
+            run_lo, run_hi = boundary["uncertain_run"]
+            # The change-point uncertainty interval is already expressed in
+            # cycle indexes; apply the configured margin once, without an
+            # additional hidden +/-1 expansion.
+            window_lo = max(0, run_lo - margin)
+            window_hi = min(count - 1, run_hi + margin)
+            score = _regime_ratio(boundary["effect"], boundary["threshold"] if boundary["threshold"] > 0 else None)
+            windows.append(
+                {
+                    "feature": feature,
+                    "order": order,
+                    "boundary": boundary,
+                    "window": [window_lo, window_hi],
+                    "score": score if score is not None else float("inf"),
+                }
+            )
+    windows.sort(key=lambda item: (item["window"][0], item["window"][1], item["order"], item["boundary"]["cycle_index"]))
+    clusters: list[dict[str, Any]] = []
+    for item in windows:
+        if clusters and item["window"][0] <= clusters[-1]["window"][1]:
+            cluster = clusters[-1]
+            cluster["members"].append(item)
+            cluster["window"][1] = max(cluster["window"][1], item["window"][1])
+        else:
+            clusters.append({"window": list(item["window"]), "members": [item]})
+    transitions: list[dict[str, Any]] = []
+    for cluster in clusters:
+        representative = min(
+            cluster["members"],
+            key=lambda item: (-item["score"], item["order"], item["boundary"]["cycle_index"]),
+        )
+        transitions.append(
+            {
+                "cycle_index": representative["boundary"]["cycle_index"],
+                "window": list(cluster["window"]),
+                "members": cluster["members"],
+                "representative_feature": representative["feature"],
+                "representative_boundary": representative["boundary"],
+                "score": representative["score"],
+            }
+        )
+    transitions.sort(key=lambda item: item["cycle_index"])
+    # Deterministic de-duplication: whenever two kept boundaries violate the
+    # configured complete-cycle support window, keep the stronger representative.
+    changed = True
+    while changed and transitions:
+        changed = False
+        previous: Optional[dict[str, Any]] = None
+        for position, transition in enumerate(transitions):
+            if previous is None:
+                if transition["cycle_index"] < min_side:
+                    transitions.pop(position)
+                    changed = True
+                    break
+                previous = transition
+                continue
+            if transition["cycle_index"] - previous["cycle_index"] < min_side:
+                if transition["score"] > previous["score"]:
+                    transitions.remove(previous)
+                else:
+                    transitions.remove(transition)
+                changed = True
+                break
+            previous = transition
+        if changed:
+            continue
+        if transitions and count - transitions[-1]["cycle_index"] < min_side:
+            transitions.pop()
+            changed = True
+    return transitions
+
+
+def _regime_stats(values: Any) -> dict[str, Any]:
+    array = np.asarray(values, dtype=np.float64)
+    if not array.size:
+        return {"count": 0, "median": None, "mad": None, "min": None, "max": None}
+    median = float(np.median(array))
+    mad = float(np.median(np.abs(array - median)))
+    return {
+        "count": int(array.size),
+        "median": _regime_number(median),
+        "mad": _regime_number(mad),
+        "min": _regime_number(float(array.min())),
+        "max": _regime_number(float(array.max())),
+    }
+
+
+def _robust_slope(xs: Any, ys: Any) -> Optional[float]:
+    count = ys.size
+    if count < 4:
+        return None
+    half = count // 2
+    x_low = float(np.median(xs[:half]))
+    x_high = float(np.median(xs[count - half :]))
+    y_low = float(np.median(ys[:half]))
+    y_high = float(np.median(ys[count - half :]))
+    if x_high == x_low:
+        return None
+    return _regime_number((y_high - y_low) / (x_high - x_low))
+
+
+def _linear_fit_quality(xs: Any, ys: Any) -> Optional[float]:
+    if ys.size < 3:
+        return None
+    try:
+        slope, intercept = np.polyfit(xs, ys, 1)
+    except (np.linalg.LinAlgError, ValueError):  # pragma: no cover - defensive
+        return None
+    predicted = slope * xs + intercept
+    residual = float(np.sum((ys - predicted) ** 2))
+    total = float(np.sum((ys - float(np.mean(ys))) ** 2))
+    if total <= 0:
+        return 1.0 if residual <= 0 else 0.0
+    return _regime_number(1.0 - residual / total)
+
+
+def _monotonic_fraction(values: Any) -> Optional[float]:
+    if values.size < 2:
+        return None
+    scale = max(abs(float(np.median(values))), 1.0)
+    epsilon = 1e-12 * scale
+    differences = np.diff(values)
+    usable = np.abs(differences) > epsilon
+    if not usable.any():
+        return None
+    increasing = float(np.count_nonzero(differences[usable] > 0))
+    decreasing = float(np.count_nonzero(differences[usable] < 0))
+    return _regime_number(max(increasing, decreasing) / float(np.count_nonzero(usable)))
+
+
+def _regime_trend(cycle_indexes: Any, times: Any, values: Any) -> Optional[dict[str, Any]]:
+    """Slope and fit quality for one feature inside one regime."""
+
+    if values.size < 4:
+        return None
+    slope_per_cycle = _robust_slope(np.asarray(cycle_indexes, dtype=np.float64), values)
+    slope_per_s = _robust_slope(np.asarray(times, dtype=np.float64), values)
+    fit_quality = _linear_fit_quality(np.asarray(cycle_indexes, dtype=np.float64), values)
+    total_change = None
+    if slope_per_cycle is not None and cycle_indexes.size >= 2:
+        total_change = _regime_number(slope_per_cycle * float(cycle_indexes[-1] - cycle_indexes[0]))
+    direction = None
+    if slope_per_cycle is not None:
+        direction = "increasing" if slope_per_cycle > 0 else ("decreasing" if slope_per_cycle < 0 else "flat")
+    return {
+        "slope_per_cycle": slope_per_cycle,
+        "slope_per_s": slope_per_s,
+        "fit_quality_r2": fit_quality,
+        "total_change": total_change,
+        "direction": direction,
+        "monotonic_fraction": _monotonic_fraction(values),
+        "basis": "robust_half_median_slope_with_least_squares_fit_quality",
+    }
+
+
+def analyze_waveform_regimes(
+    capture: dict[str, Any],
+    *,
+    low: float,
+    high: float,
+    domain: str = "code",
+    measures: Any = DEFAULT_REGIME_MEASURES,
+    min_cycles_per_side: int = DEFAULT_REGIME_MIN_CYCLES_PER_SIDE,
+    relative_tolerance: float = DEFAULT_REGIME_RELATIVE_TOLERANCE,
+    absolute_tolerance: float = DEFAULT_REGIME_ABSOLUTE_TOLERANCE,
+    transition_margin_cycles: int = DEFAULT_REGIME_TRANSITION_MARGIN_CYCLES,
+    anomaly_z: float = DEFAULT_REGIME_ANOMALY_Z,
+    max_edges: int = DEFAULT_STRUCTURE_EDGE_LIMIT,
+    max_cycles: int = DEFAULT_REGIME_MAX_CYCLES,
+    chunk_points: int = DEFAULT_CHUNK_POINTS,
+    cluster_gap_s: Optional[float] = None,
+    start_time_s: Optional[float] = None,
+    end_time_s: Optional[float] = None,
+) -> dict[str, Any]:
+    """Split an original-resolution pulse record into stable measurement regimes.
+
+    Cycles are rebuilt from adjacent complete high pulses of
+    :func:`analyze_pulse_structure`; period and low width come from sample
+    differences of complete rising starts, high width uses the sample-grid
+    ``width_s``, and interpolated edge times are never used for an incomplete
+    pulse. Boundaries require ``min_cycles_per_side`` complete cycles on both
+    sides, a configured absolute/relative effect tolerance, and a resolution
+    that is not limited by one-sample quantization. Isolated cycles stay
+    anomalies (robust modified-Z, default 3.5), a smooth monotonic change stays
+    one regime with a trend plus an ``unresolved`` drift annotation, and
+    transition-uncertain cycles are listed and excluded from stable counts.
+    """
+
+    _require_numpy()
+    if not math.isfinite(low) or not math.isfinite(high) or low >= high:
+        raise AnalysisError("LIMIT_INVALID", "Thresholds must be finite and low < high")
+    if domain not in ("code", "voltage"):
+        raise AnalysisError("LIMIT_INVALID", "Threshold domain must be code or voltage")
+    if not isinstance(min_cycles_per_side, int) or not (1 <= min_cycles_per_side <= MAX_REGIME_MIN_CYCLES_PER_SIDE):
+        raise AnalysisError(
+            "LIMIT_INVALID", f"min_cycles_per_side must be an integer in 1..{MAX_REGIME_MIN_CYCLES_PER_SIDE}"
+        )
+    if not isinstance(transition_margin_cycles, int) or not (
+        0 <= transition_margin_cycles <= MAX_REGIME_TRANSITION_MARGIN_CYCLES
+    ):
+        raise AnalysisError(
+            "LIMIT_INVALID",
+            f"transition_margin_cycles must be an integer in 0..{MAX_REGIME_TRANSITION_MARGIN_CYCLES}",
+        )
+    if not math.isfinite(relative_tolerance) or relative_tolerance < 0 or relative_tolerance > 1:
+        raise AnalysisError("LIMIT_INVALID", "relative_tolerance must be in 0..1")
+    if not math.isfinite(absolute_tolerance) or absolute_tolerance < 0:
+        raise AnalysisError("LIMIT_INVALID", "absolute_tolerance must be finite and non-negative")
+    if not math.isfinite(anomaly_z) or anomaly_z <= 0:
+        raise AnalysisError("LIMIT_INVALID", "anomaly_z must be finite and positive")
+    if not isinstance(max_cycles, int) or not (2 <= max_cycles <= MAX_REGIME_MAX_CYCLES):
+        raise AnalysisError("LIMIT_INVALID", f"max_cycles must be an integer in 2..{MAX_REGIME_MAX_CYCLES}")
+
+    interval = float(capture["sample_interval_s"])
+    origin = float(capture["time_origin_s"])
+    structure = analyze_pulse_structure(
+        capture,
+        low=low,
+        high=high,
+        domain=domain,
+        cluster_gap_s=cluster_gap_s,
+        max_edges=max_edges,
+        chunk_points=chunk_points,
+        start_time_s=start_time_s,
+        end_time_s=end_time_s,
+    )
+    edge_budget_exceeded = bool(structure["edges"].get("items_truncated")) or bool(
+        structure["evidence"].get("edge_count_is_lower_bound")
+    )
+    cycles_all, cycle_diagnostics = _build_regime_cycles(capture, structure)
+    observed_cycle_count = len(cycles_all)
+    cycle_budget_exceeded = observed_cycle_count > max_cycles
+    cycles = cycles_all[:max_cycles]
+    analyzed_cycle_count = len(cycles)
+
+    mode, candidate_features, rejected_measures, unavailable_measures, requested_names = _regime_measure_plan(
+        measures, capture
+    )
+
+    unresolved: list[dict[str, Any]] = []
+    for entry in unavailable_measures:
+        unresolved.append(
+            {
+                "kind": "unsupported_measure",
+                "feature": entry["feature"],
+                "reason": entry["reason"],
+                "detail": entry["detail"],
+                "evidence": entry.get("evidence", {}),
+                "status": "unavailable",
+                "degrading": False,
+            }
+        )
+
+    # ---- per-cycle feature series -----------------------------------------
+    usable_features: list[str] = []
+    evaluated: list[dict[str, Any]] = []
+    series: dict[str, Any] = {}
+    quantization_limited: list[str] = []
+    period_median: Optional[float] = None
+    if analyzed_cycle_count:
+        period_values = np.asarray(
+            [cycle["features"]["period_s"] for cycle in cycles], dtype=np.float64
+        )
+        period_median = float(np.median(period_values))
+
+    for feature in candidate_features:
+        spec = _REGIME_FEATURE_REGISTRY[feature]
+        raw = [cycle["features"].get(feature) for cycle in cycles]
+        missing = sum(1 for value in raw if value is None)
+        if not analyzed_cycle_count or missing == analyzed_cycle_count:
+            rejected_measures.append(
+                {
+                    "feature": feature,
+                    "dimension": spec["dimension"],
+                    "reason": "feature_unavailable_for_analyzed_cycles",
+                    "detail": f"{feature} has no value for any of the {analyzed_cycle_count} analyzed complete cycles",
+                    "evidence": {"missing_cycles": missing, "analyzed_cycle_count": analyzed_cycle_count},
+                }
+            )
+            continue
+        values = np.asarray([value for value in raw if value is not None], dtype=np.float64)
+        stats = _regime_stats(values)
+        median_value = stats["median"] or 0.0
+        resolution = _regime_feature_resolution(feature, values, capture, period_median)
+        threshold = max(absolute_tolerance, relative_tolerance * abs(median_value))
+        entry: dict[str, Any] = {
+            "feature": feature,
+            "dimension": spec["dimension"],
+            "unit": spec["unit"],
+            "value_domain": spec["value_domain"],
+            "description": spec["description"],
+            "cycle_count": int(values.size),
+            "missing_cycle_count": missing,
+            "median": stats["median"],
+            "mad": stats["mad"],
+            "min": stats["min"],
+            "max": stats["max"],
+            "range": _regime_number(stats["max"] - stats["min"]) if stats["max"] is not None and stats["min"] is not None else None,
+            "resolution": _regime_number(resolution),
+            "tolerance": {
+                "relative_tolerance": relative_tolerance,
+                "absolute_tolerance": absolute_tolerance,
+                "reference": "max(absolute_tolerance, relative_tolerance * |median|)",
+                "effective": _regime_number(threshold),
+            },
+            "relative_variability": _regime_ratio(stats["max"] - stats["min"], abs(median_value)) if stats["max"] is not None and stats["min"] is not None else None,
+        }
+        usable_features.append(feature)
+        series[feature] = values
+        # Quantization tier: the one-sample quantum of the measure decides what
+        # can be resolved at the requested tolerance. A measure whose quantum is
+        # coarser than the tolerance is not discarded (a real, sustained step can
+        # still be far larger than one quantum); it is flagged and additionally
+        # requires the change to exceed two quantization steps so that one-step
+        # sample-grid jitter can never be split into false stages.
+        limited = resolution is not None and threshold > 0 and resolution > threshold
+        minimum_effect = (2.0 * resolution) if (limited and resolution) else float(resolution or 0.0)
+        entry["quantization"] = {
+            "limited": bool(limited),
+            "reason": "resolution_below_tolerance" if limited else None,
+            "quantum": spec["quantum"],
+            "one_sample_resolution": _regime_number(resolution),
+            "tolerance": _regime_number(threshold),
+            "minimum_detectable_effect": _regime_number(minimum_effect),
+            "rule": (
+                "one-sample resolution exceeds the requested tolerance, so an accepted boundary must exceed "
+                "two quantization steps and one-step sample jitter can never create a stage"
+                if limited
+                else "one-sample resolution is finer than the requested tolerance"
+            ),
+        }
+        if resolution is None:
+            entry["segmentation_usable"] = False
+            entry["segmentation_rejection_reason"] = "resolution_unknown"
+            rejected_measures.append(
+                {
+                    "feature": feature,
+                    "dimension": spec["dimension"],
+                    "reason": "resolution_unknown",
+                    "detail": f"could not derive a one-sample resolution for {feature}",
+                    "evidence": {"quantum": spec["quantum"]},
+                }
+            )
+            evaluated.append(entry)
+            continue
+        entry["segmentation_usable"] = True
+        entry["segmentation_rejection_reason"] = "resolution_below_tolerance" if limited else None
+        entry["segmentation_evidence"] = entry["quantization"]["rule"]
+        evaluated.append(entry)
+        if limited:
+            quantization_limited.append(feature)
+
+    detector_features = [
+        entry["feature"] for entry in evaluated if entry.get("segmentation_usable")
+    ]
+
+    # ---- per-feature robust step detection --------------------------------
+    per_feature_boundaries: dict[str, list[dict[str, Any]]] = {}
+    per_feature_rejected: dict[str, list[dict[str, Any]]] = {}
+    per_feature_short_phases: dict[str, list[dict[str, Any]]] = {}
+    for feature in detector_features:
+        values = series[feature]
+        entry = next(item for item in evaluated if item["feature"] == feature)
+        threshold = float(entry["tolerance"]["effective"] or 0.0)
+        resolution = float(entry["resolution"] or 0.0)
+        boundaries, rejected_candidates, short_phases = _detect_feature_boundaries(
+            values,
+            min_side=min_cycles_per_side,
+            threshold=threshold,
+            resolution=resolution,
+            minimum_effect=float(entry["quantization"]["minimum_detectable_effect"] or 0.0),
+        )
+        per_feature_boundaries[feature] = boundaries
+        per_feature_rejected[feature] = rejected_candidates
+        per_feature_short_phases[feature] = short_phases
+
+    transitions_raw = (
+        _merge_feature_boundaries(
+            per_feature_boundaries,
+            margin=transition_margin_cycles,
+            min_side=min_cycles_per_side,
+            count=analyzed_cycle_count,
+        )
+        if analyzed_cycle_count
+        else []
+    )
+
+    # ---- middle phases that are real but unsupported ----------------------
+    # A level change shorter than min_cycles_per_side cannot form an accepted
+    # boundary; it is reported as one unresolved short phase (never silently
+    # absorbed, never exploded into one anomaly per cycle) and its cycles are
+    # excluded from anomaly judging.
+    short_phase_clusters: list[dict[str, Any]] = []
+    for feature, phases in per_feature_short_phases.items():
+        for phase in phases:
+            entry = next(item for item in evaluated if item["feature"] == feature)
+            target = None
+            for cluster in short_phase_clusters:
+                if phase["run"][0] < cluster["run"][1] and cluster["run"][0] < phase["run"][1]:
+                    target = cluster
+                    break
+            if target is None:
+                target = {
+                    "run": list(phase["run"]),
+                    "features": [],
+                    "reasons": [],
+                    "detail": {},
+                }
+                short_phase_clusters.append(target)
+            target["run"] = [min(target["run"][0], phase["run"][0]), max(target["run"][1], phase["run"][1])]
+            target["features"].append(feature)
+            target["reasons"].extend(phase["reasons"])
+            target["detail"][feature] = {
+                "unit": entry["unit"],
+                "cycle_count": phase["counts"]["phase"],
+                "left_cycle_count": phase["counts"]["left"],
+                "right_cycle_count": phase["counts"]["right"],
+                "left_median": phase["left_median"],
+                "phase_median": phase["phase_median"],
+                "right_median": phase["right_median"],
+                "effect": phase["effect"],
+                "tolerance": phase["threshold"],
+                "reasons": list(phase["reasons"]),
+            }
+    short_phase_clusters.sort(key=lambda item: item["run"][0])
+    short_phase_cycles: set[int] = set()
+    for cluster in short_phase_clusters:
+        short_phase_cycles.update(range(cluster["run"][0], cluster["run"][1]))
+
+    # ---- regime spans ------------------------------------------------------
+    boundaries_indexes = [transition["cycle_index"] for transition in transitions_raw]
+    spans: list[tuple[int, int]] = []
+    start = 0
+    for boundary_index in boundaries_indexes:
+        spans.append((start, boundary_index))
+        start = boundary_index
+    spans.append((start, analyzed_cycle_count))
+
+    transitions: list[dict[str, Any]] = []
+    uncertain_cycles: set[int] = set()
+    transition_by_cycle: dict[int, str] = {}
+    for position, transition in enumerate(transitions_raw):
+        transition_id = f"t{position:05d}"
+        window_lo, window_hi = transition["window"]
+        left_span = spans[position]
+        right_span = spans[position + 1]
+        split = transition["cycle_index"]
+        for cycle_index in range(window_lo, window_hi + 1):
+            uncertain_cycles.add(cycle_index)
+            transition_by_cycle.setdefault(cycle_index, transition_id)
+        per_measure: dict[str, Any] = {}
+        supporting: list[str] = []
+        disagreeing: list[str] = []
+        changed_measures: list[str] = []
+        for feature in detector_features:
+            values = series[feature]
+            entry = next(item for item in evaluated if item["feature"] == feature)
+            threshold = float(entry["tolerance"]["effective"] or 0.0)
+            before = float(np.median(values[left_span[0] : split])) if split > left_span[0] else None
+            after = float(np.median(values[split : right_span[1]])) if right_span[1] > split else None
+            effect = abs(after - before) if before is not None and after is not None else None
+            own = [boundary["cycle_index"] for boundary in per_feature_boundaries.get(feature, [])]
+            own_inside = [index for index in own if window_lo <= index <= window_hi]
+            supports = bool(own_inside) and effect is not None and effect >= threshold
+            distance = None
+            if own:
+                nearest = min(own, key=lambda index: abs(index - split))
+                distance = int(nearest - split)
+            disagreement = (
+                effect is not None
+                and effect >= threshold
+                and not supports
+                and (distance is None or abs(distance) <= 2 * min_cycles_per_side + transition_margin_cycles)
+            )
+            if supports:
+                supporting.append(feature)
+            if disagreement:
+                disagreeing.append(feature)
+            if effect is not None and effect >= threshold:
+                changed_measures.append(feature)
+            per_measure[feature] = {
+                "unit": entry["unit"],
+                "dimension": entry["dimension"],
+                "before_median": _regime_number(before),
+                "after_median": _regime_number(after),
+                "effect": _regime_number(effect),
+                "effect_relative": _regime_ratio(effect, abs(before) if before else None),
+                "threshold": _regime_number(threshold),
+                "resolution": entry["resolution"],
+                "own_boundary_cycle_indexes": own,
+                "own_boundary_inside_uncertainty": own_inside,
+                "supports_boundary": supports,
+                "disagrees": bool(disagreement),
+                "distance_cycles": distance,
+            }
+        transitions.append(
+            {
+                "transition_id": transition_id,
+                "index": position,
+                "left_regime_id": f"r{position:04d}",
+                "right_regime_id": f"r{position + 1:04d}",
+                "boundary": {
+                    "cycle_index": split,
+                    "left_cycle_id": cycles[split - 1]["cycle_id"] if split - 1 < analyzed_cycle_count else None,
+                    "right_cycle_id": cycles[split]["cycle_id"] if split < analyzed_cycle_count else None,
+                    "sample": int(cycles[split]["start_sample"]) if split < analyzed_cycle_count else None,
+                    "time_s": float(cycles[split]["start_time_s"]) if split < analyzed_cycle_count else None,
+                    "definition": "half-open: cycles[start:split] are left, cycles[split:end] are right",
+                },
+                "uncertainty": {
+                    "cycle_index_range": [window_lo, window_hi],
+                    "cycle_ids": [cycles[index]["cycle_id"] for index in range(window_lo, window_hi + 1)],
+                    "cycle_count": window_hi - window_lo + 1,
+                    "margin_cycles": transition_margin_cycles,
+                    "basis": "contiguous_near_equivalent_l1_change_point_evidence_plus_margin",
+                    "loss_threshold": transition["representative_boundary"].get("uncertainty_loss_threshold"),
+                },
+                "changed_measures": changed_measures,
+                "per_measure": per_measure,
+                "support": {
+                    "rule": "explicit_or_over_selected_measures_no_composite_score",
+                    "supporting_features": supporting,
+                    "supporting_count": len(supporting),
+                    "disagreement": {
+                        "features": disagreeing,
+                        "detail": [
+                            {
+                                "feature": feature,
+                                "own_boundary_cycle_indexes": per_measure[feature]["own_boundary_cycle_indexes"],
+                                "distance_cycles": per_measure[feature]["distance_cycles"],
+                            }
+                            for feature in disagreeing
+                        ],
+                    },
+                },
+                "effect_size": {
+                    "representative_feature": transition["representative_feature"],
+                    "max_relative_effect": _regime_number(
+                        max(
+                            (
+                                value["effect_relative"]
+                                for value in per_measure.values()
+                                if value["effect_relative"] is not None
+                            ),
+                            default=None,
+                        )
+                    )
+                    if any(value["effect_relative"] is not None for value in per_measure.values())
+                    else None,
+                    "measured_per_feature": {
+                        feature: {
+                            "effect": per_measure[feature]["effect"],
+                            "effect_relative": per_measure[feature]["effect_relative"],
+                            "threshold": per_measure[feature]["threshold"],
+                        }
+                        for feature in changed_measures
+                    },
+                },
+                "step_evidence": {
+                    "l1_loss": _regime_number(transition["representative_boundary"]["loss"]),
+                    "l1_loss_reduction": _regime_number(transition["representative_boundary"]["loss_reduction"]),
+                    "flatness_left": _regime_number(transition["representative_boundary"]["gates"]["flatness_left"]),
+                    "flatness_right": _regime_number(transition["representative_boundary"]["gates"]["flatness_right"]),
+                    "flatness_limit": _regime_number(transition["representative_boundary"]["gates"]["flatness_limit"]),
+                    "robust_noise": _regime_number(transition["representative_boundary"]["gates"]["robust_noise"]),
+                    "noise_gate": _regime_number(transition["representative_boundary"]["gates"]["noise_gate"]),
+                },
+                "confidence": "multi_feature" if len(supporting) > 1 else ("single_feature" if supporting else "unsupported"),
+                "status": "accepted" if supporting else "accepted_representative_without_feature_support",
+                "source": {
+                    "cycle_ids": [
+                        cycles[index]["cycle_id"]
+                        for index in range(max(0, split - 1), min(analyzed_cycle_count, split + 1))
+                    ],
+                    "pulse_ids": [
+                        cycles[index]["pulse_id"]
+                        for index in range(max(0, split - 1), min(analyzed_cycle_count, split + 1))
+                    ],
+                    "rising_edge_ids": [
+                        edge
+                        for edge in (
+                            cycles[index]["next_rising_edge_id"]
+                            for index in range(max(0, split - 1), min(analyzed_cycle_count, split))
+                        )
+                        if edge
+                    ],
+                },
+            }
+        )
+        if not supporting:
+            unresolved.append(
+                {
+                    "kind": "ambiguous_boundary",
+                    "transition_id": transition_id,
+                    "feature": transition["representative_feature"],
+                    "reason": "boundary_accepted_without_per_feature_support",
+                    "detail": (
+                        "the merged change point is retained, but no single measure both localizes it inside the "
+                        "uncertainty interval and exceeds its tolerance, so support is reported as absent"
+                    ),
+                    "cycle_index_range": [window_lo, window_hi],
+                    "sample_range": [
+                        int(cycles[window_lo]["start_sample"]),
+                        int(cycles[min(analyzed_cycle_count - 1, window_hi)]["end_sample_exclusive"]),
+                    ],
+                    "time_range_s": [
+                        float(cycles[window_lo]["start_time_s"]),
+                        float(cycles[min(analyzed_cycle_count - 1, window_hi)]["end_time_s"]),
+                    ],
+                    "status": "unresolved",
+                    "degrading": True,
+                }
+            )
+
+    # Short candidate phases are evidence, but fail the minimum support rule;
+    # keep them distinct from both stable regimes and isolated anomalies.
+    short_phase_ids: dict[int, str] = {}
+    for position, cluster in enumerate(short_phase_clusters):
+        phase_id = f"s{position:04d}"
+        run_start, run_end = cluster["run"]
+        feature_details = cluster["detail"]
+        unresolved.append(
+            {
+                "phase_id": phase_id,
+                "kind": "short_phase_insufficient_support",
+                "reason": "candidate_phase_below_min_cycles_per_side",
+                "detail": (
+                    f"candidate phase spans cycles [{run_start}, {run_end}) but lacks the configured stable support "
+                    f"of {min_cycles_per_side} complete cycles on each adjacent side; it is preserved as unresolved"
+                ),
+                "features": list(dict.fromkeys(cluster["features"])),
+                "reasons": list(dict.fromkeys(cluster["reasons"])),
+                "feature_evidence": feature_details,
+                "cycle_index_range": [run_start, run_end - 1],
+                "cycle_count": run_end - run_start,
+                "cycle_ids": [cycles[index]["cycle_id"] for index in range(run_start, run_end)],
+                "sample_range": [
+                    int(cycles[run_start]["start_sample"]),
+                    int(cycles[run_end - 1]["end_sample_exclusive"]),
+                ] if run_end > run_start else None,
+                "time_range_s": [
+                    float(cycles[run_start]["start_time_s"]),
+                    float(cycles[run_end - 1]["end_time_s"]),
+                ] if run_end > run_start else None,
+                "status": "unresolved",
+                "degrading": True,
+            }
+        )
+        for cycle_index in range(run_start, run_end):
+            short_phase_ids[cycle_index] = phase_id
+
+    # ---- regimes, trends, anomalies ---------------------------------------
+    regimes: list[dict[str, Any]] = []
+    anomalies: list[dict[str, Any]] = []
+    cycle_assignment: dict[int, dict[str, Any]] = {}
+    low_support_regimes: set[int] = set()
+    for position, (span_lo, span_hi) in enumerate(spans):
+        regime_id = f"r{position:04d}"
+        countable = [
+            index
+            for index in range(span_lo, span_hi)
+            if index not in uncertain_cycles and index not in short_phase_ids
+        ]
+        unresolved_phase_in_span = [
+            index for index in range(span_lo, span_hi) if index in short_phase_ids
+        ]
+        uncertain_in_span = [
+            index for index in range(span_lo, span_hi) if index in uncertain_cycles
+        ]
+        stable_count = len(countable)
+        bounded_by_transitions = position > 0 and position < len(transitions_raw)
+        has_unresolved_phase = bool(unresolved_phase_in_span) or (
+            bounded_by_transitions and stable_count < min_cycles_per_side
+        )
+        if stable_count >= min_cycles_per_side and not has_unresolved_phase:
+            status = "stable"
+        elif has_unresolved_phase:
+            status = "contains_unresolved_phase"
+        elif stable_count > 0:
+            status = "low_stable_support"
+        else:
+            status = "transition_dominated"
+        summaries: dict[str, Any] = {}
+        drift_annotations: list[dict[str, Any]] = []
+        for feature in usable_features:
+            entry = next(item for item in evaluated if item["feature"] == feature)
+            values = series[feature]
+            subset = values[countable] if countable else np.asarray([], dtype=np.float64)
+            stats = _regime_stats(subset)
+            times = np.asarray([cycles[index]["start_time_s"] for index in countable], dtype=np.float64)
+            cycle_indexes = np.asarray(countable, dtype=np.float64)
+            trend = _regime_trend(cycle_indexes, times, subset) if subset.size >= 4 else None
+            summaries[feature] = {
+                "unit": entry["unit"],
+                "segment_count": stats["count"],
+                "median": stats["median"],
+                "mad": stats["mad"],
+                "min": stats["min"],
+                "max": stats["max"],
+                "resolution": entry["resolution"],
+                "trend": trend,
+                "frequency_hz": _regime_ratio(1.0, stats["median"]) if feature == "period_s" else None,
+            }
+            threshold = float(entry["tolerance"]["effective"] or 0.0)
+            resolution = float(entry["resolution"] or 0.0)
+            if trend is None or status != "stable":
+                continue
+            total_change = trend["total_change"]
+            fit_quality = trend["fit_quality_r2"]
+            monotonic = trend["monotonic_fraction"]
+            if (
+                total_change is not None
+                and abs(total_change) >= max(threshold, resolution)
+                and fit_quality is not None
+                and fit_quality >= _DRIFT_MIN_FIT_QUALITY
+                and monotonic is not None
+                and monotonic >= _DRIFT_MIN_MONOTONIC_FRACTION
+            ):
+                drift_annotations.append(
+                    {
+                        "feature": feature,
+                        "unit": entry["unit"],
+                        "slope_per_cycle": trend["slope_per_cycle"],
+                        "slope_per_s": trend["slope_per_s"],
+                        "fit_quality_r2": fit_quality,
+                        "total_change": total_change,
+                        "monotonic_fraction": monotonic,
+                        "tolerance": _regime_number(threshold),
+                        "resolution": entry["resolution"],
+                        "direction": trend["direction"],
+                    }
+                )
+        if drift_annotations:
+            primary_drift = max(
+                drift_annotations,
+                key=lambda item: abs(item["total_change"] or 0.0),
+            )
+            unresolved.append(
+                {
+                    "kind": "drift_trend",
+                    "regime_id": regime_id,
+                    "feature": primary_drift["feature"],
+                    "reason": "smooth_monotonic_drift_reported_as_one_regime",
+                    "detail": (
+                        "smooth monotonic change inside one regime: reported as trend evidence instead of "
+                        "fabricated step regimes; drifting features: "
+                        + ", ".join(item["feature"] for item in drift_annotations)
+                    ),
+                    "features": [item["feature"] for item in drift_annotations],
+                    "feature_count": len(drift_annotations),
+                    "drift": drift_annotations,
+                    "cycle_index_range": [countable[0], countable[-1]] if countable else None,
+                    "cycle_ids": _regime_capped_ids([cycles[index]["cycle_id"] for index in countable]),
+                    "sample_range": [
+                        int(cycles[countable[0]]["start_sample"]),
+                        int(cycles[countable[-1]]["end_sample_exclusive"]),
+                    ]
+                    if countable
+                    else None,
+                    "time_range_s": [
+                        float(cycles[countable[0]]["start_time_s"]),
+                        float(cycles[countable[-1]]["end_time_s"]),
+                    ]
+                    if countable
+                    else None,
+                    "evidence": {
+                        "per_feature": {
+                            item["feature"]: {
+                                "slope_per_cycle": item["slope_per_cycle"],
+                                "slope_per_s": item["slope_per_s"],
+                                "fit_quality_r2": item["fit_quality_r2"],
+                                "total_change": item["total_change"],
+                                "monotonic_fraction": item["monotonic_fraction"],
+                            }
+                            for item in drift_annotations
+                        }
+                    },
+                    "status": "unresolved",
+                    "degrading": True,
+                }
+            )
+        # Anomalies use the regime's own robust reference. Cycles inside the
+        # transition uncertainty interval are never judged as anomalies. All
+        # measures that trip on the same cycle are merged into one record so a
+        # single abnormal cycle produces one anomaly event, not one per measure.
+        regime_anomaly_by_cycle: dict[int, list[dict[str, Any]]] = {}
+        anomaly_reference: dict[int, dict[str, Any]] = {}
+        for feature in usable_features:
+            entry = next(item for item in evaluated if item["feature"] == feature)
+            values = series[feature]
+            subset = values[countable] if countable else np.asarray([], dtype=np.float64)
+            if subset.size < 3 or has_unresolved_phase:
+                continue
+            median = float(np.median(subset))
+            mad = float(np.median(np.abs(subset - median)))
+            scale = _MAD_TO_SIGMA * mad
+            resolution = float(entry["resolution"] or 0.0)
+            for cycle_index in countable:
+                observed = float(values[cycle_index])
+                residual = observed - median
+                if scale > 0:
+                    score = _MODIFIED_Z_FACTOR * residual / scale
+                    if abs(score) < anomaly_z:
+                        continue
+                    basis = "modified_z_0.6745_median_mad"
+                    reported_threshold: Optional[float] = anomaly_z
+                else:
+                    if resolution <= 0 or abs(residual) < resolution:
+                        continue
+                    score = residual / resolution
+                    basis = "quantization_units_excess_deviation"
+                    reported_threshold = 1.0
+                regime_anomaly_by_cycle.setdefault(cycle_index, []).append(
+                    {
+                        "feature": feature,
+                        "unit": entry["unit"],
+                        "observed": _regime_number(observed),
+                        "residual": _regime_number(residual),
+                        "score": _regime_number(score),
+                        "score_basis": basis,
+                        "threshold": _regime_number(reported_threshold),
+                    }
+                )
+                anomaly_reference[cycle_index] = {
+                    "kind": "regime_median_mad",
+                    "regime_id": regime_id,
+                    "median": _regime_number(median),
+                    "mad": _regime_number(mad),
+                    "cycle_count": int(subset.size),
+                }
+        for cycle_index in sorted(regime_anomaly_by_cycle):
+            measures = regime_anomaly_by_cycle[cycle_index]
+            primary = max(
+                measures,
+                key=lambda item: abs(item["score"] or 0.0),
+            )
+            cycle = cycles[cycle_index]
+            anomalies.append(
+                {
+                    "anomaly_id": f"a{len(anomalies):05d}",
+                    "cycle_id": cycle["cycle_id"],
+                    "cycle_index": cycle_index,
+                    "feature": primary["feature"],
+                    "unit": primary["unit"],
+                    "observed": primary["observed"],
+                    "residual": primary["residual"],
+                    "score": primary["score"],
+                    "score_basis": primary["score_basis"],
+                    "threshold": primary["threshold"],
+                    "measure_count": len(measures),
+                    "measures": measures,
+                    "reference": anomaly_reference[cycle_index],
+                    "classification": "isolated_outlier_not_a_regime",
+                    "sample": int(cycle["start_sample"]),
+                    "time_s": float(cycle["start_time_s"]),
+                    "source": {
+                        "pulse_id": cycle["pulse_id"],
+                        "next_pulse_id": cycle["next_pulse_id"],
+                        "rising_edge_id": cycle["rising_edge_id"],
+                        "next_rising_edge_id": cycle["next_rising_edge_id"],
+                    },
+                }
+            )
+        if status != "stable":
+            low_support_regimes.add(position)
+            unresolved.append(
+                {
+                    "kind": "contains_unresolved_phase" if has_unresolved_phase else ("low_stable_support" if stable_count else "transition_dominated_insufficient_support"),
+                    "regime_id": regime_id,
+                    "reason": "short_phase_is_not_asserted_as_stable" if has_unresolved_phase else "stable_complete_cycles_below_min_cycles_per_side",
+                    "detail": (
+                        f"regime {regime_id} has {stable_count} stable complete cycles after excluding "
+                        f"{len(uncertain_in_span)} transition-uncertain cycles and "
+                        f"{len(unresolved_phase_in_span)} unresolved-phase cycles, below min_cycles_per_side="
+                        f"{min_cycles_per_side}; it is reported but never asserted as a stable regime"
+                    ),
+                    "cycle_index_range": [span_lo, span_hi - 1] if span_hi > span_lo else None,
+                    "stable_cycle_count": stable_count,
+                    "transition_uncertain_cycle_count": len(uncertain_in_span),
+                    "unresolved_phase_cycle_count": len(unresolved_phase_in_span),
+                    "sample_range": [
+                        int(cycles[span_lo]["start_sample"]),
+                        int(cycles[span_hi - 1]["end_sample_exclusive"]),
+                    ]
+                    if span_hi > span_lo
+                    else None,
+                    "time_range_s": [
+                        float(cycles[span_lo]["start_time_s"]),
+                        float(cycles[span_hi - 1]["end_time_s"]),
+                    ]
+                    if span_hi > span_lo
+                    else None,
+                    "status": "unresolved",
+                    "degrading": True,
+                }
+            )
+        regimes.append(
+            {
+                "regime_id": regime_id,
+                "index": position,
+                "status": status,
+                "start_sample": int(cycles[span_lo]["start_sample"]) if span_hi > span_lo else None,
+                "end_sample_exclusive": int(cycles[span_hi - 1]["end_sample_exclusive"]) if span_hi > span_lo else None,
+                "start_time_s": float(cycles[span_lo]["start_time_s"]) if span_hi > span_lo else None,
+                "end_time_s": float(cycles[span_hi - 1]["end_time_s"]) if span_hi > span_lo else None,
+                "cycle_index_range": [span_lo, span_hi - 1] if span_hi > span_lo else None,
+                "complete_cycle_count": max(0, span_hi - span_lo),
+                "stable_cycle_count": stable_count,
+                "transition_uncertain_cycle_count": len(uncertain_in_span),
+                "unresolved_phase_cycle_count": len(unresolved_phase_in_span),
+                "anomaly_cycle_count": len({item["cycle_index"] for item in anomalies if item["reference"]["regime_id"] == regime_id}),
+                "neighbor_transition_ids": {
+                    "left": transitions[position - 1]["transition_id"] if position > 0 and position - 1 < len(transitions) else None,
+                    "right": transitions[position]["transition_id"] if position < len(transitions) else None,
+                },
+                "summaries": summaries,
+                "drift": drift_annotations,
+                "source": {
+                    "cycle_ids": _regime_capped_ids([cycles[index]["cycle_id"] for index in range(span_lo, span_hi)]),
+                    "pulse_ids": _regime_capped_ids([cycles[index]["pulse_id"] for index in range(span_lo, span_hi)]),
+                    "rising_edge_ids": _regime_capped_ids(
+                        [cycles[index]["rising_edge_id"] for index in range(span_lo, span_hi) if cycles[index]["rising_edge_id"]]
+                    ),
+                },
+            }
+        )
+        for index in range(span_lo, span_hi):
+            if index in uncertain_cycles:
+                cycle_assignment[index] = {
+                    "classification": "transition_uncertain",
+                    "regime_id": None,
+                    "transition_id": transition_by_cycle.get(index),
+                }
+            elif index in short_phase_ids:
+                cycle_assignment[index] = {
+                    "classification": "unresolved_phase",
+                    "regime_id": None,
+                    "phase_id": short_phase_ids[index],
+                    "transition_id": None,
+                }
+            elif status == "stable":
+                cycle_assignment[index] = {"classification": "stable", "regime_id": regime_id, "transition_id": None}
+            else:
+                cycle_assignment[index] = {
+                    "classification": "unresolved_phase",
+                    "regime_id": regime_id,
+                    "transition_id": None,
+                }
+
+    # ---- cycle records -----------------------------------------------------
+    anomaly_flags: dict[int, list[dict[str, Any]]] = {}
+    for item in anomalies:
+        anomaly_flags.setdefault(item["cycle_index"], []).append(
+            {
+                "anomaly_id": item["anomaly_id"],
+                "features": [measure["feature"] for measure in item["measures"]],
+                "primary_feature": item["feature"],
+                "primary_score": item["score"],
+            }
+        )
+    cycle_items: list[dict[str, Any]] = []
+    for cycle in cycles:
+        index = cycle["index"]
+        assigned = cycle_assignment.get(index, {"classification": "unassigned", "regime_id": None, "transition_id": None})
+        cycle_items.append(
+            {
+                "cycle_id": cycle["cycle_id"],
+                "index": index,
+                "start_sample": cycle["start_sample"],
+                "end_sample_exclusive": cycle["end_sample_exclusive"],
+                "start_time_s": cycle["start_time_s"],
+                "end_time_s": cycle["end_time_s"],
+                "sample_span": cycle["sample_span"],
+                "feature_basis": cycle["feature_basis"],
+                "features": {
+                    feature: _regime_number(cycle["features"][feature])
+                    for feature in usable_features
+                    if feature in cycle["features"]
+                },
+                "classification": assigned["classification"],
+                "regime_id": assigned["regime_id"],
+                "transition_id": assigned["transition_id"],
+                "phase_id": assigned.get("phase_id"),
+                "transition_uncertain": assigned["classification"] == "transition_uncertain",
+                "anomalies": anomaly_flags.get(index, []),
+                "source": {
+                    "pulse_id": cycle["pulse_id"],
+                    "next_pulse_id": cycle["next_pulse_id"],
+                    "rising_edge_id": cycle["rising_edge_id"],
+                    "next_rising_edge_id": cycle["next_rising_edge_id"],
+                },
+            }
+        )
+
+    # ---- measures report ---------------------------------------------------
+    selected: list[dict[str, Any]] = []
+    for entry in evaluated:
+        feature = entry["feature"]
+        supporting_transitions = [
+            transition["transition_id"]
+            for transition in transitions
+            if feature in transition["support"]["supporting_features"]
+        ]
+        own_boundaries = [boundary["cycle_index"] for boundary in per_feature_boundaries.get(feature, [])]
+        rejected_candidates = per_feature_rejected.get(feature, [])
+        entry["own_boundary_cycle_indexes"] = own_boundaries
+        entry["change_evidence"] = {
+            "boundaries_detected": len(own_boundaries),
+            "strongest_effect": _regime_number(
+                max((boundary["effect"] for boundary in per_feature_boundaries.get(feature, [])), default=None)
+            )
+            if own_boundaries
+            else None,
+            "rejected_candidate_count": len(rejected_candidates),
+            "rejected_candidates": rejected_candidates[:4],
+            "selected_for_segmentation": bool(supporting_transitions),
+        }
+        if supporting_transitions:
+            entry["reason"] = "supported_accepted_boundary"
+            entry["supports_transition_ids"] = supporting_transitions
+            selected.append(
+                {
+                    "feature": feature,
+                    "dimension": entry["dimension"],
+                    "unit": entry["unit"],
+                    "reason": "supported_accepted_boundary",
+                    "supports_transition_ids": supporting_transitions,
+                    "boundary_cycle_indexes": own_boundaries,
+                    "evidence": {
+                        "median": entry["median"],
+                        "resolution": entry["resolution"],
+                        "tolerance": entry["tolerance"]["effective"],
+                        "strongest_effect": entry["change_evidence"]["strongest_effect"],
+                    },
+                }
+            )
+        else:
+            if own_boundaries:
+                entry["reason"] = "own_boundary_superseded_by_merged_transition"
+            elif rejected_candidates:
+                entry["reason"] = "candidate_change_rejected:" + ",".join(
+                    sorted({reason for candidate in rejected_candidates for reason in candidate["reasons"]})
+                )
+            else:
+                entry["reason"] = "stable_no_change_evidence"
+            entry["supports_transition_ids"] = []
+
+    # Quantization bookkeeping: a measure whose one-sample quantum is coarser
+    # than the requested tolerance is only reported as rejected when nothing in
+    # the record could be resolved with it. When it still supports an accepted
+    # boundary the change is above the quantum and is not jitter, so the measure
+    # stays evaluated/selected with an explicit quantization note.
+    for feature in quantization_limited:
+        entry = next(item for item in evaluated if item["feature"] == feature)
+        selected_for_segmentation = bool(entry.get("supports_transition_ids"))
+        entry["quantization"]["selected_for_segmentation"] = selected_for_segmentation
+        if not selected_for_segmentation:
+            rejected_measures.append(
+                {
+                    "feature": feature,
+                    "dimension": entry["dimension"],
+                    "reason": "resolution_below_tolerance",
+                    "detail": entry["quantization"]["rule"],
+                    "evidence": {
+                        "resolution": entry["resolution"],
+                        "tolerance": entry["quantization"]["tolerance"],
+                        "median": entry["median"],
+                        "minimum_detectable_effect": entry["quantization"]["minimum_detectable_effect"],
+                    },
+                }
+            )
+        unresolved.append(
+            {
+                "kind": "measure_resolution_limited",
+                "feature": feature,
+                "reason": "resolution_below_tolerance",
+                "detail": (
+                    f"one-sample resolution {entry['resolution']} {entry['unit']} exceeds the "
+                    f"{entry['quantization']['tolerance']} {entry['unit']} tolerance, so a boundary from this "
+                    "measure must exceed two quantization steps"
+                ),
+                "evidence": {
+                    "resolution": entry["resolution"],
+                    "tolerance": entry["quantization"]["tolerance"],
+                    "quantum": entry["quantization"]["quantum"],
+                    "minimum_detectable_effect": entry["quantization"]["minimum_detectable_effect"],
+                    "selected_for_segmentation": selected_for_segmentation,
+                    "supports_transition_ids": entry.get("supports_transition_ids") or [],
+                },
+                "status": "informational" if selected_for_segmentation else "unresolved",
+                "degrading": False,
+            }
+        )
+
+    measures_section = {
+        "mode": mode,
+        "requested": requested_names,
+        "selected": selected,
+        "selected_count": len(selected),
+        "evaluated": evaluated,
+        "evaluated_count": len(evaluated),
+        "rejected": rejected_measures,
+        "unavailable": unavailable_measures,
+        "detector_features_used": detector_features,
+        "dimension_rule": "features sharing a dimension (period/frequency, code/voltage) are one evidence channel",
+    }
+
+    # ---- reconciliation and integrity -------------------------------------
+    stable_cycles = sum(1 for item in cycle_items if item["classification"] == "stable")
+    uncertain_cycle_count = sum(1 for item in cycle_items if item["classification"] == "transition_uncertain")
+    unresolved_phase_cycles = sum(1 for item in cycle_items if item["classification"] == "unresolved_phase")
+    unassigned_cycles = analyzed_cycle_count - stable_cycles - uncertain_cycle_count - unresolved_phase_cycles
+    reconciliation_total = stable_cycles + uncertain_cycle_count + unresolved_phase_cycles + unassigned_cycles
+    reconciles = reconciliation_total == analyzed_cycle_count
+    if cycle_diagnostics["incomplete_pulse_count"] or cycle_diagnostics["unpaired_complete_pulse_count"]:
+        excluded_window = (
+            cycles_all[0]["start_sample"] if cycles_all else None
+        )
+        unresolved.append(
+            {
+                "kind": "incomplete_boundary_cycles",
+                "reason": "capture_boundary_or_unpaired_pulses_do_not_form_complete_cycles",
+                "detail": (
+                    f"{cycle_diagnostics['incomplete_pulse_count']} incomplete pulse(s) and "
+                    f"{cycle_diagnostics['unpaired_complete_pulse_count']} unpaired complete pulse(s) were excluded "
+                    "from cycle construction; no width, period, or edge is inferred for them"
+                ),
+                "evidence": cycle_diagnostics,
+                "sample_range": [excluded_window, int(capture["points"]) - 1] if excluded_window is not None else None,
+                "status": "informational",
+                "degrading": False,
+            }
+        )
+    if cycle_budget_exceeded:
+        unresolved.append(
+            {
+                "kind": "cycle_budget_exceeded",
+                "reason": "max_cycles_budget_reached",
+                "detail": (
+                    f"{observed_cycle_count} complete cycles were observed but only the first {max_cycles} were "
+                    "analyzed; the reported segmentation is a prefix of the record, not a complete partition"
+                ),
+                "evidence": {
+                    "observed_complete_cycle_count": observed_cycle_count,
+                    "analyzed_cycle_count": analyzed_cycle_count,
+                    "max_cycles": max_cycles,
+                },
+                "status": "unresolved",
+                "degrading": True,
+            }
+        )
+    if edge_budget_exceeded:
+        unresolved.append(
+            {
+                "kind": "edge_budget_exceeded",
+                "reason": "max_edges_budget_reached",
+                "detail": (
+                    f"the edge table reached max_edges={max_edges}, so the edge, pulse, and cycle tables are lower "
+                    "bounds and the segmentation covers only the analyzed prefix"
+                ),
+                "evidence": {
+                    "edge_count": structure["edges"].get("count"),
+                    "edge_lower_bound": structure["edges"].get("lower_bound"),
+                    "max_edges": max_edges,
+                },
+                "status": "unresolved",
+                "degrading": True,
+            }
+        )
+    if observed_cycle_count and analyzed_cycle_count < 2 * min_cycles_per_side:
+        unresolved.append(
+            {
+                "kind": "insufficient_cycles",
+                "reason": "fewer_complete_cycles_than_required_support",
+                "detail": (
+                    f"only {analyzed_cycle_count} complete cycle(s) are available; at least "
+                    f"{2 * min_cycles_per_side} are needed to test a boundary with "
+                    f"min_cycles_per_side={min_cycles_per_side}"
+                ),
+                "evidence": {"analyzed_cycle_count": analyzed_cycle_count},
+                "status": "unresolved",
+                "degrading": True,
+            }
+        )
+    unresolved = unresolved[:MAX_REGIME_UNRESOLVED_RECORDS]
+    for position, entry in enumerate(unresolved):
+        entry["unresolved_id"] = f"u{position:05d}"
+
+    degrading_unresolved = [entry for entry in unresolved if entry.get("degrading")]
+    if not reconciles:
+        data_integrity_status = "INVALID"
+    elif edge_budget_exceeded or cycle_budget_exceeded:
+        data_integrity_status = "UNVERIFIED"
+    else:
+        data_integrity_status = str(capture.get("integrity", {}).get("status", "COMPLETE"))
+        if data_integrity_status not in {"COMPLETE", "INCOMPLETE", "INVALID", "UNVERIFIED", "UNSUPPORTED"}:
+            data_integrity_status = "UNVERIFIED"
+    if edge_budget_exceeded or cycle_budget_exceeded:
+        segmentation_status = "UNVERIFIED"
+    elif analyzed_cycle_count == 0 or not detector_features:
+        segmentation_status = "UNSUPPORTED"
+    elif degrading_unresolved:
+        segmentation_status = "INCOMPLETE"
+    else:
+        segmentation_status = "COMPLETE"
+    overall_status = (
+        "INVALID" if data_integrity_status == "INVALID" else
+        "UNVERIFIED" if "UNVERIFIED" in (data_integrity_status, segmentation_status) else
+        "INCOMPLETE" if "INCOMPLETE" in (data_integrity_status, segmentation_status) else
+        "UNSUPPORTED" if "UNSUPPORTED" in (data_integrity_status, segmentation_status) else
+        "COMPLETE"
+    )
+    # Keep the legacy field at the data-artifact layer: a fully captured ramp is
+    # data COMPLETE even when its discrete regime interpretation is unresolved.
+    integrity_status = data_integrity_status
+
+    limitations: list[str] = [
+        "regimes_are_built_only_from_raw_original_resolution_pulses",
+        "cycle_features_use_sample_grid_values_never_interpolated_boundary_widths",
+        "no_missing_edge_or_pulse_is_inferred_at_capture_boundaries",
+        "quantization_limits_detectable_change_one_sample_resolution_is_reported_per_measure",
+    ]
+    if edge_budget_exceeded:
+        limitations.append("edge_budget_exceeded_all_cycle_counts_are_lower_bounds_and_the_segmentation_is_a_prefix")
+    if cycle_budget_exceeded:
+        limitations.append("cycle_budget_exceeded_segmentation_covers_analyzed_prefix_only")
+    if not structure["evidence"].get("full_record_scanned", False):
+        limitations.append("scan_limited_to_requested_sub_range")
+    if not detector_features:
+        limitations.append("no_feature_could_support_segmentation")
+    if any(entry["kind"] == "drift_trend" for entry in unresolved):
+        limitations.append("monotonic_drift_is_trend_evidence_not_a_step_regime")
+    if any(entry["kind"] == "measure_resolution_limited" for entry in unresolved):
+        limitations.append("some_measures_are_quantization_limited_and_were_not_used_for_boundaries")
+    if transitions:
+        limitations.append("transition_uncertain_cycles_are_excluded_from_stable_regime_counts")
+
+    coverage = {
+        "source_sha256": capture["raw_sha256"],
+        "raw_scan": True,
+        "stride_used": 1,
+        "stride_source": "original_resolution_raw_samples",
+        "source_points": capture["points"],
+        "scanned_start": structure["coverage"]["scanned_start"],
+        "scanned_end_exclusive": structure["coverage"]["scanned_end_exclusive"],
+        "scanned_start_time_s": structure["coverage"]["scanned_start_time_s"],
+        "scanned_end_time_s": structure["coverage"]["scanned_end_time_s"],
+        "full_record_scanned": bool(structure["coverage"]["full_record_scanned"]),
+        "point_count": capture["points"],
+        "sampled_point_count": structure["evidence"].get("scanned_points"),
+        "edge_count": structure["edges"].get("count"),
+        "edge_count_is_lower_bound": edge_budget_exceeded,
+        "edge_count_lower_bound": structure["edges"].get("lower_bound"),
+        "pulse_count": structure["pulses"].get("count"),
+        "complete_pulse_count": structure["pulses"].get("complete_count"),
+        "incomplete_pulse_count": structure["pulses"].get("incomplete_count"),
+        "complete_cycle_count": observed_cycle_count,
+        "complete_cycle_count_is_lower_bound": edge_budget_exceeded,
+        "analyzed_cycle_count": analyzed_cycle_count,
+        "unanalyzed_cycle_count": max(0, observed_cycle_count - analyzed_cycle_count),
+        "stable_cycle_count": stable_cycles,
+        "transition_uncertain_cycle_count": uncertain_cycle_count,
+        "unresolved_phase_cycle_count": unresolved_phase_cycles,
+        "unassigned_cycle_count": unassigned_cycles,
+        "anomaly_record_count": len(anomalies),
+        "anomaly_cycle_count": len({item["cycle_index"] for item in anomalies}),
+        "regime_count": len(regimes),
+        "transition_count": len(transitions),
+        "boundary_incomplete_pulses": cycle_diagnostics["incomplete_pulse_windows"],
+        "boundary_incomplete_pulse_ids": cycle_diagnostics["incomplete_pulse_ids"],
+        "budgets": {
+            "max_edges": max_edges,
+            "max_cycles": max_cycles,
+            "edge_budget_exceeded": edge_budget_exceeded,
+            "cycle_budget_exceeded": cycle_budget_exceeded,
+        },
+        "segmentation_scope": "full_analyzed_range" if not (edge_budget_exceeded or cycle_budget_exceeded) else "prefix_only",
+        "count_reconciliation": {
+            "rule": "stable + transition_uncertain + unresolved_phase + unassigned = analyzed_complete_cycles",
+            "analyzed_complete_cycles": analyzed_cycle_count,
+            "stable_cycles": stable_cycles,
+            "transition_uncertain_cycles": uncertain_cycle_count,
+            "unresolved_phase_cycles": unresolved_phase_cycles,
+            "unassigned_cycles": unassigned_cycles,
+            "total": reconciliation_total,
+            "reconciles": reconciles,
+        },
+        "limitations": limitations,
+    }
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "tool": "regimes",
+        "capture": _capture_envelope(capture),
+        "integrity": capture["integrity"],
+        "integrity_status": data_integrity_status,
+        "data_integrity_status": data_integrity_status,
+        "segmentation_status": segmentation_status,
+        "overall_status": overall_status,
+        "sampling": _sampling_envelope(capture),
+        "calibration": capture["calibration"],
+        "detector": {
+            "id": REGIME_DETECTOR_ID,
+            "version": REGIME_DETECTOR_VERSION,
+            "cycle_derivation": REGIME_CYCLE_DERIVATION,
+            "parameters": {
+                "domain": domain,
+                "requested_low": float(low),
+                "requested_high": float(high),
+                "low_code": structure["detector"]["thresholds"]["low_code"],
+                "high_code": structure["detector"]["thresholds"]["high_code"],
+                "measures": mode,
+                "min_cycles_per_side": min_cycles_per_side,
+                "relative_tolerance": relative_tolerance,
+                "absolute_tolerance": absolute_tolerance,
+                "transition_margin_cycles": transition_margin_cycles,
+                "anomaly_z": anomaly_z,
+                "anomaly_score": "0.6745 * (value - regime_median) / (1.4826 * MAD) with quantization fallback",
+                "max_edges": max_edges,
+                "max_cycles": max_cycles,
+                "chunk_points": chunk_points,
+                "cluster_gap_s": cluster_gap_s,
+                "start_time_s": start_time_s,
+                "end_time_s": end_time_s,
+                "structure_detector_id": structure["detector"]["id"],
+            },
+            "internal_constants": {
+                "step_scan_grid": _STEP_SCAN_GRID,
+                "step_alternative_candidates": _STEP_ALTERNATIVE_CANDIDATES,
+                "step_flatness_fraction": _STEP_FLATNESS_FRACTION,
+                "step_noise_sigma": _STEP_NOISE_SIGMA,
+                "uncertainty_span_factor": _STEP_UNCERTAINTY_SPAN_FACTOR,
+                "mad_to_sigma": _MAD_TO_SIGMA,
+                "drift_min_fit_quality": _DRIFT_MIN_FIT_QUALITY,
+                "drift_min_monotonic_fraction": _DRIFT_MIN_MONOTONIC_FRACTION,
+                "change_point_loss": "L1 loss against left/right robust medians",
+            },
+            "status": segmentation_status,
+        },
+        "regimes": {
+            "count": len(regimes),
+            "returned": len(regimes),
+            "items_truncated": False,
+            "items_complete": True,
+            "items": regimes,
+        },
+        "transitions": {
+            "count": len(transitions),
+            "returned": len(transitions),
+            "items_truncated": False,
+            "items_complete": True,
+            "items": transitions,
+        },
+        "cycles": {
+            "count": len(cycle_items),
+            "observed_complete_count": observed_cycle_count,
+            "observed_count_is_lower_bound": edge_budget_exceeded,
+            "analyzed_count": analyzed_cycle_count,
+            "returned": len(cycle_items),
+            "items_truncated": False,
+            "items_complete": True,
+            "items": cycle_items,
+        },
+        "anomalies": {
+            "count": len(anomalies),
+            "returned": len(anomalies),
+            "items_truncated": False,
+            "items_complete": True,
+            "threshold_basis": "modified_z_median_mad_or_quantization_units",
+            "anomaly_z": anomaly_z,
+            "items": anomalies,
+        },
+        "unresolved": {
+            "count": len(unresolved),
+            "returned": len(unresolved),
+            "items_truncated": False,
+            "items_complete": True,
+            "items": unresolved,
+        },
+        "measures": measures_section,
+        "coverage": coverage,
+        "evidence": {
+            "raw_scan": True,
+            "stride_used": 1,
+            "source_sha256": capture["raw_sha256"],
+            "source_points": capture["points"],
+            "cycle_feature_basis": "sample_grid",
+            "cycle_derivation": REGIME_CYCLE_DERIVATION,
+            "cycle_diagnostics": cycle_diagnostics,
+            "integrity_status": data_integrity_status,
+            "data_integrity_status": data_integrity_status,
+            "segmentation_status": segmentation_status,
+            "overall_status": overall_status,
+            "limitations": limitations,
+        },
+    }
+
+
 def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
     if max_bytes <= 0 or max_bytes > MAX_JSON_BYTES:
         raise AnalysisError("LIMIT_INVALID", f"max_json_bytes must be in 1..{MAX_JSON_BYTES}")
+    compact_regimes: list[dict[str, Any]] = []
+    compact_transitions: list[dict[str, Any]] = []
+    if result.get("tool") == "regimes":
+        regime_section = result.get("regimes", {})
+        for regime in regime_section.get("items", []) if isinstance(regime_section, dict) else []:
+            compact_regimes.append(
+                {
+                    key: regime.get(key)
+                    for key in (
+                        "regime_id", "status", "start_sample", "end_sample_exclusive",
+                        "start_time_s", "end_time_s", "stable_cycle_count",
+                    )
+                }
+                | {
+                    "measure_medians": {
+                        feature: values.get("median")
+                        for feature, values in regime.get("summaries", {}).items()
+                    }
+                }
+            )
+        transition_section = result.get("transitions", {})
+        for transition in transition_section.get("items", []) if isinstance(transition_section, dict) else []:
+            boundary = transition.get("boundary", {})
+            if not isinstance(boundary, dict):
+                boundary = {}
+            compact_transitions.append(
+                {
+                    "transition_id": transition.get("transition_id"),
+                    "boundary_sample": boundary.get("sample"),
+                    "boundary_time_s": boundary.get("time_s"),
+                    "changed_measures": transition.get("changed_measures"),
+                    "confidence": transition.get("confidence"),
+                }
+            )
     result["truncated"] = False
     if len(json.dumps(result, separators=(",", ":"), allow_nan=False).encode("utf-8")) <= max_bytes:
         return result
@@ -1654,6 +4018,11 @@ def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
     # shortened ``items`` list is always flagged so a bounded response can never
     # be mistaken for a complete edge/pulse/cluster table.
     sections = (
+        ("cycles", "items", "returned"),
+        ("anomalies", "items", "returned"),
+        ("transitions", "items", "returned"),
+        ("unresolved", "items", "returned"),
+        ("regimes", "items", "returned"),
         ("events", "items", "returned"),
         ("edges", "items", "returned"),
         ("pulses", "items", "returned"),
@@ -1717,6 +4086,280 @@ def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
         window["truncated"] = len(codes) < window.get("count", len(codes))
         if size() <= max_bytes:
             return result
+
+    # Preserve compact regime summaries by pruning verbose candidate diagnostics
+    # and explanatory text before falling back to a minimal UNVERIFIED envelope.
+    if result.get("tool") == "regimes":
+        detector = result.get("detector")
+        if isinstance(detector, dict):
+            detector.pop("internal_constants", None)
+        measures = result.get("measures")
+        if isinstance(measures, dict):
+            for entry in measures.get("evaluated", []):
+                if isinstance(entry, dict):
+                    evidence = entry.get("change_evidence")
+                    if isinstance(evidence, dict):
+                        evidence["rejected_candidates_omitted_for_json_budget"] = len(
+                            evidence.pop("rejected_candidates", [])
+                        )
+            for entry in measures.get("rejected", []):
+                if isinstance(entry, dict):
+                    entry.pop("detail", None)
+        for entry in result.get("transitions", {}).get("items", []):
+            if isinstance(entry, dict):
+                entry.pop("step_evidence", None)
+                for measure in entry.get("per_measure", {}).values():
+                    if isinstance(measure, dict):
+                        measure.pop("own_boundary_cycle_indexes", None)
+        for entry in result.get("unresolved", {}).get("items", []):
+            if isinstance(entry, dict):
+                entry.pop("detail", None)
+                entry.pop("rejected_candidates", None)
+        for section_name in ("cycles", "anomalies"):
+            parent = result.get(section_name)
+            values = parent.get("items") if isinstance(parent, dict) else None
+            while isinstance(values, list) and values and size() > max_bytes:
+                values.pop()
+                parent["returned"] = len(values)
+                parent["items_truncated"] = True
+                parent["items_complete"] = False
+        if size() > max_bytes:
+            for section_name in ("cycles", "anomalies"):
+                parent = result.get(section_name)
+                if isinstance(parent, dict) and parent.get("items"):
+                    parent["items"].clear()
+                    parent["returned"] = 0
+                    parent["items_truncated"] = True
+                    parent["items_complete"] = False
+            if compact_transitions:
+                section = result.get("transitions", {})
+                section["items"] = compact_transitions
+                section["returned"] = len(compact_transitions)
+                section["items_truncated"] = False
+                section["items_complete"] = True
+            if compact_regimes:
+                section = result.get("regimes", {})
+                section["items"] = compact_regimes
+                section["returned"] = len(compact_regimes)
+                section["items_truncated"] = False
+                section["items_complete"] = True
+        if size() <= max_bytes:
+            result.setdefault("coverage", {}).setdefault("limitations", []).append(
+                "json_output_pruned_diagnostics_or_detailed_records_to_preserve_regime_summaries"
+            )
+            if size() <= max_bytes:
+                return result
+        # If full regime objects still dominate, replace them with compact
+        # summaries before omitting segmentation summaries entirely.
+        if result.get("tool") == "regimes":
+            for section_name, compact_items in (("regimes", compact_regimes), ("transitions", compact_transitions)):
+                section = result.get(section_name)
+                if isinstance(section, dict) and compact_items:
+                    section["items"] = compact_items
+                    section["returned"] = len(compact_items)
+                    section["items_truncated"] = False
+                    section["items_complete"] = True
+            for section_name in ("cycles", "anomalies", "unresolved"):
+                section = result.get(section_name)
+                if isinstance(section, dict) and section.get("items"):
+                    section["items"].clear()
+                    section["returned"] = 0
+                    section["items_truncated"] = True
+                    section["items_complete"] = False
+            if size() <= max_bytes:
+                result.setdefault("coverage", {}).setdefault("limitations", []).append(
+                    "json_output_compacted_regime_and_transition_summaries"
+                )
+                if size() <= max_bytes:
+                    return result
+            # Keep structured compact stage summaries while shedding verbose
+            # intermediate feature diagnostics and repeated envelopes.
+            measures_section = result.get("measures")
+            if isinstance(measures_section, dict):
+                measures_section["evaluated"] = []
+                measures_section["rejected"] = []
+                measures_section["unavailable"] = []
+                measures_section["evaluated_details_omitted"] = True
+            evidence_section = result.get("evidence")
+            if isinstance(evidence_section, dict):
+                evidence_section["cycle_diagnostics"] = {}
+            coverage_section = result.get("coverage")
+            if isinstance(coverage_section, dict):
+                coverage_section["boundary_incomplete_pulses"] = []
+                coverage_section["boundary_incomplete_pulse_ids"] = []
+                coverage_section["count_reconciliation"].pop("rule", None)
+            if size() <= max_bytes:
+                result.setdefault("coverage", {}).setdefault("limitations", []).append(
+                    "json_output_compacted_measure_details"
+                )
+                if size() <= max_bytes:
+                    return result
+
+    # If full details still exceed the caller budget, try a compact but useful
+    # stage summary before omitting regime summaries entirely.
+    if result.get("tool") == "regimes" and compact_regimes:
+        def compact_section(name: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+            source = result.get(name, {})
+            return {
+                "count": source.get("count", len(items)),
+                "returned": len(items),
+                "items_truncated": False,
+                "items_complete": True,
+                "summary_compacted": True,
+                "items": items,
+            }
+
+        compact_summary = {
+            "schema_version": result.get("schema_version", SCHEMA_VERSION),
+            "tool": "regimes",
+            "capture": {
+                key: result.get("capture", {}).get(key)
+                for key in ("channel", "raw_sha256", "points")
+                if key in result.get("capture", {})
+            },
+            "integrity_status": result.get("data_integrity_status", result.get("integrity_status")),
+            "data_integrity_status": result.get("data_integrity_status", result.get("integrity_status")),
+            "segmentation_status": "UNVERIFIED",
+            "overall_status": "UNVERIFIED",
+            "truncated": True,
+            "summary_compacted": True,
+            "required_summary_omitted": False,
+            "regimes": compact_section("regimes", compact_regimes),
+            "transitions": compact_section("transitions", compact_transitions),
+            "cycles": {
+                "count": result.get("cycles", {}).get("count"), "returned": 0,
+                "items_truncated": True, "items_complete": False, "items": [],
+            },
+            "anomalies": {
+                "count": result.get("anomalies", {}).get("count"), "returned": 0,
+                "items_truncated": True, "items_complete": False, "items": [],
+            },
+            "unresolved": {
+                "count": result.get("unresolved", {}).get("count"), "returned": 0,
+                "items_truncated": True, "items_complete": False, "items": [],
+            },
+            "measures": {
+                "mode": result.get("measures", {}).get("mode"),
+                "selected_features": [item.get("feature") for item in result.get("measures", {}).get("selected", [])],
+                "evaluated_count": result.get("measures", {}).get("evaluated_count"),
+                "details_omitted": True,
+            },
+            "coverage": {
+                key: result.get("coverage", {}).get(key)
+                for key in (
+                    "source_sha256", "raw_scan", "stride_used", "source_points", "sampled_point_count",
+                    "edge_count", "complete_cycle_count", "analyzed_cycle_count", "full_record_scanned",
+                    "stable_cycle_count", "transition_uncertain_cycle_count", "unresolved_phase_cycle_count",
+                    "count_reconciliation",
+                )
+                if key in result.get("coverage", {})
+            },
+            "evidence": {
+                "raw_scan": result.get("evidence", {}).get("raw_scan"),
+                "stride_used": result.get("evidence", {}).get("stride_used"),
+                "source_sha256": result.get("evidence", {}).get("source_sha256"),
+                "segmentation_status": "UNVERIFIED",
+                "limitations": ["json_output_compacted_regime_cycle_and_diagnostic_details"],
+            },
+        }
+        if len(json.dumps(compact_summary, separators=(",", ":"), allow_nan=False).encode("utf-8")) <= max_bytes:
+            return compact_summary
+
+    # Regime reports can contain several independently large evidence tables.
+    # If trimming every list still cannot fit, return a small explicit envelope
+    # rather than a generic error or an apparently complete partial result.
+    if result.get("tool") == "regimes":
+        source_capture = result.get("capture", {})
+        source_coverage = result.get("coverage", {})
+        source_evidence = result.get("evidence", {})
+        source_detector = result.get("detector", {})
+
+        def omitted_section(name: str) -> dict[str, Any]:
+            parent = result.get(name, {})
+            observed_count = parent.get("observed_complete_count", parent.get("count")) if isinstance(parent, dict) else None
+            return {
+                "count": parent.get("count") if isinstance(parent, dict) else None,
+                "observed_count": observed_count,
+                "returned": 0,
+                "items_truncated": True,
+                "items_complete": False,
+                "items": [],
+            }
+
+        minimal = {
+            "schema_version": result.get("schema_version", SCHEMA_VERSION),
+            "tool": "regimes",
+            "capture": {
+                key: source_capture[key]
+                for key in ("id", "channel", "raw_sha256", "points", "bytes", "bytes_per_point")
+                if key in source_capture
+            },
+            "integrity": result.get("integrity"),
+            "integrity_status": result.get("integrity_status"),
+            "data_integrity_status": result.get("data_integrity_status", result.get("integrity_status")),
+            "segmentation_status": "UNVERIFIED",
+            "overall_status": "UNVERIFIED",
+            "truncated": True,
+            "required_summary_omitted": True,
+            "detector": {
+                "id": source_detector.get("id"),
+                "version": source_detector.get("version"),
+                "status": "UNVERIFIED",
+            },
+            "regimes": omitted_section("regimes"),
+            "transitions": omitted_section("transitions"),
+            "cycles": omitted_section("cycles"),
+            "anomalies": omitted_section("anomalies"),
+            "unresolved": omitted_section("unresolved"),
+            "measures": {
+                "mode": result.get("measures", {}).get("mode"),
+                "selected_count": result.get("measures", {}).get("selected_count"),
+                "evaluated_count": result.get("measures", {}).get("evaluated_count"),
+                "details_omitted": True,
+            },
+            "coverage": {
+                key: source_coverage[key]
+                for key in (
+                    "source_sha256", "raw_scan", "stride_used", "source_points", "sampled_point_count",
+                    "edge_count", "edge_count_is_lower_bound", "complete_cycle_count",
+                    "analyzed_cycle_count", "full_record_scanned", "segmentation_scope",
+                )
+                if key in source_coverage
+            },
+            "evidence": {
+                "raw_scan": source_evidence.get("raw_scan"),
+                "stride_used": source_evidence.get("stride_used"),
+                "source_sha256": source_evidence.get("source_sha256"),
+                "source_points": source_evidence.get("source_points"),
+                "data_integrity_status": result.get("data_integrity_status", result.get("integrity_status")),
+                "segmentation_status": "UNVERIFIED",
+                "limitations": ["required_summary_omitted_to_fit_json_budget"],
+            },
+        }
+        encoded_minimal = json.dumps(minimal, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        if len(encoded_minimal) <= max_bytes:
+            return minimal
+        # Very small caller budgets may not fit the usual compact envelope.
+        # Fall back again to a minimal status/source header that still says the
+        # required regime summary was omitted and cannot be used as a complete
+        # segmentation result.
+        fallback = {
+            "schema_version": result.get("schema_version", SCHEMA_VERSION),
+            "tool": "regimes",
+            "capture": {
+                key: source_capture[key]
+                for key in ("channel", "raw_sha256")
+                if key in source_capture
+            },
+            "integrity_status": result.get("integrity_status"),
+            "segmentation_status": "UNVERIFIED",
+            "overall_status": "UNVERIFIED",
+            "truncated": True,
+            "required_summary_omitted": True,
+        }
+        encoded_fallback = json.dumps(fallback, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        if len(encoded_fallback) <= max_bytes:
+            return fallback
     raise AnalysisError("LIMIT_INVALID", "Required integrity/summary fields exceed max_json_bytes")
 
 

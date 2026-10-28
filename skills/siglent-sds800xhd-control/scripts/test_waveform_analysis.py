@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from analyze_waveform import build_parser
 from waveform_analysis import (
     AnalysisError,
     analyze_pulse_structure,
@@ -16,10 +17,11 @@ from waveform_analysis import (
     load_capture,
     m4_preview,
     summarize_capture,
+    analyze_waveform_regimes,
 )
 
 
-def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | None = None, snapshot_vdiv: float | None = None) -> Path:
+def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | None = None, snapshot_vdiv: float | None = None, sample_interval: float = 1e-6) -> Path:
     channel = "C1"
     channel_dir = root / channel
     channel_dir.mkdir(parents=True)
@@ -46,7 +48,7 @@ def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | No
         "sparsing_factor": 1,
         "wave_array_count": points,
         "wave_array_1_bytes": len(payload),
-        "sample_interval": 1e-6,
+        "sample_interval": sample_interval,
         "horizontal_offset": 0.0,
         "timebase_s": 1.0,
         "vdiv": 2.0 if width == 1 else 1.0,
@@ -589,6 +591,152 @@ class PulseStructureTests(unittest.TestCase):
                 analyze_pulse_structure(capture, low=2, high=8, max_edges=0)
             with self.assertRaises(AnalysisError):
                 analyze_pulse_structure(capture, low=2, high=8, start_time_s=0.0)
+
+
+class RegimeAnalysisTests(unittest.TestCase):
+    @staticmethod
+    def _capture(root: Path, periods: list[int], widths: list[int] | None = None, *, levels: list[int] | None = None):
+        widths = widths or [20] * len(periods)
+        levels = levels or [10] * len(periods)
+        values: list[int] = []
+        for period, width, level in zip(periods, widths, levels):
+            values.extend([level] * width)
+            values.extend([0] * (period - width))
+        _write_capture(root, values, sample_interval=1e-4)
+        return load_capture(root, "C1")
+
+    @staticmethod
+    def _run(capture, **kwargs):
+        kwargs.setdefault("low", 2)
+        kwargs.setdefault("high", 8)
+        return analyze_waveform_regimes(capture, **kwargs)
+
+    def test_regimes_cli_exposes_auto_measures_and_support_controls(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "regimes", "--capture", "/tmp/capture", "--channel", "C1",
+                "--threshold-codes", "2", "8", "--measures", "auto",
+                "--min-cycles-per-side", "5", "--transition-margin-cycles", "1",
+            ]
+        )
+        self.assertEqual(args.command, "regimes")
+        self.assertEqual(args.measures, "auto")
+        self.assertEqual(args.min_cycles_per_side, 5)
+        self.assertEqual(args.transition_margin_cycles, 1)
+
+    def test_frequency_step_produces_two_traceable_regimes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 12 + [50] * 12)
+            report = self._run(capture)
+            self.assertEqual(report["data_integrity_status"], "COMPLETE")
+            self.assertEqual(report["coverage"]["count_reconciliation"]["reconciles"], True)
+            self.assertEqual(len(report["transitions"]["items"]), 1)
+            summaries = [regime["summaries"]["period_s"]["median"] for regime in report["regimes"]["items"]]
+            self.assertEqual(summaries, [0.01, 0.005])
+            self.assertEqual([regime["status"] for regime in report["regimes"]["items"]], ["stable", "stable"])
+            self.assertTrue(report["measures"]["selected"])
+            self.assertTrue(report["cycles"]["items"][0]["source"]["rising_edge_id"])
+
+    def test_isolated_period_outlier_is_one_anomaly_not_a_regime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 20 + [200] + [100] * 20)
+            report = self._run(capture)
+            self.assertEqual(len(report["regimes"]["items"]), 1)
+            self.assertEqual(report["transitions"]["count"], 0)
+            self.assertEqual(len(report["anomalies"]["items"]), 1)
+            self.assertEqual(report["anomalies"]["items"][0]["measure_count"], 3)
+
+    def test_auto_selects_duty_change_when_period_is_stable(self):
+        widths = [20] * 15 + [40] * 15
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 30, widths)
+            report = self._run(capture)
+            self.assertEqual(len(report["regimes"]["items"]), 2)
+            selected = {item["feature"] for item in report["measures"]["selected"]}
+            self.assertTrue({"duty_cycle", "high_width_s"} & selected)
+            self.assertEqual(report["regimes"]["items"][0]["summaries"]["period_s"]["median"], 0.01)
+
+    def test_explicit_measures_and_unknown_measure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 12 + [50] * 12)
+            report = self._run(capture, measures="duty_cycle")
+            self.assertEqual([item["feature"] for item in report["measures"]["selected"]], ["duty_cycle"])
+            with self.assertRaises(AnalysisError) as caught:
+                self._run(capture, measures="not_a_measure")
+            self.assertEqual(caught.exception.code, "MEASURE_UNSUPPORTED")
+
+    def test_four_cycle_middle_phase_is_explicitly_unresolved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 10 + [50] * 4 + [100] * 10)
+            report = self._run(capture)
+            self.assertEqual(report["transitions"]["count"], 0)
+            self.assertTrue(any(item["kind"] == "short_phase_insufficient_support" for item in report["unresolved"]["items"]))
+            self.assertTrue(any(item["classification"] == "unresolved_phase" for item in report["cycles"]["items"]))
+            self.assertEqual(report["coverage"]["count_reconciliation"]["reconciles"], True)
+
+    def test_five_cycle_middle_phase_is_not_asserted_as_stable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 10 + [50] * 5 + [100] * 10)
+            report = self._run(capture)
+            self.assertTrue(any(item["kind"] == "contains_unresolved_phase" for item in report["unresolved"]["items"]))
+            self.assertEqual(report["transitions"]["count"], 2)
+            middle = [item for item in report["regimes"]["items"] if item["status"] == "contains_unresolved_phase"]
+            self.assertEqual(len(middle), 1)
+            self.assertLess(middle[0]["stable_cycle_count"], 5)
+
+    def test_six_cycle_middle_phase_remains_explicitly_unresolved_after_boundary_margin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 10 + [50] * 6 + [100] * 10)
+            report = self._run(capture)
+            self.assertEqual(report["transitions"]["count"], 2)
+            middle = [item for item in report["regimes"]["items"] if item["status"] == "contains_unresolved_phase"]
+            self.assertEqual(len(middle), 1)
+            self.assertEqual(middle[0]["stable_cycle_count"], 3)
+            self.assertTrue(any(item["kind"] == "contains_unresolved_phase" for item in report["unresolved"]["items"]))
+
+    def test_smooth_ramp_preserves_data_integrity_and_reports_trend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100 - 2 * index for index in range(24)])
+            report = self._run(capture)
+            self.assertEqual(report["data_integrity_status"], "COMPLETE")
+            self.assertEqual(report["transitions"]["count"], 0)
+            self.assertTrue(any(item["kind"] == "drift_trend" for item in report["unresolved"]["items"]))
+
+    def test_edge_and_cycle_budgets_lower_confidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 40)
+            edge_limited = self._run(capture, max_edges=10)
+            self.assertEqual(edge_limited["overall_status"], "UNVERIFIED")
+            self.assertEqual(edge_limited["coverage"]["segmentation_scope"], "prefix_only")
+            cycle_limited = self._run(capture, max_cycles=10)
+            self.assertEqual(cycle_limited["overall_status"], "UNVERIFIED")
+            self.assertTrue(cycle_limited["coverage"]["count_reconciliation"]["reconciles"])
+
+    def test_uncalibrated_voltage_measure_is_unavailable_but_code_measure_works(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [10, 0] * 100, width=2)
+            capture = load_capture(root, "C1")
+            report = self._run(capture, measures="peak_v,period_s")
+            self.assertIn("peak_v", {item["feature"] for item in report["measures"]["unavailable"]})
+            self.assertIn("period_s", {item["feature"] for item in report["measures"]["evaluated"]})
+
+    def test_regime_json_budget_never_returns_an_unflagged_truncation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self._capture(Path(directory), [100] * 12 + [50] * 12)
+            report = self._run(capture)
+            bounded = bound_json(report, 8192)
+            encoded = json.dumps(bounded, separators=(",", ":"), allow_nan=False).encode()
+            self.assertLessEqual(len(encoded), 8192)
+            self.assertTrue(bounded["truncated"])
+            if bounded.get("summary_compacted") or (
+                bounded.get("truncated") and bounded.get("regimes", {}).get("items")
+            ):
+                self.assertTrue(bounded["regimes"]["items"])
+            else:
+                self.assertTrue(bounded["required_summary_omitted"])
+                self.assertEqual(bounded["overall_status"], "UNVERIFIED")
 
 
 if __name__ == "__main__":

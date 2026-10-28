@@ -51,6 +51,8 @@ Use `structure` as the fact layer before stating whether a signal was absent, dr
 ```text
 python3 scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-codes 20 35
 python3 scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-volts 0.8 2.0 --cluster-gap-s 0.002 --max-edges 20000
+python3 scripts/analyze_waveform.py regimes --capture /path/to/capture --channel C4 --threshold-codes 20 35 --measures auto --min-cycles-per-side 5
+python3 scripts/analyze_waveform.py regimes --capture /path/to/capture --channel C4 --threshold-codes 20 35 --measures duty_cycle,high_width_s --relative-tolerance 0.08
 ```
 
 The analyzer scans every original sample (`stride_used=1`) and emits the ordered threshold edge table, paired high-level pulses, pulse clusters, and classification basis. Each edge records its sample, interpolated crossing time, before/after codes, adjacent same-direction interval, and one-sample timing uncertainty. Each pulse references its edge IDs and sample/time span. A pulse touching a scan boundary without both threshold crossings is `INCOMPLETE`; its width is a lower bound, never padded or inferred. Clusters group observed pulses by low-level gap, with the default gap derived from observed pulse periods when available; cluster grouping is descriptive and does not replace the underlying edge/pulse table.
@@ -58,6 +60,17 @@ The analyzer scans every original sample (`stride_used=1`) and emits the ordered
 `--max-edges` is a hard work/output bound. When exceeded, counts are lower bounds and classification is `UNVERIFIED`; the result must not be described as an exhaustive table. The independent `--max-json-bytes` bound may shorten returned lists, but keeps each section's true count and sets `items_truncated=true` and `items_complete=false`.
 
 M4 previews, sparse sampling, means, and fixed-window edge counts are visualization or summary tools only. They cannot prove that a signal is absent, that a channel is undriven, or that a high level persisted for a stated duration. A negative observation must include the scanned range, thresholds, `detection_resolution_s`, and `minimum_detectable_pulse_s`, and be phrased as `NOT_OBSERVED_WITHIN_DETECTION_CAPABILITY`, not as a universal absence claim. A cluster or window aggregate never substitutes for the individual pulse intervals: a short burst and a long carrier may both have edges in the same coarse window.
+
+### Regime changes and per-cycle anomalies
+
+Use `regimes` after confirming the `structure` edge/pulse evidence when a record may contain stable waveform phases (for example, a frequency step from 100 Hz to 200 Hz):
+
+- `--measures auto` selects supported per-cycle measures that show sustained change; the result records selected, rejected, and unavailable features with reasons. Use an explicit list when the question targets a specific property, such as `duty_cycle,high_width_s`.
+- A regime transition requires at least five complete cycles on both sides by default. Isolated outlier cycles are reported as anomalies, not new regimes. A shorter candidate phase is unresolved; a smooth ramp remains one regime with trend evidence and an unresolved drift annotation.
+- Check `data_integrity_status` separately from `segmentation_status`: a complete capture may have an unresolved interpretation. Voltage measurements are unavailable unless calibration is valid; code-domain features remain usable.
+- Inspect per-cycle features, transition uncertainty, anomaly source references, and `coverage.count_reconciliation`. `max-edges`, `max-cycles`, and JSON byte limits can make the output a lower-bound or compact summary; never interpret a truncated/prefix result as a full segmentation.
+
+Regime segmentation is a heuristic analysis of per-cycle measurements, not a fault diagnosis. Verify detected boundaries against the referenced raw pulse/edge indexes and bounded `window` reads before explaining cause.
 
 ## Binary Response Handling
 
