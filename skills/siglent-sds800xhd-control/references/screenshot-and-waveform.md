@@ -44,6 +44,21 @@ Do not infer full record length from a CSV/downsampled point limit. Compare scop
 
 Signal presence requires a full-record scan, extrema detection, or event detection at original resolution. A one-point sample, mean, or sparse preview can miss a narrow pulse with a very low duty cycle; M4 previews are visualization-only. Before interpreting voltage, cross-check the conversion with a known logic-level channel such as ENABLE. If the panel V/div, probe factor, offset, or code conversion does not reproduce that reference, keep the result in code domain and mark calibration unverified. An observer driven at the same frequency as the measured signal can alias into a false state-change indication; use an unrelated observation rate or emit a discriminating comparison such as `CNT < CCR`. Any counter hypothesis must explain all observations, including periodic retry windows, before it is accepted.
 
+### Exhaustive edge and pulse structure
+
+Use `structure` as the fact layer before stating whether a signal was absent, driven, or continuously active:
+
+```text
+python3 scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-codes 20 35
+python3 scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-volts 0.8 2.0 --cluster-gap-s 0.002 --max-edges 20000
+```
+
+The analyzer scans every original sample (`stride_used=1`) and emits the ordered threshold edge table, paired high-level pulses, pulse clusters, and classification basis. Each edge records its sample, interpolated crossing time, before/after codes, adjacent same-direction interval, and one-sample timing uncertainty. Each pulse references its edge IDs and sample/time span. A pulse touching a scan boundary without both threshold crossings is `INCOMPLETE`; its width is a lower bound, never padded or inferred. Clusters group observed pulses by low-level gap, with the default gap derived from observed pulse periods when available; cluster grouping is descriptive and does not replace the underlying edge/pulse table.
+
+`--max-edges` is a hard work/output bound. When exceeded, counts are lower bounds and classification is `UNVERIFIED`; the result must not be described as an exhaustive table. The independent `--max-json-bytes` bound may shorten returned lists, but keeps each section's true count and sets `items_truncated=true` and `items_complete=false`.
+
+M4 previews, sparse sampling, means, and fixed-window edge counts are visualization or summary tools only. They cannot prove that a signal is absent, that a channel is undriven, or that a high level persisted for a stated duration. A negative observation must include the scanned range, thresholds, `detection_resolution_s`, and `minimum_detectable_pulse_s`, and be phrased as `NOT_OBSERVED_WITHIN_DETECTION_CAPABILITY`, not as a universal absence claim. A cluster or window aggregate never substitutes for the individual pulse intervals: a short burst and a long carrier may both have edges in the same coarse window.
+
 ## Binary Response Handling
 
 - Binary responses use IEEE 488.2 definite-length blocks. The payload may contain newlines, NUL, or `#`; never line-split binary data.

@@ -22,11 +22,15 @@ DEFAULT_CHUNK_POINTS = 1_000_000
 DEFAULT_PREVIEW_BUCKETS = 256
 DEFAULT_EVENT_PAGE = 100
 DEFAULT_EVENT_SCAN_BUDGET = 10_000
+DEFAULT_STRUCTURE_EDGE_LIMIT = 20_000
+DEFAULT_CLUSTER_GAP_PERIOD_FACTOR = 3.0
+DEFAULT_CLUSTER_GAP_SAMPLE_INTERVALS = 8.0
 DEFAULT_WINDOW_POINTS = 2_000
 DEFAULT_JSON_BYTES = 256 * 1024
 MAX_PREVIEW_BUCKETS = 2_000
 MAX_EVENT_PAGE = 100
 MAX_EVENT_SCAN_BUDGET = 20_000
+MAX_STRUCTURE_EDGE_LIMIT = 200_000
 MAX_WINDOW_POINTS = 2_000
 MAX_JSON_BYTES = 4 * 1024 * 1024
 
@@ -867,6 +871,553 @@ def find_events(
     }
 
 
+def _structure_threshold_codes(capture: dict[str, Any], low: float, high: float, domain: str) -> tuple[float, float]:
+    if domain != "voltage":
+        return float(low), float(high)
+    calibration = capture["calibration"]
+    if calibration["status"] != "VALID":
+        raise AnalysisError("CALIBRATION_INCONSISTENT", "Voltage thresholds require independently valid voltage calibration")
+    scale = calibration["code_scale_v"]
+    offset = calibration["effective_offset_v"]
+    return (low + offset) / scale, (high + offset) / scale
+
+
+def _structure_state_at(samples: Any, index: int, low_code: float, high_code: float) -> Optional[str]:
+    code = float(samples[index])
+    if code <= low_code:
+        return "low"
+    if code >= high_code:
+        return "high"
+    return None
+
+
+def analyze_pulse_structure(
+    capture: dict[str, Any],
+    *,
+    low: float,
+    high: float,
+    domain: str = "code",
+    cluster_gap_s: Optional[float] = None,
+    max_edges: int = DEFAULT_STRUCTURE_EDGE_LIMIT,
+    chunk_points: int = DEFAULT_CHUNK_POINTS,
+    start_time_s: Optional[float] = None,
+    end_time_s: Optional[float] = None,
+) -> dict[str, Any]:
+    """Rebuild edges, high pulses, and pulse clusters from raw samples only.
+
+    This is the fact layer of waveform analysis. It scans every original sample
+    (``stride_used == 1``) and never consumes the M4 preview, a decimated view,
+    or any window/aggregate count. The edge table is complete for the scanned
+    range, or the result is reported as ``UNVERIFIED`` with an explicit lower
+    bound when the edge budget is exceeded; edges are never silently truncated
+    into a seemingly complete table.
+    """
+
+    _require_numpy()
+    if not math.isfinite(low) or not math.isfinite(high) or low >= high:
+        raise AnalysisError("LIMIT_INVALID", "Thresholds must be finite and low < high")
+    if domain not in ("code", "voltage"):
+        raise AnalysisError("LIMIT_INVALID", "Threshold domain must be code or voltage")
+    if cluster_gap_s is not None and (not math.isfinite(cluster_gap_s) or cluster_gap_s <= 0):
+        raise AnalysisError("LIMIT_INVALID", "cluster_gap_s must be finite and positive")
+    if max_edges <= 0 or max_edges > MAX_STRUCTURE_EDGE_LIMIT:
+        raise AnalysisError("LIMIT_INVALID", f"max_edges must be in 1..{MAX_STRUCTURE_EDGE_LIMIT}")
+    if chunk_points <= 1:
+        raise AnalysisError("LIMIT_INVALID", "chunk_points must exceed 1")
+    if (start_time_s is None) != (end_time_s is None):
+        raise AnalysisError("LIMIT_INVALID", "Both start_time_s and end_time_s are required for a time-limited scan")
+    if start_time_s is None:
+        scan_start, scan_end = 0, capture["points"]
+    else:
+        scan_start, scan_end = _resolve_time_range(capture, start_time_s, end_time_s)
+
+    samples = capture["samples"]
+    interval = capture["sample_interval_s"]
+    origin = capture["time_origin_s"]
+    calibration = capture["calibration"]
+    voltage_domain = domain == "voltage"
+    low_code, high_code = _structure_threshold_codes(capture, low, high, domain)
+
+    raw_edges, _edge_scan_truncated, _scanned_edges = _scan_edges(
+        capture,
+        low,
+        high,
+        domain=domain,
+        chunk_points=chunk_points,
+        budget=max_edges + 1,
+        scan_start=scan_start,
+        scan_end=scan_end,
+    )
+    edge_budget_exceeded = len(raw_edges) > max_edges
+    edge_lower_bound = len(raw_edges) if edge_budget_exceeded else None
+    if edge_budget_exceeded:
+        raw_edges = raw_edges[:max_edges]
+
+    edge_items: list[dict[str, Any]] = []
+    previous_same_direction: dict[str, Optional[dict[str, Any]]] = {"rising": None, "falling": None}
+    for position, edge in enumerate(raw_edges):
+        sample = int(edge["start_sample"])
+        direction = str(edge["type"])
+        before_code = int(samples[sample - 1]) if sample > 0 else None
+        after_code = int(samples[sample]) if sample < capture["points"] else None
+        prior = previous_same_direction[direction]
+        item: dict[str, Any] = {
+            "event_id": hashlib.sha256(
+                f"{capture['raw_sha256']}:pulse_structure_v1:{sample}:{direction}".encode()
+            ).hexdigest()[:24],
+            "index": position,
+            "direction": direction,
+            "sample": sample,
+            "time_s": float(edge["time_s"]),
+            "before_code": before_code,
+            "after_code": after_code,
+            "threshold_code": float(high_code if direction == "rising" else low_code),
+            "same_direction_interval_s": None if prior is None else float(edge["time_s"] - prior["time_s"]),
+            "evidence_quality": "hysteretic_threshold_crossing_linear_interpolation",
+            "time_uncertainty_s": interval,
+        }
+        if voltage_domain:
+            item["threshold_v"] = float(high if direction == "rising" else low)
+            if before_code is not None:
+                item["before_v"] = _calibrated(before_code, capture)
+            if after_code is not None:
+                item["after_v"] = _calibrated(after_code, capture)
+        edge_items.append(item)
+        previous_same_direction[direction] = item
+
+    last_scan_sample = scan_end - 1
+    pulse_items: list[dict[str, Any]] = []
+
+    def _append_pulse(
+        start_sample: int,
+        end_sample: int,
+        *,
+        status: str,
+        integrity: str,
+        rising_edge: Optional[dict[str, Any]],
+        falling_edge: Optional[dict[str, Any]],
+        boundary_flags: list[str],
+        width_is_lower_bound: bool,
+    ) -> None:
+        region = np.asarray(samples[start_sample : end_sample + 1], dtype=np.int32)
+        # Pulse times stay on the raw sample grid so sample and time always agree
+        # exactly; the interpolated crossing times remain available per edge.
+        start_time = origin + start_sample * interval
+        end_time = origin + end_sample * interval
+        pulse: dict[str, Any] = {
+            "pulse_id": f"p{len(pulse_items):05d}",
+            "index": len(pulse_items),
+            "status": status,
+            "integrity": integrity,
+            "start_sample": int(start_sample),
+            "end_sample": int(end_sample),
+            "start_time_s": start_time,
+            "end_time_s": end_time,
+            # Width is derived from the sample difference so it stays exact for
+            # integer sample spans instead of absorbing float cancellation in
+            # (origin + n * interval) - origin.
+            "width_s": (end_sample - start_sample) * interval,
+            "width_is_lower_bound": bool(width_is_lower_bound),
+            "start_code": int(samples[start_sample]),
+            "end_code": int(samples[end_sample]),
+            "peak_code": int(region.max()) if region.size else None,
+            "min_code": int(region.min()) if region.size else None,
+            "threshold_codes": {"low": float(low_code), "high": float(high_code)},
+            "rising_edge_id": rising_edge["event_id"] if rising_edge else None,
+            "falling_edge_id": falling_edge["event_id"] if falling_edge else None,
+            "rising_sample": rising_edge["sample"] if rising_edge else None,
+            "falling_sample": falling_edge["sample"] if falling_edge else None,
+            "rising_edge_time_s": rising_edge["time_s"] if rising_edge else None,
+            "falling_edge_time_s": falling_edge["time_s"] if falling_edge else None,
+            "interpolated_width_s": (
+                falling_edge["time_s"] - rising_edge["time_s"]
+                if rising_edge is not None and falling_edge is not None
+                else None
+            ),
+            "time_uncertainty_s": interval,
+            "touches_capture_boundary": bool(boundary_flags),
+            "boundary_flags": list(boundary_flags),
+            "detection_resolution_s": interval,
+        }
+        if voltage_domain:
+            pulse["peak_v"] = _calibrated(pulse["peak_code"], capture) if pulse["peak_code"] is not None else None
+            pulse["min_v"] = _calibrated(pulse["min_code"], capture) if pulse["min_code"] is not None else None
+        pulse_items.append(pulse)
+
+    pending_rising: Optional[dict[str, Any]] = None
+    for item in edge_items:
+        if item["direction"] == "rising":
+            if pending_rising is not None:
+                _append_pulse(
+                    pending_rising["sample"],
+                    item["sample"] - 1,
+                    status="INCOMPLETE",
+                    integrity="rising_edge_without_observed_falling_edge",
+                    rising_edge=pending_rising,
+                    falling_edge=None,
+                    boundary_flags=["ends_before_next_rising_edge"],
+                    width_is_lower_bound=True,
+                )
+            pending_rising = item
+            continue
+        if pending_rising is None:
+            if item["sample"] > scan_start:
+                _append_pulse(
+                    scan_start,
+                    item["sample"],
+                    status="INCOMPLETE",
+                    integrity="high_level_at_scan_start_without_observed_rising_edge",
+                    rising_edge=None,
+                    falling_edge=item,
+                    boundary_flags=["starts_at_scan_window_start"],
+                    width_is_lower_bound=True,
+                )
+            continue
+        _append_pulse(
+            pending_rising["sample"],
+            item["sample"],
+            status="COMPLETE",
+            integrity="rising_then_falling_pair_in_raw_order",
+            rising_edge=pending_rising,
+            falling_edge=item,
+            boundary_flags=[],
+            width_is_lower_bound=False,
+        )
+        pending_rising = None
+    if pending_rising is not None:
+        _append_pulse(
+            pending_rising["sample"],
+            last_scan_sample,
+            status="INCOMPLETE",
+            integrity="no_falling_edge_observed_before_scan_window_end",
+            rising_edge=pending_rising,
+            falling_edge=None,
+            boundary_flags=["ends_at_scan_window_end"],
+            width_is_lower_bound=True,
+        )
+    if not edge_items:
+        state_index = scan_start - 1 if scan_start > 0 else scan_start
+        if _structure_state_at(samples, state_index, low_code, high_code) == "high":
+            _append_pulse(
+                scan_start,
+                last_scan_sample,
+                status="INCOMPLETE",
+                integrity="high_level_observed_for_entire_scan_without_threshold_crossing",
+                rising_edge=None,
+                falling_edge=None,
+                boundary_flags=["starts_at_scan_window_start", "ends_at_scan_window_end"],
+                width_is_lower_bound=True,
+            )
+
+    for position, pulse in enumerate(pulse_items):
+        if position == 0:
+            pulse["low_gap_before_s"] = None
+            pulse["start_to_start_s"] = None
+            continue
+        previous = pulse_items[position - 1]
+        pulse["low_gap_before_s"] = (pulse["start_sample"] - previous["end_sample"]) * interval
+        pulse["start_to_start_s"] = (pulse["start_sample"] - previous["start_sample"]) * interval
+
+    complete_pulses = [pulse for pulse in pulse_items if pulse["status"] == "COMPLETE"]
+    incomplete_pulses = [pulse for pulse in pulse_items if pulse["status"] != "COMPLETE"]
+
+    if cluster_gap_s is None:
+        reference = complete_pulses if len(complete_pulses) >= 3 else pulse_items
+        reference_starts = [pulse["start_sample"] for pulse in reference]
+        if len(reference_starts) >= 3:
+            observed = np.diff(np.asarray(reference_starts, dtype=np.float64)) * interval
+            effective_gap_s = float(DEFAULT_CLUSTER_GAP_PERIOD_FACTOR * float(np.median(observed)))
+            cluster_gap_source = "observed_median_start_to_start_interval_times_3"
+        else:
+            effective_gap_s = float(DEFAULT_CLUSTER_GAP_SAMPLE_INTERVALS * interval)
+            cluster_gap_source = "sample_interval_times_8_fallback_without_period_evidence"
+    else:
+        effective_gap_s = float(cluster_gap_s)
+        cluster_gap_source = "explicit_cluster_gap_s"
+    if effective_gap_s <= 0:
+        effective_gap_s = float(interval)
+        cluster_gap_source = cluster_gap_source + "_clamped_to_one_sample_interval"
+
+    cluster_groups: list[dict[str, Any]] = []
+    for pulse in pulse_items:
+        if cluster_groups:
+            gap_s = (pulse["start_sample"] - cluster_groups[-1]["pulses"][-1]["end_sample"]) * interval
+            if gap_s <= effective_gap_s:
+                cluster_groups[-1]["gaps"].append(gap_s)
+                cluster_groups[-1]["pulses"].append(pulse)
+                continue
+        cluster_groups.append({"pulses": [pulse], "gaps": []})
+
+    cluster_items: list[dict[str, Any]] = []
+    for position, group in enumerate(cluster_groups):
+        members = group["pulses"]
+        gaps = group["gaps"]
+        start_sample = members[0]["start_sample"]
+        end_sample = members[-1]["end_sample"]
+        cluster_items.append(
+            {
+                "cluster_id": f"c{position:05d}",
+                "index": position,
+                "start_sample": start_sample,
+                "end_sample": end_sample,
+                "start_time_s": members[0]["start_time_s"],
+                "end_time_s": members[-1]["end_time_s"],
+                "duration_s": (end_sample - start_sample) * interval,
+                "pulse_count": len(members),
+                "complete_pulse_count": sum(1 for pulse in members if pulse["status"] == "COMPLETE"),
+                "edge_count": sum(
+                    (1 if pulse["rising_edge_id"] else 0) + (1 if pulse["falling_edge_id"] else 0)
+                    for pulse in members
+                ),
+                "pulse_ids": [pulse["pulse_id"] for pulse in members[:16]],
+                "pulse_ids_truncated": len(members) > 16,
+                "internal_gaps_s": [float(gap) for gap in gaps[:16]],
+                "internal_gaps_truncated": len(gaps) > 16,
+                "gap_summary_s": {
+                    "count": len(gaps),
+                    "min": min(gaps) if gaps else None,
+                    "median": float(np.median(gaps)) if gaps else None,
+                    "max": max(gaps) if gaps else None,
+                },
+            }
+        )
+
+    span_s = (scan_end - scan_start) * interval
+    if span_s <= 0:
+        span_s = interval
+    metrics: dict[str, Any] = {
+        "scan_span_s": span_s,
+        "edge_count": len(edge_items),
+        "pulse_count": len(pulse_items),
+        "complete_pulse_count": len(complete_pulses),
+        "incomplete_pulse_count": len(incomplete_pulses),
+        "cluster_count": len(cluster_items),
+        "active_span_s": None,
+        "coverage_fraction": None,
+        "duty_cycle": None,
+        "presence_fraction": None,
+        "median_period_s": None,
+        "min_pulse_width_s": None,
+        "max_pulse_width_s": None,
+        "max_internal_gap_s": None,
+        "max_low_gap_s": None,
+    }
+    if complete_pulses:
+        widths = [pulse["width_s"] for pulse in complete_pulses]
+        active_span_s = (complete_pulses[-1]["end_sample"] - complete_pulses[0]["start_sample"]) * interval
+        metrics["min_pulse_width_s"] = min(widths)
+        metrics["max_pulse_width_s"] = max(widths)
+        metrics["active_span_s"] = active_span_s
+        metrics["coverage_fraction"] = min(1.0, max(0.0, active_span_s / span_s))
+        if active_span_s > 0:
+            metrics["duty_cycle"] = sum(widths) / active_span_s
+        if len(complete_pulses) >= 2:
+            starts = np.asarray([pulse["start_sample"] for pulse in complete_pulses], dtype=np.float64)
+            metrics["median_period_s"] = float(np.median(np.diff(starts) * interval))
+        internal_gaps = [gap for group in cluster_groups for gap in group["gaps"]]
+        if internal_gaps:
+            metrics["max_internal_gap_s"] = max(internal_gaps)
+        low_gaps = [pulse["low_gap_before_s"] for pulse in complete_pulses[1:] if pulse["low_gap_before_s"] is not None]
+        if low_gaps:
+            metrics["max_low_gap_s"] = max(low_gaps)
+    if cluster_items:
+        occupied_s = sum(cluster["duration_s"] for cluster in cluster_items)
+        metrics["presence_fraction"] = min(1.0, max(0.0, occupied_s / span_s))
+
+    reasons: list[str] = []
+    if edge_budget_exceeded:
+        label = "insufficient_evidence"
+        observation_status = "UNVERIFIED"
+        reasons.append(
+            f"edge_budget_exceeded: at least {edge_lower_bound} threshold crossings exist with max_edges={max_edges}, "
+            "so the edge table and every downstream count are a lower bound"
+        )
+    elif not complete_pulses:
+        if not edge_items:
+            label = "no_crossing_observed"
+            observation_status = "NOT_OBSERVED_WITHIN_DETECTION_CAPABILITY"
+            reasons.append(
+                f"no crossing of low={low} / high={high} in {domain} domain was observed while scanning every "
+                f"original sample of the requested range (resolution {interval:.6g} s)"
+            )
+            reasons.append("absence of observed crossings is not proof that no drive exists")
+        else:
+            label = "insufficient_evidence"
+            observation_status = "OBSERVED"
+            reasons.append(
+                f"{len(edge_items)} threshold crossings were observed, but no high interval has both a rising and a "
+                "falling edge inside the scanned range"
+            )
+    else:
+        observation_status = "OBSERVED"
+        if len(complete_pulses) == 1:
+            label = "single_pulse"
+            reasons.append(
+                f"exactly one complete high interval: {complete_pulses[0]['pulse_id']} "
+                f"width={complete_pulses[0]['width_s']:.6g} s"
+            )
+        else:
+            presence_fraction = metrics["presence_fraction"] or 0.0
+            coverage_fraction = metrics["coverage_fraction"] or 0.0
+            duty_cycle = metrics["duty_cycle"]
+            largest_cluster = max(cluster["pulse_count"] for cluster in cluster_items)
+            burst_like = presence_fraction <= 0.25 and len(cluster_items) <= 3 and largest_cluster >= 2
+            if burst_like:
+                label = "short_burst"
+                reasons.append(
+                    f"presence_fraction={presence_fraction:.6f} <= 0.25 across {len(cluster_items)} cluster(s) with "
+                    f"{largest_cluster} pulses in the largest cluster: high activity is confined to a short interval"
+                )
+            elif len(complete_pulses) >= 3 and duty_cycle is not None and duty_cycle >= 0.2 and coverage_fraction >= 0.6:
+                label = "continuous_carrier"
+                reasons.append(
+                    f"duty_cycle={duty_cycle:.6f} >= 0.20 and coverage_fraction={coverage_fraction:.6f} >= 0.60: "
+                    "the high level repeats across the record without a long absence"
+                )
+            elif len(complete_pulses) >= 3 and duty_cycle is not None and duty_cycle <= 0.2 and coverage_fraction >= 0.5:
+                label = "low_duty_pulse_train"
+                reasons.append(
+                    f"duty_cycle={duty_cycle:.6f} <= 0.20 with coverage_fraction={coverage_fraction:.6f} >= 0.50: "
+                    "narrow pulses repeat across the record instead of being absent"
+                )
+            else:
+                label = "pulse_train"
+                reasons.append(
+                    "pulses repeat, but the duty/coverage combination matches neither a continuous carrier nor a "
+                    "time-confined burst"
+                )
+    reasons.append(
+        f"structure is derived from {len(edge_items)} raw edges and {len(pulse_items)} pulses "
+        f"(complete={len(complete_pulses)}, incomplete={len(incomplete_pulses)})"
+    )
+
+    def _capped_ids(values: list[str]) -> list[str]:
+        if len(values) <= 8:
+            return list(values)
+        return values[:4] + values[-4:]
+
+    reference_edge_ids = _capped_ids([edge["event_id"] for edge in edge_items])
+    reference_pulse_ids = _capped_ids([pulse["pulse_id"] for pulse in pulse_items])
+
+    full_record_scanned = scan_start == 0 and scan_end == capture["points"] and not edge_budget_exceeded
+    limitations: list[str] = [
+        "threshold_crossing_detection_only_no_shape_inference",
+        f"detection_resolution_s={interval:.6g}: features narrower than one sample interval between the two thresholds may be missed",
+        "M4_preview_and_stride_subsampling_are_visualization_only_and_were_not_used",
+    ]
+    if edge_budget_exceeded:
+        limitations.append("edge_budget_exceeded_all_counts_are_lower_bounds")
+    if not full_record_scanned and not edge_budget_exceeded:
+        limitations.append("scan_limited_to_requested_sub_range")
+    if incomplete_pulses:
+        limitations.append("capture_boundary_incomplete_pulses_reported_not_padded")
+    if label == "no_crossing_observed":
+        limitations.append("absence_of_crossings_does_not_prove_absence_of_drive")
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "tool": "structure",
+        "capture": _capture_envelope(capture),
+        "integrity": capture["integrity"],
+        "sampling": _sampling_envelope(capture),
+        "calibration": calibration,
+        "detector": {
+            "id": "pulse_structure_v1",
+            "status": observation_status,
+            "thresholds": {
+                "domain": domain,
+                "requested_low": float(low),
+                "requested_high": float(high),
+                "low_code": float(low_code),
+                "high_code": float(high_code),
+                "hysteresis": "rising at high threshold, falling at low threshold",
+            },
+            "parameters": {
+                "cluster_gap_s": effective_gap_s,
+                "cluster_gap_source": cluster_gap_source,
+                "max_edges": max_edges,
+                "chunk_points": chunk_points,
+                "start_time_s": start_time_s,
+                "end_time_s": end_time_s,
+            },
+        },
+        "edges": {
+            "count": len(edge_items),
+            "returned": len(edge_items),
+            "count_is_lower_bound": edge_budget_exceeded,
+            "lower_bound": edge_lower_bound,
+            "items_truncated": edge_budget_exceeded,
+            "items_complete": not edge_budget_exceeded,
+            "items": edge_items,
+        },
+        "pulses": {
+            "count": len(pulse_items),
+            "returned": len(pulse_items),
+            "complete_count": len(complete_pulses),
+            "incomplete_count": len(incomplete_pulses),
+            "status": "UNVERIFIED"
+            if edge_budget_exceeded
+            else ("COMPLETE" if not incomplete_pulses else "COMPLETE_WITH_INCOMPLETE_BOUNDARY_PULSES"),
+            "items_truncated": edge_budget_exceeded,
+            "items_complete": not edge_budget_exceeded,
+            "items": pulse_items,
+        },
+        "pulse_clusters": {
+            "count": len(cluster_items),
+            "returned": len(cluster_items),
+            "cluster_gap_s": effective_gap_s,
+            "cluster_gap_source": cluster_gap_source,
+            "status": "UNVERIFIED" if edge_budget_exceeded else "OBSERVED",
+            "items_truncated": edge_budget_exceeded,
+            "items_complete": not edge_budget_exceeded,
+            "items": cluster_items,
+        },
+        "classification": {
+            "label": label,
+            "status": observation_status,
+            "basis": reasons,
+            "metrics": metrics,
+            "evidence": {
+                "edge_ids": reference_edge_ids,
+                "pulse_ids": reference_pulse_ids,
+                "sample_range": [scan_start, last_scan_sample] if edge_items or pulse_items else None,
+                "edge_sample_range": [edge_items[0]["sample"], edge_items[-1]["sample"]] if edge_items else None,
+            },
+        },
+        "evidence": {
+            "raw_scan": True,
+            "stride_used": 1,
+            "stride_source": "original_resolution_raw_samples",
+            "source_points": capture["points"],
+            "scanned_points": scan_end - scan_start,
+            "full_record_scanned": full_record_scanned,
+            "edge_count": len(edge_items),
+            "edge_count_is_lower_bound": edge_budget_exceeded,
+            "edge_count_lower_bound": edge_lower_bound,
+            "pulse_count": len(pulse_items),
+            "complete_pulse_count": len(complete_pulses),
+            "incomplete_pulse_count": len(incomplete_pulses),
+            "cluster_count": len(cluster_items),
+            "detection_resolution_s": interval,
+            "minimum_detectable_pulse_s": interval,
+            "observation_status": observation_status,
+            "limitations": limitations,
+        },
+        "coverage": {
+            "scanned_start": scan_start,
+            "scanned_end_exclusive": scan_end,
+            "scanned_start_time_s": origin + scan_start * interval,
+            "scanned_end_time_s": origin + scan_end * interval,
+            "full_record_scanned": full_record_scanned,
+            "edge_scan_complete": not edge_budget_exceeded,
+            "pulses_touching_capture_boundary": [
+                pulse["pulse_id"] for pulse in pulse_items if pulse["touches_capture_boundary"]
+            ],
+            "limitations": limitations,
+        },
+    }
+
+
 def get_window(
     capture: dict[str, Any],
     start: Optional[int] = None,
@@ -1099,28 +1650,53 @@ def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
     def size() -> int:
         return len(json.dumps(result, separators=(",", ":"), sort_keys=True, allow_nan=False).encode("utf-8"))
 
-    for list_path in (("events", "items"), ("preview", "points")):
-        parent = result
-        for key in list_path[:-1]:
-            parent = parent.get(key, {})
-        key = list_path[-1]
-        values = parent.get(key)
-        if not isinstance(values, list):
+    # Bounded list sections. Every section keeps its authoritative ``count``; a
+    # shortened ``items`` list is always flagged so a bounded response can never
+    # be mistaken for a complete edge/pulse/cluster table.
+    sections = (
+        ("events", "items", "returned"),
+        ("edges", "items", "returned"),
+        ("pulses", "items", "returned"),
+        ("pulse_clusters", "items", "returned"),
+        ("preview", "points", "selected_points"),
+    )
+    for section_key, list_key, counter_key in sections:
+        parent = result.get(section_key)
+        if not isinstance(parent, dict):
             continue
+        values = parent.get(list_key)
+        if not isinstance(values, list) or not values:
+            continue
+        is_events = section_key == "events"
+
+        def _event_cursor(items: list[Any]) -> Optional[str]:
+            # Cursor generation requires real event items and a returned counter;
+            # synthetic or partially populated sections must not raise here.
+            if "returned" not in parent or not items:
+                return None
+            last = items[-1]
+            if not isinstance(last, dict) or "start_sample" not in last or "type" not in last:
+                return None
+            return _encode_cursor(result.get("capture", {}).get("raw_sha256", ""), _event_cursor_key(last))
+
         while values:
-            if key == "items" and "returned" in parent:
-                parent["returned"] = len(values)
-                parent["next_cursor"] = _encode_cursor(result.get("capture", {}).get("raw_sha256", ""), _event_cursor_key(values[-1]))
-            if key == "points" and "selected_points" in parent:
-                parent["selected_points"] = len(values)
             if size() <= max_bytes:
                 return result
             values.pop()
-        if key == "items" and "returned" in parent:
-            parent["returned"] = len(values)
+            if counter_key in parent:
+                parent[counter_key] = len(values)
+            if list_key == "items" and not is_events:
+                parent["items_truncated"] = True
+                parent["items_complete"] = False
+            if is_events:
+                parent["next_cursor"] = _event_cursor(values)
+        if counter_key in parent:
+            parent[counter_key] = len(values)
+        if list_key == "items" and not is_events:
+            parent["items_truncated"] = True
+            parent["items_complete"] = False
+        if is_events:
             parent["next_cursor"] = None
-        if key == "points" and "selected_points" in parent:
-            parent["selected_points"] = len(values)
         if size() <= max_bytes:
             return result
     window = result.get("window")

@@ -15,8 +15,10 @@ from waveform_analysis import (
     DEFAULT_EVENT_SCAN_BUDGET,
     DEFAULT_JSON_BYTES,
     DEFAULT_PREVIEW_BUCKETS,
+    DEFAULT_STRUCTURE_EDGE_LIMIT,
     DEFAULT_WINDOW_POINTS,
     AnalysisError,
+    analyze_pulse_structure,
     analyze_ringing,
     bound_json,
     error_envelope,
@@ -63,6 +65,29 @@ def build_parser() -> argparse.ArgumentParser:
     events.add_argument("--cursor")
     events.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float, help="optional relative display-time scan start")
     events.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float, help="optional relative display-time scan end (exclusive)")
+
+    structure = commands.add_parser(
+        "structure",
+        help="full-resolution edges, high pulses, pulse clusters, and pulse-structure classification",
+    )
+    _add_capture_args(structure)
+    structure_threshold = structure.add_mutually_exclusive_group(required=True)
+    structure_threshold.add_argument("--threshold-codes", nargs=2, type=float, metavar=("LOW", "HIGH"))
+    structure_threshold.add_argument("--threshold-volts", nargs=2, type=float, metavar=("LOW", "HIGH"))
+    structure.add_argument(
+        "--cluster-gap-s",
+        type=float,
+        help="low-level gap above which a pulse starts a new cluster; default derives from the observed pulse period",
+    )
+    structure.add_argument(
+        "--max-edges",
+        type=int,
+        default=DEFAULT_STRUCTURE_EDGE_LIMIT,
+        help="hard edge budget; exceeding it returns UNVERIFIED lower-bound evidence instead of a truncated table",
+    )
+    structure.add_argument("--chunk-points", type=int, default=DEFAULT_CHUNK_POINTS)
+    structure.add_argument("--start-time-s", "--start-time", dest="start_time_s", type=float, help="optional relative display-time scan start")
+    structure.add_argument("--end-time-s", "--end-time", dest="end_time_s", type=float, help="optional relative display-time scan end (exclusive)")
 
     window = commands.add_parser("window", help="retrieve a bounded raw sample window")
     _add_capture_args(window)
@@ -131,6 +156,12 @@ def _ensure_output_is_external(output: Path, capture_dir: Path) -> Path:
 
 def _emit(args: argparse.Namespace, value: dict[str, Any]) -> None:
     value = bound_json(value, args.max_json_bytes)
+    if value.get("truncated"):
+        evidence = value.get("evidence")
+        if isinstance(evidence, dict):
+            limitations = evidence.get("limitations")
+            if isinstance(limitations, list) and "json_output_truncated_items_are_prefixes" not in limitations:
+                limitations.append("json_output_truncated_items_are_prefixes")
     encoded = json.dumps(value, separators=(",", ":"), sort_keys=True, allow_nan=False)
     if args.out:
         output = _ensure_output_is_external(args.out, args.capture if args.capture.is_dir() else args.capture.parent)
@@ -171,6 +202,24 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
             max_events_scanned=args.max_events_scanned,
             limit=args.limit,
             cursor=args.cursor,
+            start_time_s=args.start_time_s,
+            end_time_s=args.end_time_s,
+        )
+    if args.command == "structure":
+        if args.threshold_codes:
+            low, high = args.threshold_codes
+            domain = "code"
+        else:
+            low, high = args.threshold_volts
+            domain = "voltage"
+        return analyze_pulse_structure(
+            capture,
+            low=low,
+            high=high,
+            domain=domain,
+            cluster_gap_s=args.cluster_gap_s,
+            max_edges=args.max_edges,
+            chunk_points=args.chunk_points,
             start_time_s=args.start_time_s,
             end_time_s=args.end_time_s,
         )

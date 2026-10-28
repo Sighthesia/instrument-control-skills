@@ -8,6 +8,7 @@ from pathlib import Path
 
 from waveform_analysis import (
     AnalysisError,
+    analyze_pulse_structure,
     analyze_ringing,
     bound_json,
     find_events,
@@ -294,6 +295,300 @@ class WaveformAnalysisTests(unittest.TestCase):
             encoded = json.dumps(bounded, separators=(",", ":"), sort_keys=True, allow_nan=False).encode()
             self.assertLessEqual(len(encoded), 16 * 1024)
             self.assertTrue(bounded["truncated"])
+
+
+class PulseStructureTests(unittest.TestCase):
+    """Raw edge -> pulse -> cluster -> classification reconstruction tests."""
+
+    def _structure(self, root: Path, **kwargs):
+        capture = load_capture(root, "C1")
+        kwargs.setdefault("low", 2)
+        kwargs.setdefault("high", 8)
+        return analyze_pulse_structure(capture, **kwargs)
+
+    def test_twenty_narrow_pulses_are_all_found_where_sparse_sampling_misses_them(self):
+        total = 600
+        width = 2
+        starts = [5 + 30 * index for index in range(20)]
+        values = [0] * total
+        for start in starts:
+            for offset in range(width):
+                values[start + offset] = 10
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            # A naive stride-25 view of the same record sees almost nothing.
+            sparse_hits = sum(1 for value in values[::25] if value >= 8)
+            self.assertLess(sparse_hits, 20)
+            report = self._structure(root)
+            complete = [pulse for pulse in report["pulses"]["items"] if pulse["status"] == "COMPLETE"]
+            self.assertEqual(len(complete), 20)
+            self.assertEqual(report["evidence"]["edge_count"], 40)
+            self.assertEqual(
+                [pulse["start_sample"] for pulse in complete],
+                starts,
+            )
+            self.assertTrue(all(pulse["width_s"] == 2e-6 for pulse in complete))
+            self.assertTrue(report["evidence"]["raw_scan"])
+            self.assertEqual(report["evidence"]["stride_used"], 1)
+            self.assertTrue(report["evidence"]["full_record_scanned"])
+
+    def test_six_sample_narrow_pulse_is_found_while_stride_25_misses_it(self):
+        values = [0] * 26 + [10] * 6 + [0] * 40
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            self.assertEqual(max(values[::25]), 0)
+            report = self._structure(root)
+            self.assertEqual(report["pulses"]["count"], 1)
+            pulse = report["pulses"]["items"][0]
+            self.assertEqual(pulse["status"], "COMPLETE")
+            self.assertEqual(pulse["start_sample"], 26)
+            self.assertEqual(pulse["end_sample"], 32)
+            self.assertAlmostEqual(pulse["width_s"], 6e-6, places=15)
+            self.assertEqual(report["classification"]["label"], "single_pulse")
+            self.assertEqual(report["evidence"]["detection_resolution_s"], 1e-6)
+
+    def test_continuous_carrier_and_short_burst_are_classified_differently(self):
+        total = 1_000_000
+        carrier = [0] * total
+        for index in range(22):
+            start = 1_000 + index * 45_400
+            for offset in range(20_000):
+                carrier[start + offset] = 10
+        burst = [0] * total
+        for index in range(6):
+            start = 500_000 + index * 70
+            for offset in range(20):
+                burst[start + offset] = 10
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            carrier_root = root / "carrier"
+            burst_root = root / "burst"
+            carrier_root.mkdir()
+            burst_root.mkdir()
+            _write_capture(carrier_root, carrier)
+            _write_capture(burst_root, burst)
+            carrier_report = self._structure(carrier_root)
+            burst_report = self._structure(burst_root)
+            self.assertEqual(carrier_report["classification"]["label"], "continuous_carrier")
+            self.assertEqual(burst_report["classification"]["label"], "short_burst")
+            self.assertNotEqual(
+                carrier_report["classification"]["label"], burst_report["classification"]["label"]
+            )
+            self.assertGreater(carrier_report["classification"]["metrics"]["duty_cycle"], 0.2)
+            self.assertLess(burst_report["classification"]["metrics"]["presence_fraction"], 0.25)
+            self.assertAlmostEqual(
+                burst_report["pulse_clusters"]["items"][0]["duration_s"], 370e-6, places=12
+            )
+            self.assertEqual(carrier_report["pulse_clusters"]["count"], 1)
+            self.assertEqual(burst_report["pulse_clusters"]["items"][0]["pulse_count"], 6)
+
+    def test_low_duty_pulse_train_is_not_reported_as_no_signal(self):
+        total = 900
+        values = [0] * total
+        for index in range(10):
+            start = 10 + index * 80
+            values[start] = 10
+            values[start + 1] = 10
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            report = self._structure(root)
+            self.assertEqual(report["classification"]["label"], "low_duty_pulse_train")
+            self.assertEqual(report["classification"]["status"], "OBSERVED")
+            self.assertEqual(report["evidence"]["observation_status"], "OBSERVED")
+            self.assertNotEqual(report["classification"]["label"], "no_crossing_observed")
+            self.assertNotIn(
+                "absence_of_crossings_does_not_prove_absence_of_drive",
+                report["evidence"]["limitations"],
+            )
+            self.assertLess(report["classification"]["metrics"]["duty_cycle"], 0.2)
+            self.assertGreaterEqual(report["classification"]["metrics"]["coverage_fraction"], 0.5)
+
+    def test_no_crossing_is_reported_with_detection_capability_not_as_no_drive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0] * 200)
+            report = self._structure(root)
+            self.assertEqual(report["classification"]["label"], "no_crossing_observed")
+            self.assertEqual(
+                report["evidence"]["observation_status"], "NOT_OBSERVED_WITHIN_DETECTION_CAPABILITY"
+            )
+            self.assertIn(
+                "absence_of_crossings_does_not_prove_absence_of_drive",
+                report["evidence"]["limitations"],
+            )
+            self.assertEqual(report["pulses"]["count"], 0)
+
+    def test_pulses_touching_record_edges_are_incomplete_and_never_padded(self):
+        # high-low-high-low-high: the outer high intervals have no paired edge inside the record.
+        values = [10] * 3 + [0] * 4 + [10] * 3 + [0] * 4 + [10] * 3
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            report = self._structure(root)
+            pulses = report["pulses"]["items"]
+            self.assertEqual(len(pulses), 3)
+            self.assertEqual(
+                [pulse["status"] for pulse in pulses], ["INCOMPLETE", "COMPLETE", "INCOMPLETE"]
+            )
+            self.assertEqual(pulses[0]["start_sample"], 0)
+            self.assertIn("starts_at_scan_window_start", pulses[0]["boundary_flags"])
+            self.assertIsNone(pulses[0]["rising_edge_id"])
+            self.assertIsNotNone(pulses[0]["falling_edge_id"])
+            self.assertTrue(pulses[0]["width_is_lower_bound"])
+            self.assertEqual(pulses[1]["start_sample"], 7)
+            self.assertEqual(pulses[1]["end_sample"], 10)
+            self.assertEqual(pulses[1]["width_s"], 3e-6)
+            self.assertAlmostEqual(pulses[1]["interpolated_width_s"], 3e-6, places=15)
+            self.assertFalse(pulses[1]["touches_capture_boundary"])
+            self.assertEqual(pulses[2]["end_sample"], len(values) - 1)
+            self.assertIn("ends_at_scan_window_end", pulses[2]["boundary_flags"])
+            self.assertIsNone(pulses[2]["falling_edge_id"])
+            self.assertTrue(pulses[2]["width_is_lower_bound"])
+            self.assertEqual(report["pulses"]["incomplete_count"], 2)
+            self.assertEqual(
+                report["pulses"]["status"], "COMPLETE_WITH_INCOMPLETE_BOUNDARY_PULSES"
+            )
+            self.assertEqual(
+                report["coverage"]["pulses_touching_capture_boundary"],
+                [pulses[0]["pulse_id"], pulses[2]["pulse_id"]],
+            )
+
+    def test_edge_budget_overflow_is_unverified_lower_bound(self):
+        values = [0, 10] * 100
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            report = self._structure(root, max_edges=10)
+            self.assertEqual(report["evidence"]["observation_status"], "UNVERIFIED")
+            self.assertEqual(report["classification"]["label"], "insufficient_evidence")
+            self.assertEqual(report["classification"]["status"], "UNVERIFIED")
+            self.assertTrue(report["edges"]["count_is_lower_bound"])
+            self.assertTrue(report["edges"]["items_truncated"])
+            self.assertFalse(report["edges"]["items_complete"])
+            self.assertTrue(report["pulses"]["items_truncated"])
+            self.assertFalse(report["pulses"]["items_complete"])
+            self.assertTrue(report["pulse_clusters"]["items_truncated"])
+            self.assertFalse(report["pulse_clusters"]["items_complete"])
+            self.assertEqual(report["edges"]["lower_bound"], 11)
+            self.assertEqual(report["edges"]["count"], 10)
+            self.assertEqual(report["edges"]["returned"], 10)
+            self.assertFalse(report["edges"]["items_complete"])
+            self.assertFalse(report["evidence"]["full_record_scanned"])
+            self.assertFalse(report["coverage"]["edge_scan_complete"])
+            self.assertEqual(report["pulses"]["status"], "UNVERIFIED")
+            self.assertEqual(report["pulse_clusters"]["status"], "UNVERIFIED")
+            self.assertIn("edge_budget_exceeded_all_counts_are_lower_bounds", report["evidence"]["limitations"])
+            # The same record scanned with a sufficient budget is complete, not a lower bound.
+            complete = self._structure(root, max_edges=200)
+            self.assertEqual(complete["edges"]["count"], 199)
+            self.assertFalse(complete["edges"]["count_is_lower_bound"])
+            self.assertIsNone(complete["edges"]["lower_bound"])
+            self.assertTrue(complete["evidence"]["full_record_scanned"])
+
+    def test_every_edge_and_pulse_traces_to_sample_and_time(self):
+        values = [0] * 4 + [10] * 3 + [0] * 4 + [10] * 2 + [0] * 4
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            capture = load_capture(root, "C1")
+            report = analyze_pulse_structure(capture, low=2, high=8)
+            origin = capture["time_origin_s"]
+            interval = capture["sample_interval_s"]
+            edge_ids = {edge["event_id"] for edge in report["edges"]["items"]}
+            for edge in report["edges"]["items"]:
+                # Edge times are linear interpolations inside one sample interval.
+                self.assertAlmostEqual(edge["time_s"], origin + edge["sample"] * interval, delta=interval)
+                self.assertGreaterEqual(edge["time_s"], origin + (edge["sample"] - 1) * interval)
+                self.assertLessEqual(edge["time_s"], origin + edge["sample"] * interval)
+                self.assertEqual(edge["after_code"], values[edge["sample"]])
+                self.assertEqual(edge["before_code"], values[edge["sample"] - 1])
+                self.assertEqual(edge["time_uncertainty_s"], interval)
+                self.assertEqual(edge["threshold_code"], 8 if edge["direction"] == "rising" else 2)
+            rising = [edge for edge in report["edges"]["items"] if edge["direction"] == "rising"]
+            self.assertIsNone(rising[0]["same_direction_interval_s"])
+            self.assertAlmostEqual(rising[1]["same_direction_interval_s"], 7e-6, delta=2 * interval)
+            for pulse in report["pulses"]["items"]:
+                self.assertEqual(pulse["start_time_s"], origin + pulse["start_sample"] * interval)
+                self.assertEqual(pulse["end_time_s"], origin + pulse["end_sample"] * interval)
+                self.assertAlmostEqual(
+                    pulse["width_s"], (pulse["end_sample"] - pulse["start_sample"]) * interval, places=15
+                )
+                self.assertEqual(pulse["start_code"], values[pulse["start_sample"]])
+                self.assertEqual(pulse["end_code"], values[pulse["end_sample"]])
+                if pulse["rising_edge_id"] is not None:
+                    self.assertIn(pulse["rising_edge_id"], edge_ids)
+                if pulse["falling_edge_id"] is not None:
+                    self.assertIn(pulse["falling_edge_id"], edge_ids)
+            self.assertEqual(report["classification"]["evidence"]["edge_ids"][0], report["edges"]["items"][0]["event_id"])
+            self.assertEqual(report["classification"]["evidence"]["pulse_ids"][0], report["pulses"]["items"][0]["pulse_id"])
+
+    def test_voltage_domain_thresholds_resolve_to_codes(self):
+        values = [0] * 3 + [10] * 3 + [0] * 3
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            capture = load_capture(root, "C1")
+            self.assertEqual(capture["calibration"]["status"], "VALID")
+            report = analyze_pulse_structure(capture, low=0.5, high=1.5, domain="voltage")
+            thresholds = report["detector"]["thresholds"]
+            self.assertEqual(thresholds["domain"], "voltage")
+            self.assertAlmostEqual(thresholds["low_code"], 2.5, places=12)
+            self.assertAlmostEqual(thresholds["high_code"], 7.5, places=12)
+            self.assertEqual(report["pulses"]["count"], 1)
+            pulse = report["pulses"]["items"][0]
+            self.assertAlmostEqual(pulse["peak_v"], 2.0, places=12)
+            self.assertAlmostEqual(pulse["min_v"], 0.0, places=12)
+            self.assertAlmostEqual(report["edges"]["items"][0]["after_v"], 2.0, places=12)
+
+    def test_time_limited_scan_reports_partial_coverage(self):
+        values = [0] * 3 + [10] * 3 + [0] * 3 + [10] * 3 + [0] * 3
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            capture = load_capture(root, "C1")
+            origin = capture["time_origin_s"]
+            report = analyze_pulse_structure(
+                capture, low=2, high=8, start_time_s=origin + 3e-6, end_time_s=origin + 12e-6
+            )
+            self.assertEqual(report["coverage"]["scanned_start"], 3)
+            self.assertEqual(report["coverage"]["scanned_end_exclusive"], 12)
+            self.assertFalse(report["evidence"]["full_record_scanned"])
+            self.assertIn("scan_limited_to_requested_sub_range", report["evidence"]["limitations"])
+            self.assertEqual(report["pulses"]["count"], 2)
+
+    def test_structure_json_bounding_flags_truncated_items(self):
+        values = [0, 10] * 60
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values)
+            report = self._structure(root, max_edges=200)
+            self.assertFalse(report["edges"]["items_truncated"])
+            bounded = bound_json(report, 8 * 1024)
+            encoded = json.dumps(bounded, separators=(",", ":"), sort_keys=True, allow_nan=False).encode()
+            self.assertLessEqual(len(encoded), 8 * 1024)
+            self.assertTrue(bounded["truncated"])
+            self.assertTrue(bounded["edges"]["items_truncated"])
+            self.assertFalse(bounded["edges"]["items_complete"])
+            self.assertEqual(bounded["edges"]["count"], 119)
+            self.assertLess(bounded["edges"]["returned"], bounded["edges"]["count"])
+            self.assertEqual(bounded["edges"]["returned"], len(bounded["edges"]["items"]))
+
+    def test_structure_rejects_invalid_limits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0, 10, 0])
+            capture = load_capture(root, "C1")
+            with self.assertRaises(AnalysisError):
+                analyze_pulse_structure(capture, low=8, high=2)
+            with self.assertRaises(AnalysisError):
+                analyze_pulse_structure(capture, low=2, high=8, cluster_gap_s=0.0)
+            with self.assertRaises(AnalysisError):
+                analyze_pulse_structure(capture, low=2, high=8, max_edges=0)
+            with self.assertRaises(AnalysisError):
+                analyze_pulse_structure(capture, low=2, high=8, start_time_s=0.0)
 
 
 if __name__ == "__main__":
