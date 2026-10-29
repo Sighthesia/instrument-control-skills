@@ -1,6 +1,6 @@
 # SDS800X HD Programming Notes
 
-Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repository.
+Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repository.
 
 ## Modern waveform path
 

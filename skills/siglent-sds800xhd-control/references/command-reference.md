@@ -1,7 +1,7 @@
 # Command Reference (Fallback Index)
 
 这是一份**兜底索引**：只有当按目标加载的任务参考文档和脚本仍无法回答某个命令问题时才加载它；日常应按 `SKILL.md` 的“Progressive Query Reference”优先读取对应任务页，不要一开始就全表通读。
-本文范围仅限本 Skill 内（`SKILL.md`、`references/*.md`、`scripts/*.py`）**已经记录过**的命令，不复制厂商手册，也不补全手册内容；权威完整命令集是厂商编程手册 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`（仓库内 `docs/ref/`）。
+本文范围仅限本 Skill 内（`SKILL.md`、`references/*.md`、`scripts/*.py`）**已经记录过**的命令，不复制厂商手册，也不补全手册内容；权威完整命令集是厂商编程手册 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`（仓库内 `ref/`）。
 表中没有出现的任何命令，必须先对照手册核实并标注为 `documented` 后才能使用；`SKILL.md` 的安全规则（禁止 `ARM`、`Ready -> Stop`、Stop 后冻结命令集、二进制完整性）始终优先于本表。
 “Source”列给出记录该命令的文件；括号内页码只在原文明确给出时才有；原文未给出页码的条目在 Notes 中注明“手册未给出独立页码”或“需对手册核实”，使用前应回到手册核对。
 
@@ -167,7 +167,7 @@
 
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
-| `:PRINt?` | query | `PNG`；或 `BMP[,NORMal\|INVerted]` | 返回二进制块，不是 ASCII 标量；必须用保字节二进制 reader，禁止 `readline()`。`PRINt?` **无法隐藏屏上菜单**，需要无菜单截图时用 `:SAVe:IMAGe ... ,MOFf`。手册印刷 p. 15；示例 pp. 494-495。 | screenshot-and-waveform.md (manual p. 15, pp. 494-495)<br>connection-and-storage.md |
+| `:PRINt?` | query | `PNG`；或 `BMP[,NORMal\|INVerted]` | 返回图像字节流，不是 ASCII 标量；**固件 `4.8.12.1.1.6.5` 实测为裸 PNG，无 IEEE 488.2 头**，以 `LF` 结尾，`query_block()`/`read_ieee_block()` 会合法地失败。须按 `IEND` + `LF` 有界读取并保留 SHA-256，禁止 `readline()`；当前 `scripts/` 无此 reader 实现。`PRINt?` **无法隐藏屏上菜单**，需要无菜单截图时用 `:SAVe:IMAGe ... ,MOFf`。手册印刷 p. 15；示例 pp. 494-495。 | screenshot-and-waveform.md (manual p. 15, pp. 494-495)<br>connection-and-storage.md |
 | `:SAVe:IMAGe` | set | `<path>,<type>,<invert>[,<menu>]`；`<type>` = `BMP`/`JPG`/`PNG`，`<invert>` = `ON`/`OFF`，`<menu>` = `MOFf`/`MON` | 存到内部（`local/...`）、网络存储（`net_storage/...`）或 U 盘（`U-disk0/...`）；**唯一能隐藏顶部/右侧菜单的截图路径**。写文件，需授权且不得覆盖既有文件。手册印刷 p. 203。 | screenshot-and-waveform.md (manual p. 203) |
 | `:DISPlay:PERSistence` | set/query | SDS800X HD：`OFF`、`INFinite`、`1S`、`5S`、`10S`、`30S` | 余辉显示时间；捕获间歇故障与截图取证的基础显示能力。手册印刷 p. 133。 | screenshot-and-waveform.md (manual p. 133) |
 

@@ -1,6 +1,6 @@
 # Connection and Storage Guidance
 
-本文档适用于 SDS800X HD 系列，目标是建立“先发现、再确认、后配置、最后传输”的基础通信流程。手册来源为仓库内的 `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 和 `docs/ref/SDS800X-HD_usermanual_CN01A.pdf`；页码以 PDF 阅读器页码/印刷页码为准，具体固件仍应以目标设备实测为准。
+本文档适用于 SDS800X HD 系列，目标是建立“先发现、再确认、后配置、最后传输”的基础通信流程。手册来源为仓库内的 `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 和 `ref/SDS800X-HD_usermanual_CN01A.pdf`；页码以 PDF 阅读器页码/印刷页码为准，具体固件仍应以目标设备实测为准。
 
 ## 1. 先明确端口角色
 
@@ -159,7 +159,7 @@ VXI-11 广播/发现是否可用取决于 VISA 实现、子网和设备固件；
 
 这是本项目更推荐的默认路径：示波器只负责返回 SCPI 数据，电脑保存原始响应和解析后的文件。
 
-- 截图：发送 `:PRINt? PNG` 或 `:PRINt? BMP`，使用二进制块读取器保存 payload；不能使用 `readline()`。
+- 截图：发送 `:PRINt? PNG` 或 `:PRINt? BMP`，使用**保字节**读取器保存 payload；不能使用 `readline()`，也不能套用 `read_ieee_block()`——固件 `4.8.12.1.1.6.5` 实测为裸 PNG（无块头），须按 `IEND` + `LF` 有界读取并保留 SHA-256。
 - 波形：使用 `WAVeform:PREamble?`、`WAVeform:MAXPoint?`、`WAVeform:STARt`、`WAVeform:POINt`、`WAVeform:DATA?` 分段下载。现有 `capture_scope.py` 会保存每段 payload、前缀、响应、元数据和 SHA-256，并验证点数、字节数及连续范围。
 - 分析：先保留 `waveform.bin` 和 manifest，再用 `analyze_waveform.py` 在电脑端做有界分析；不要用 CSV/降采样结果替代原始证据。
 

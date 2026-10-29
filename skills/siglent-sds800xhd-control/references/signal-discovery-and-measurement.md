@@ -229,7 +229,7 @@ These argument-bearing queries must include their arguments exactly as documente
 
 ## Evidence and Manual Pages
 
-Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repository.
+Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` in this repository.
 
 - Device ID / `*OPC?`: printed pp. 13-14.
 - Numeric precision (`:FORMat:DATA`): printed p. 15.

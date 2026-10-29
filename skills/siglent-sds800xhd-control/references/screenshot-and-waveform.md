@@ -4,15 +4,15 @@ Load this reference when the agent needs visual inspection, raw waveform samples
 
 ## Screenshot
 
-- **Manual-supported SCPI path**: `:PRINt? PNG` or `:PRINt? BMP[,NORMal|INVerted]`. The manual specifies a binary screenshot response. `:PRINt?` is not a scalar ASCII query; use a byte-preserving binary reader.
+- **Manual-supported SCPI path**: `:PRINt? PNG` or `:PRINt? BMP[,NORMal|INVerted]`. The manual documents a binary *image* response but does not specify IEEE 488.2 block framing; `:PRINt?` is neither a scalar ASCII query nor a well-formed block. On firmware `4.8.12.1.1.6.5` the framing is a **raw PNG stream with no header** (see *Verified screenshot transfer* below): read bytes, never `readline()`, and do not call `query_block()`.
 - `:PRINt?` cannot hide the on-screen menus. When a menu-free image is needed, use the file path instead: `:SAVe:IMAGe "<path>",<BMP|JPG|PNG>,<ON|OFF>,MOFf` (manual printed p. 203). `MOFf` hides the top and right menus, `MON` keeps them; `invert ON` gives a light background for printing. Paths are `local/...` (internal), `net_storage/...` (mounted share), or `U-disk0/...`. This writes a file, so it needs authorization and must not overwrite an existing name.
 - Inspect screenshots for clipping, ringing, pulses, setup mistakes, and on-screen decode/status context. A screenshot is evidence of display state, not a substitute for complete samples or a measurement report.
 
-### Verified screenshot transfer and per-region zoom (firmware `4.8.12.1.1.6.5`)
+### `firmware-scoped` screenshot transfer and per-region zoom (SDS824X HD, firmware `4.8.12.1.1.6.5`, SCPI TCP 5025)
 
-- `:PRINt? PNG` on this firmware answers with a **raw PNG stream and no IEEE 488.2 block header**, terminated by one `LF`. The first byte is the PNG signature (`89 50 4E 47 ...`), the last bytes are `... IEND AE 42 60 82 0A`; a `#` can appear inside the stream. `scope_protocol.query_block()` fails closed on it (`invalid IEEE length-of-length: b'~'`), which is correct: read until the `IEND` chunk plus the trailing `LF` with a byte bound and keep the SHA-256 instead of assuming block framing. Verified image: 1024 × 600 RGB, roughly 27–39 kB for a four-channel screen.
+- `:PRINt? PNG` on this firmware answers with a **raw PNG stream and no IEEE 488.2 block header**, terminated by one `LF`. The first byte is the PNG signature (`89 50 4E 47 ...`), the last bytes are `... IEND AE 42 60 82 0A`; a `#` can appear inside the stream. `scope_protocol.query_block()` fails closed on it (`invalid IEEE length-of-length: b'~'`), which is correct: read until the `IEND` chunk plus the trailing `LF` with a byte bound and keep the SHA-256 instead of assuming block framing. Observed image: 1024 × 600 RGB, roughly 27–39 kB for a four-channel screen.
 - `:PRINt?` is a query that carries an argument; it changes no acquisition state and is safe while a frame is stopped.
-- To compare different time regions of **one stopped frame**, zoom the display rather than re-arming: write `:TIMebase:SCALe` and `:TIMebase:DELay` only after that frame's waveform transfer is complete. Verified on the target: across six zoom changes the state stayed `Stop` and `:ACQuire:NUMACq?` did not change, so no new acquisition started. This is still forbidden *during* a stopped-frame read.
+- To compare different time regions of **one stopped frame**, zoom the display rather than re-arming: write `:TIMebase:SCALe` and `:TIMebase:DELay` only after that frame's waveform transfer is complete. `firmware-scoped` on the target: across six zoom changes the state stayed `Stop` and `:ACQuire:NUMACq?` did not change, so no new acquisition started. This is still forbidden *during* a stopped-frame read.
 - `:MEASure:SIMPle` (source set with `:MEASure:SIMPle:SOURce`) evaluates the **zoomed window**, so a zoomed screenshot can carry a per-region instrument-side readout, e.g. `FREQ 7.3424889 Hz` / `PER 136.1936 ms` / `DUTY 33.367 %` at 50 ms/div versus `FREQ 19.920 kHz` / `PER 50.20 µs` / `DUTY 7.573 %` at 10 ms/div on the same frame. An item the scope cannot evaluate returns `****` (seen for `FREQ`, `PER`, `DUTY` on a window with no valid cycle). At the full-record zoom the same measurement collapses to one number and does not separate regions (`7.3433 Hz` for a record that was 19.92 kHz for most of its length), so a screenshot readout never replaces `structure`/`regimes` segmentation.
 - `:DISPlay:PERSistence` (`OFF`, `INFinite`, `1S`, `5S`, `10S`, `30S` on SDS800X HD) keeps previous acquisitions on screen; it is how an intermittent glitch becomes visible in a screenshot at all. Record the setting with any screenshot used as evidence.
 
@@ -83,14 +83,15 @@ Regime segmentation is a heuristic analysis of per-cycle measurements, not a fau
 
 ## Binary Response Handling
 
-- Binary responses use IEEE 488.2 definite-length blocks. The payload may contain newlines, NUL, or `#`; never line-split binary data.
+- **Waveform** binary responses (`WAVeform:DATA?`, `WAVeform:PREamble?`, `C<n>:WF? DAT2`) use IEEE 488.2 definite-length blocks. The payload may contain newlines, NUL, or `#`; never line-split binary data.
+- **`:PRINt?` is the documented exception**: on firmware `4.8.12.1.1.6.5` it returns a raw PNG stream with no block header, so the IEEE rules below must not be applied to it and `read_ieee_block()` correctly fails with `invalid IEEE length-of-length`. Read bounded bytes until `IEND` plus the trailing `LF`.
 - Preserve prefix, header, payload, length, and SHA-256. Validate exactly `points * bytes_per_point` bytes per segment.
 - `WAVeform:PREamble?` itself returns a binary block containing the 346-byte little-endian WAVEDESC; it is not an ASCII structure.
-- Current bundled `capture_scope.py` handles segmented waveform transfer. Use a byte-preserving binary reader for screenshot or waveform responses; a line-oriented text reader is not suitable.
+- Current bundled `capture_scope.py` handles segmented waveform transfer. For waveform responses use `scripts/scope_protocol.py`; for screenshots no bundled reader exists — write the bounded `IEND`-terminated reader at the call site; a line-oriented text reader is never suitable for either.
 
 ## Evidence and Manual Pages
 
-Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
+Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
 
 - `:PRINt?`: printed p. 15; screenshot example pp. 494-495.
 - `:SAVe:IMAGe` (file screenshot, menu on/off): printed p. 203.

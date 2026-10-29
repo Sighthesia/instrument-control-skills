@@ -86,7 +86,7 @@ Frame count depends on memory depth: more points per frame means fewer stored fr
 
 ## Evidence and Manual Pages
 
-Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
+Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
 
 - Counter enable, level, modes, current value, statistics, totalizer gate: printed pp. 31-36.
 - Cursor enable, mode, sources, positions, deltas, multi-cursor families: printed pp. 38-67.

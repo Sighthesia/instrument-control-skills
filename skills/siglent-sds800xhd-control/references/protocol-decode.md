@@ -32,7 +32,7 @@ On the target during this check, list result returned only the header `I2C, Time
 
 ## Evidence and Manual Pages
 
-Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
+Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
 
 - Decode list selection, row count and list result: printed pp. 68-70.
 - Bus result and protocol enumeration: printed pp. 71-72.

@@ -5,3 +5,6 @@ artifacts/
 # Python caches
 __pycache__/
 *.py[cod]
+
+# Vendor manuals (must never be committed)
+ref/

@@ -50,7 +50,7 @@ Returns `HH:MM:SS.ffffff` for the currently selected history frame. This does no
 
 ## Evidence and Manual Pages
 
-Source: `docs/ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
+Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
 
 - Search enable, mode, count, event, and mode-specific configuration: printed pp. 207-234.
 - Mask test type, mask load, operate, count: printed pp. 218-223.

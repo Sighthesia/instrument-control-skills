@@ -52,9 +52,9 @@ npx skills@latest add . --list
   in the same order; treat any divergence as a bug.
 - Evidence labels, integrity statuses, and safety rules must be worded the same
   way across Skills; copy phrasing from an existing Skill rather than rewriting.
-- Never commit complete vendor manuals; keep them only in `docs/ref/`,
+- Never commit complete vendor manuals; keep them only in `ref/` (git-ignored),
   which documents — do not copy — their contents into Skill references.
-- `dist/`, `artifacts/`, and `__pycache__/` are local-only (git-ignored);
+- `ref/`, `dist/`, `artifacts/`, and `__pycache__/` are local-only (git-ignored);
   packaging is manual via `package_skill.py` (it validates first and excludes
   `__pycache__/`).
 

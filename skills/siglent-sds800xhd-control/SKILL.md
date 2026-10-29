@@ -42,7 +42,7 @@ Start with the matching reference's read-only snapshot. Use a setup/enable comma
 
 1. Connect once to SCPI TCP port `5025`; do not use legacy shell port `5024`.
 2. Send `*IDN?` and save the returned identity before issuing model-specific commands.
-3. Use `scripts/scope_protocol.py` for byte-preserving raw TCP queries and binary blocks; use `scripts/capture_scope.py` for complete segmented waveform downloads.
+3. Use `scripts/scope_protocol.py` for byte-preserving raw TCP queries and IEEE 488.2 blocks; use `scripts/capture_scope.py` for complete segmented waveform downloads. `:PRINt?` screenshots are the exception — raw PNG stream, no block header (see Binary Response Rules).
 4. Apply channel or acquisition configuration only when explicitly requested, and do it before starting a new single acquisition.
 5. Start a single acquisition with `TRMD SINGLE`; never send `ARM`. Poll `SAST?` until `Ready`, stimulate the DUT, then poll until `Stop`. Do not automatically retry.
 6. Keep the same socket session for the complete capture. Do not trigger and then reconnect to read the frame.
@@ -123,13 +123,14 @@ This is not immutable. It may use `WFSU SP,1,NP,0,FP,0` before the new `TRMD SIN
 
 ## Binary Response Rules
 
-Use `scripts/scope_protocol.py` for all byte parsing.
+Use `scripts/scope_protocol.py` for all byte parsing of **waveform** responses. `:PRINt?` is the documented exception and needs its own bounded reader; see below.
 
 - Search until `#` is found; arbitrary ASCII, NUL bytes, prompts, and status bytes may precede it.
 - Read one ASCII digit `N`, then exactly `N` ASCII decimal length bytes, then exactly that many payload bytes.
 - Validate the payload length. Keep `prefix`, the complete block header, payload, and SHA-256.
 - A payload may contain `#`, NUL, CR, or LF; never split it on lines.
 - A timeout, missing marker, non-decimal length, or short payload fails closed.
+- **`:PRINt?` carries no IEEE 488.2 block header** on firmware `4.8.12.1.1.6.5`: it answers with a raw PNG stream closed by a single `LF`, so the rules above do not apply and `query_block()` legitimately fails with `invalid IEEE length-of-length`. Read bounded bytes until the `IEND` chunk plus that trailing `LF`, keep the SHA-256, and never `readline()` a screenshot. No bundled script implements this reader yet; it has to be written at the call site. See [Screenshot and waveform data](references/screenshot-and-waveform.md).
 
 ## Local AI Waveform Analysis
 
@@ -137,13 +138,15 @@ Use the bundled read-only analyzer after a capture has produced a complete `mani
 
 ### Mandatory analysis gate
 
+Evidence labels in this section are `firmware-scoped`: SDS824X HD, firmware `4.8.12.1.1.6.5`, SCPI TCP `5025`.
+
 Before making any conclusion about periodic-signal presence/absence, drive, frequency stability/change, duty/pulse timing, or a long record's phases, the agent must:
 
-0. **Prove the thresholds are placed on the signal's own levels, not on its noise.** The analyzer only reports whether a threshold was *reached*, never whether it was *reached in the right place*: a threshold sitting inside the noise band returns a perfectly healthy `OBSERVED` / `low_duty_pulse_train` result whose pulse count, silent prefix and edge times are all wrong, with no field flagging it. Derive the levels first from `summarize.summary.percentiles_code` (or a low-threshold `structure` pass) and place `low` above the low-level p99 and `high` below the high-level minimum. Verified failure: on a 5 s record whose first 0.45 s sat at a 0.02–0.4 V noise floor, thresholds of 0.13/0.39 V returned 19 709 "pulses" and a 0.086 s silent prefix, while the signal's own 2.0/2.5 V levels returned 19 642 pulses and the true 0.596 s silent prefix. State the evidence for each threshold pair you use.
+0. **Prove the thresholds are placed on the signal's own levels, not on its noise.** The analyzer only reports whether a threshold was *reached*, never whether it was *reached in the right place*: a threshold sitting inside the noise band returns a perfectly healthy `OBSERVED` / `low_duty_pulse_train` result whose silent prefix, first-edge time and pulse count are all wrong, with no field flagging it. Derive the levels first from `summarize.summary.percentiles_v` (calibrated) or `percentiles_code` (code domain — the two are mutually exclusive: a `VALID` calibration emits only the `_v` family plus `underlying_code_statistics`, which carries min/max but no percentiles). Place `high` under the code where p95 and p99 coincide and `low` above p50; for a bipolar or multi-level record take the boundary codes from a deliberately low `structure` pass and read `edges.items[].before_code` / `after_code`. `summarize` accepts no time range, so a whole-record percentile describes the whole record only — reproduce any single-region claim with a sub-range `structure` pass. `firmware-scoped` failure: on a 5 s record whose first 0.45 s sat at a 0.02–0.4 V noise floor, thresholds of 0.13/0.39 V moved the first edge from 0.0962 s to -0.4141 s (silent prefix 0.086 s instead of 0.596 s), added 67 spurious crossings, and still reported `status = OBSERVED`. State the evidence for each threshold pair you use.
 1. Run `structure` on the **full record** at original resolution with explicit hysteresis thresholds. Inspect `coverage.full_record_scanned`, `edges.items_complete`, `pulses.items_complete`, and `evidence.observation_status`. If any is incomplete, truncated, `UNVERIFIED`, or limited to a time subrange, state the limitation and do not make a record-wide claim.
 2. If the structure contains at least two complete cycles or the task asks whether a periodic regime changed, run `regimes` on the **same full record, channel, thresholds, and calibration context**. Inspect `data_integrity_status`, `segmentation_status`, `overall_status`, `coverage.count_reconciliation.reconciles`, regime/transition/cycle counts, unresolved phases, anomalies, and each returned item's completeness flags before drawing conclusions.
 3. Reconcile each claim with the returned per-cycle values and edge/pulse references. Report every regime and every unresolved candidate phase, including brief phases; do not summarize away a detected stage or anomaly. Use `window` only to inspect samples around referenced transitions/anomalies, never as a replacement for full-record structure.
-4. **Re-scan at a second threshold pair whenever the pulse table shows paired or equal-width pulses** — that is the signature of one real pulse being cut into several segments by an intermediate level. Verified example: one 136.25 ms gate cycle held a 45.2 ms high, a 0.2 ms notch, a 0.03 ms spike and another 45.2 ms high, so a single threshold reported `continuous_carrier`, `cluster_count=1`, 133 pulses, and nothing marked the split. Report the levels separately instead of claiming one pulse count.
+4. **Re-scan at a second threshold pair whenever the pulse table shows paired or equal-width pulses** — that is the signature of one real pulse being cut into several segments by an intermediate level. `pulse_clusters` cannot reveal this: grouping is by low-level gap only, so a split pulse stays one cluster and `cluster_count` is a correct computation, just not a description of the sub-structure. `firmware-scoped` example: one 136.25 ms gate cycle held a 45.2 ms high, a 0.2 ms notch, a 0.03 ms spike and another 45.2 ms high, so a single threshold reported `continuous_carrier`, `cluster_count=1`, 133 pulses, and nothing marked the split. Report the levels separately instead of claiming one pulse count.
 
 If the waveform is not periodic/pulse-like, explicitly mark regime segmentation as not applicable and state which structure evidence supports that choice. If cycle support is insufficient, or any output is truncated/prefix-only, report the stage analysis as unresolved/`UNVERIFIED`; do not silently skip the regime pass and do not convert missing evidence into a negative claim. `inspect`, `summarize`, a screenshot, `events` pagination, and an M4/stride preview alone do not satisfy this gate.
 
@@ -166,15 +169,15 @@ The analyzer validates the complete frame, merged file size, SHA-256, segment ra
 
 `structure` is the raw-edge fact layer: it scans every original sample (`evidence.raw_scan = true`, `evidence.stride_used = 1`) and returns the ordered edge table - event id, direction, sample, time, before/after codes, same-direction interval, and time uncertainty - rather than a paged view.
 
-A clean-looking `status = OBSERVED` does **not** mean the thresholds were placed correctly. Every field in this section describes what happened *at* the chosen levels; none of them evaluates whether those levels belong to the signal or to its noise. A threshold pair inside the noise band yields a healthy `low_duty_pulse_train` with wrong pulse counts, wrong silent prefix, and a wrong first-edge time — verified on a record whose first 0.45 s sat at a 0.02–0.4 V noise floor. Always derive the levels from `summarize.summary.percentiles_code` or from a deliberately low `structure` pass, and keep the low threshold above the low-level p99.
+A clean-looking `status = OBSERVED` does **not** mean the thresholds were placed correctly; see gate step 0 for the placement evidence each threshold pair needs. No output field evaluates whether the chosen levels belong to the signal or to its noise.
 
-A pulse table with **paired or equal-width pulses** (for example two 45.2 ms pulses separated by a 0.2 ms notch and a 0.03 ms spike) means one physical pulse is being cut by an intermediate level the thresholds do not represent; re-scan at the intermediate level rather than reporting the split count.
+A pulse table with **paired or equal-width pulses** (for example two 45.2 ms pulses separated by a 0.2 ms notch and a 0.03 ms spike) means one physical pulse is being cut by an intermediate level the thresholds do not represent; re-scan at the intermediate level rather than reporting the split count. `pulse_clusters` groups by low-level gap only, so it stays silent about this split.
 
 `regimes` is a second analysis layer that derives complete cycle measurements from this raw structure and groups sustained changes into stages; it does not replace the edge table or the original capture. Rising and falling edges are paired in raw order into `pulses` with start/end sample and time, width, code levels, thresholds, boundary flags, and `status`; a high interval without a matching edge inside the scanned range is `INCOMPLETE` and is never padded. Pulses are grouped into `pulse_clusters` by a low-level gap that defaults to three times the observed median pulse period (or eight sample intervals when no period evidence exists) unless `--cluster-gap-s` is given; there is no fixed millisecond window. The result is labelled `continuous_carrier`, `short_burst`, `low_duty_pulse_train`, `pulse_train`, `single_pulse`, `no_crossing_observed`, or `insufficient_evidence`, and every label carries `classification.basis`, `classification.metrics`, and `classification.evidence` (edge ids, pulse ids, sample range) so it can be re-derived from raw samples.
 
 `structure` fails closed on volume. `--max-edges` is a hard edge budget: when it is exceeded the response is `classification.status = UNVERIFIED` with `edges.count_is_lower_bound = true`, `edges.lower_bound`, `pulses.status = UNVERIFIED`, and `full_record_scanned = false`, never a silently truncated table presented as complete. JSON bounding is a separate, also explicit limit: when `--max-json-bytes` shortens `edges.items`, `pulses.items`, or `pulse_clusters.items`, the section keeps its authoritative `count` and reports `items_truncated = true`, `items_complete = false`, and the `json_output_truncated_items_are_prefixes` limitation.
 
-Verified operational limit: `--max-json-bytes` is capped at 4 MiB, and the bounding loop re-serializes the whole document for every item it removes. A 25 M-point, 5 s record containing a 19.92 kHz pulse train (about 20 000 pulses / 39 000 edges) did not finish a single full-record `structure` call in 25 minutes, and `regimes` on the same record behaved the same way. Cover such a record with **contiguous sub-range windows that each fit under the budget** (`--max-json-bytes 4194304`; 0.2 s windows over 5 s took about 12 s in total, each window `truncated=false` with `edge_scan_complete=true`), then reconcile the windows. Report the result as contiguous windowed coverage of the full record, quote the window boundaries, and never present a single sub-range scan as a full-record result. A window holding only one complete cycle legitimately returns `regimes` `UNSUPPORTED`; take that stage's regime evidence from a window with enough complete cycles and state which window it came from.
+`firmware-scoped` operational limit: `--max-json-bytes` is capped at 4 MiB, and the bounding loop re-serializes the whole document for every item it removes. A 25 M-point, 5 s record containing a 19.92 kHz pulse train (about 20 000 pulses / 39 000 edges) did not finish a single full-record `structure` call in 25 minutes, and `regimes` on the same record behaved the same way. Cover such a record with **contiguous sub-range windows that each fit under the budget** (`--max-json-bytes 4194304`; 0.2 s windows over 5 s took about 12 s in total, each window `truncated=false` with `edge_scan_complete=true`), then reconcile the windows. Report the result as contiguous windowed coverage of the full record, quote the window boundaries, and never present a single sub-range scan as a full-record result. A window holding only one complete cycle legitimately returns `regimes` `UNSUPPORTED`; take that stage's regime evidence from a window with enough complete cycles and state which window it came from.
 
 `regimes` autonomously considers supported per-cycle measurements by default (`--measures auto`), or accepts an explicit list such as `period_s,duty_cycle,high_width_s`. It can identify sustained period/frequency or pulse-shape changes, summarize each stage and flag isolated cycles as anomalies. The default transition rule needs at least five complete cycles on each side; shorter candidate stages and uncertain boundaries remain unresolved rather than being asserted as stable stages. Smooth monotonic drift is reported as trend evidence within a regime, not forced into step changes. Output separates `data_integrity_status` from `segmentation_status`; an intact capture with uncertain interpretation is not a corrupt/incomplete waveform. When `--max-edges`, `--max-cycles`, or JSON output limits are exceeded, inspect `overall_status`, `coverage`, and each section's `items_complete`/`items_truncated` before relying on the report.
 
@@ -192,7 +195,7 @@ An independent WORD calibration file must bind evidence to the exact merged wave
     "C4": {
       "word_scale_verified": true,
       "capture_sha256": "<merged waveform SHA-256>",
-      "word_codes_per_div": 7680,
+      "word_codes_per_div": 19200,
       "vdiv_v_per_div": 5.0,
       "offset_v": 0.0,
       "evidence": "known DC reference and BYTE/WORD comparison"
@@ -201,7 +204,11 @@ An independent WORD calibration file must bind evidence to the exact merged wave
 }
 ```
 
+The analyzer computes `code_scale_v = vdiv_v_per_div / word_codes_per_div`, so the two fields are only meaningful **together**: `word_codes_per_div` is codes per division *at that same panel V/div*, never codes per volt. The firmware-verified frame above ran C4 at `2 V/div` and produced `7680` codes/division, i.e. 3840 codes/V; the 5 V/div example therefore carries `3840 * 5 = 19200`, not `7680`. Copying the 7680 from a 2 V/div frame into a 5 V/div entry scales every resulting voltage by 2.5 and still reports `status = VALID` — the loader validates the hash, the boolean, the sign and a non-empty evidence string, but never cross-checks the two numbers against the frame's own span. Either supply `vdiv_v_per_div` equal to the panel setting of the frame being calibrated, or verify `word_codes_per_div / vdiv_v_per_div` against `(max_code - min_code) / PKPK` from the same frame.
+
 The analyzer rejects stale or incomplete evidence back to code-domain output. It does not infer WORD voltage scaling from `code_per_div * 256` alone.
+
+Deriving the scale from the frame's own `:MEASure:SIMPle:VALue? PKPK` is an **internal consistency check, not an independent voltage calibration**: both numbers come from the same instrument and the same acquisition. It is sufficient to place thresholds correctly and to reproduce the instrument's own readings, and it must be labelled that way (`OBSERVED_UNVERIFIED` for absolute accuracy). An independently verified scale needs a traceable reference such as a known DC source.
 
 ## Waveform Decode and Validation
 
@@ -222,7 +229,7 @@ Any empty, truncated, wrong-width, overlapping, or missing segment invalidates t
 
 ## Bundled Resources
 
-- `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators.
+- `scripts/scope_protocol.py`: byte-preserving TCP session, IEEE 488.2 block reader, preamble/descriptor parser, segment and frame validators. It does not implement the headerless `:PRINt?` PNG reader.
 - `scripts/discover_scope.py`: read-only USBTMC/VISA and LAN `*IDN?` discovery; it never changes scope state or mounts storage.
 - `scripts/capture_scope.py`: one-session raw TCP capture CLI with explicit immutable/configured modes, staged modern probes, complete segmented reads, and atomic merged output. `--prepare` is only valid with `--trigger`; `--existing-stopped` must never be combined with setup or trigger options.
 - `scripts/test_scope_protocol.py`: offline tests for framing, 25M-vs-5M rejection, boundary errors, and WAVEDESC fields.
