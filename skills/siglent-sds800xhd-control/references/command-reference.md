@@ -81,10 +81,13 @@
 
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
-| `TRSE` | set | `EDGE,SR,C1,HT,OFF`（handover 记录的唯一形式） | 设置边沿触发源/类型；必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
-| `C1:TRSL` | set | `POS` | 边沿斜率；必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
-| `C1:TRLV` | set | 电压值，示例 `2.5`（V） | 边沿触发电平；必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
-| `:TRIGger:EDGE:LEVel?` | query | — | 边沿触发阈值（V），只读快照用。手册未给出独立页码。 | signal-discovery-and-measurement.md |
+| `TRSE` | set | `EDGE,SR,C1,HT,OFF`（handover 记录的唯一形式） | **不要在 Stop 之后使用，也不要把它当作可验证的配置。**`HT` 在整个 495 页编程手册中无定义；按手册自己的可选缩写规则，`HT` 前缀可指 `HOLDoff`、`HLDTime`、`HLDEVent`、`HSTart` 或假想的 `HTIMe`，把它读作“上升沿”是假设。实测 `:TRIGger:EDGE:SLOPe?` 读回 `RISing` 可用于确认斜率。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `C1:TRSL` | set | `POS` | 短形式，手册无此拼写；手册形式为 `:TRIGger:EDGE:SLOPe {RISing\|FALLing\|ALTernate}`（印刷 p. 250，可查询读回）。注意手册形式不带通道号。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `C1:TRLV` | set | 电压值，示例 `2.5`（V） | 短形式，手册无此拼写；手册形式为 `:TRIGger:EDGE:LEVel <NR3>`（印刷 p. 249，可查询读回，范围 `[-4.1*垂直档位-垂直偏移, 4.1*垂直档位-垂直偏移]`）。手册形式不带通道号。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `:TRIGger:TYPE` / `:TRIGger:EDGE:*` 可读回组合 | set/query | 见下 | 替代 handover 短形式块。固件 `4.8.12.1.1.6.5` 实测全部可读回：`:TRIGger:TYPE?`→`EDGE`、`:TRIGger:EDGE:SOURce?`→`C2`、`:TRIGger:EDGE:SLOPe?`→`RISing`、`:TRIGger:EDGE:LEVel?`→`1.50E+00`、`:TRIGger:EDGE:COUPling?`→`DC`、`:TRIGger:EDGE:HOLDoff?`→`OFF`、`:TRIGger:EDGE:NREJect?`→`OFF`、`:TRIGger:EDGE:IMPedance?`→`ONEMeg`。手册印刷 pp. 249-251。 | programming-guide.md (manual pp. 249-251)<br>scripts/scope_protocol.py |
+| `:TRIGger:EDGE:SLOPe?` | query | — | 边沿触发斜率，返回 `RISing`/`FALLing`/`ALTernate`。**这是整个手册中唯一明确给出上升/下降语义的地方**；需要 slope 证据时必须查它，不得从 `HT` 之类的短形式推断。手册印刷 p. 250。 | programming-guide.md (manual p. 250) |
+| `:TRIGger:EDGE:SOURce?` | query | — | 边沿触发源，返回 `{C<n>\|D<d>\|EX\|EX5\|LINE}`。允许外部触发与市电，因此 `C2` 这一读回是正向证据而不是默认值。手册印刷 pp. 250-251。 | programming-guide.md (manual pp. 250-251) |
+| `:TRIGger:EDGE:LEVel?` | query | — | 边沿触发阈值（V），返回 NR3。手册印刷 p. 249。 | signal-discovery-and-measurement.md (manual p. 249) |
 
 ## Channel / vertical
 

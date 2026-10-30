@@ -18,6 +18,9 @@ from scope_protocol import (
     parse_ieee_block,
     parse_wavedesc,
     decode_analog_byte,
+    read_trigger_configuration,
+    scope_prepare_capture,
+    scope_snapshot_configuration,
     signed_8bit,
     validate_frame,
     validate_segments,
@@ -288,6 +291,114 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(numeric_response("5.00 MSa/s"), 5_000_000.0)
         self.assertEqual(numeric_response("25.0 Mpts"), 25_000_000.0)
         self.assertEqual(numeric_response("-2 s"), -2.0)
+
+    def test_prepare_writes_only_commands_that_can_be_read_back(self):
+        # The handover block wrote TRSE EDGE,SR,C1,HT,OFF + C1:TRSL + C1:TRLV.
+        # HT is defined nowhere in the programming guide and no per-channel
+        # trigger slope/level command exists, so that block asserts a slope it
+        # never proves. The documented long form is readback-verified instead.
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.written = []
+                self.answers = {
+                    ":TRIGger:TYPE?": "EDGE",
+                    ":TRIGger:EDGE:SOURce?": "C1",
+                    ":TRIGger:EDGE:SLOPe?": "RISing",
+                    ":TRIGger:EDGE:LEVel?": "2.50E+00",
+                    ":TRIGger:EDGE:COUPling?": "DC",
+                    ":TRIGger:EDGE:HOLDoff?": "OFF",
+                    ":TRIGger:EDGE:NREJect?": "OFF",
+                    ":TRIGger:EDGE:IMPedance?": "ONEMeg",
+                }
+                self.stopped = True
+
+            def write(self, command, **kwargs):
+                self.written.append(command)
+
+            def query_ascii(self, command, **kwargs):
+                return self.answers[command]
+
+        scope = FakeScope()
+        evidence = scope_prepare_capture(scope)
+        joined = " | ".join(scope.written)
+        for forbidden in ("TRSE", "TRSL", "TRLV", "HT"):
+            self.assertNotIn(forbidden, joined)
+        self.assertIn(":TRIGger:EDGE:SLOPe RISing", scope.written)
+        self.assertIn(":TRIGger:EDGE:SOURce C1", scope.written)
+        self.assertEqual(evidence["readback"]["trigger_slope"], "RISing")
+        self.assertEqual(evidence["readback"]["trigger_source"], "C1")
+        self.assertEqual(evidence["requested"]["trigger_slope"], "RISing")
+
+    def test_trigger_configuration_is_snapshot_evidence(self):
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.stopped = True
+                self.answers = {
+                    "TRMD?": "TRMD SINGle",
+                    "SAST?": "SAST Stop",
+                    "ACQ:POIN?": "2.00E+07",
+                    "ACQ:MDEP?": "25M",
+                    "SARA?": "SARA 1.00E+08Sa/s",
+                    "TDIV?": "2.00E-02S",
+                    "TRDL?": "TRDL -8.00E-02S",
+                    "TIM:SCAL?": "2.00E-02",
+                    "TIM:DEL?": "8.00E-02",
+                    "TIM:REF:POS?": "5.00E+01",
+                    "WFSU?": "WFSU SP,1,NP,0,FP,0",
+                    "C1:VDIV?": "C1:VDIV 5.00E+00V",
+                    "C1:OFST?": "C1:OFST 0.00E+00V",
+                    ":TRIGger:TYPE?": "EDGE",
+                    ":TRIGger:EDGE:SOURce?": "C2",
+                    ":TRIGger:EDGE:SLOPe?": "RISing",
+                    ":TRIGger:EDGE:LEVel?": "1.50E+00",
+                    ":TRIGger:EDGE:COUPling?": "DC",
+                    ":TRIGger:EDGE:HOLDoff?": "OFF",
+                    ":TRIGger:EDGE:NREJect?": "OFF",
+                    ":TRIGger:EDGE:IMPedance?": "ONEMeg",
+                }
+
+            def query_ascii(self, command, **kwargs):
+                return self.answers[command]
+
+        snapshot = scope_snapshot_configuration(FakeScope(), ("C1",))
+        self.assertEqual(snapshot["trigger"]["trigger_slope"], "RISing")
+        self.assertEqual(snapshot["trigger"]["trigger_source"], "C2")
+        self.assertEqual(snapshot["trigger"]["trigger_level"], "1.50E+00")
+
+    def test_read_trigger_configuration_covers_all_eight_fields(self):
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.stopped = True
+                self.answers = {
+                    ":TRIGger:TYPE?": "EDGE",
+                    ":TRIGger:EDGE:SOURce?": "C1",
+                    ":TRIGger:EDGE:SLOPe?": "FALLing",
+                    ":TRIGger:EDGE:LEVel?": "-5.00E-01",
+                    ":TRIGger:EDGE:COUPling?": "AC",
+                    ":TRIGger:EDGE:HOLDoff?": "TIME",
+                    ":TRIGger:EDGE:NREJect?": "ON",
+                    ":TRIGger:EDGE:IMPedance?": "FIFTy",
+                }
+
+            def query_ascii(self, command, **kwargs):
+                return self.answers[command]
+
+        config = read_trigger_configuration(FakeScope())
+        self.assertEqual(set(config), {
+            "trigger_type", "trigger_source", "trigger_slope", "trigger_level",
+            "trigger_coupling", "trigger_holdoff", "trigger_noise_reject", "trigger_impedance",
+        })
+        self.assertEqual(config["trigger_slope"], "FALLing")
+        self.assertEqual(config["trigger_impedance"], "FIFTy")
 
     def test_numeric_response_reads_the_value_not_the_command_echo(self):
         # The old left-to-right digit scan returned 1.0 for every vertical

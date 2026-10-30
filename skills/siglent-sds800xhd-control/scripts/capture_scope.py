@@ -48,8 +48,8 @@ def numeric_response(value):
     return parse_scpi_number(value)
 
 
-def configure_default_capture(scope: ScopeSession) -> None:
-    scope_prepare_capture(scope)
+def configure_default_capture(scope: ScopeSession) -> dict:
+    return scope_prepare_capture(scope)
 
 
 def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float) -> dict:
@@ -471,7 +471,7 @@ def main() -> int:
         from scope_protocol import scope_snapshot_configuration
         manifest["pre_capture_snapshot"] = scope_snapshot_configuration(scope, args.channels)
         if args.prepare:
-            configure_default_capture(scope)
+            manifest["prepare"] = configure_default_capture(scope)
         if args.wfsu:
             scope.write(args.wfsu)
         trigger_strategy = None

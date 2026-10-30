@@ -388,9 +388,13 @@ def scope_identify(scope: ScopeSession) -> str:
 def scope_snapshot_configuration(scope: ScopeSession, channels: Iterable[str] = ("C1", "C2", "C3", "C4")) -> dict[str, Any]:
     """Read a snapshot without changing acquisition state."""
 
-    snapshot: dict[str, Any] = {"acquisition": {}, "channels": {}}
+    snapshot: dict[str, Any] = {"acquisition": {}, "trigger": {}, "channels": {}}
     for command, key in (("TRMD?", "trigger_mode"), ("SAST?", "acquisition_state"), ("ACQ:POIN?", "scope_record_points"), ("ACQ:MDEP?", "memory_depth"), ("SARA?", "sample_rate"), ("TDIV?", "timebase"), ("TRDL?", "trigger_delay"), ("TIM:SCAL?", "horizontal_scale"), ("TIM:DEL?", "horizontal_delay"), ("TIM:REF:POS?", "horizontal_reference_position"), ("WFSU?", "waveform_setup")):
         snapshot["acquisition"][key] = scope.query_ascii(command, allow_after_stop=True)
+    # Trigger source/slope/level were previously absent from the snapshot, so a
+    # capture could not state which edge it was triggered on. The short forms do
+    # not expose a slope at all; the :TRIGger:EDGE:* queries do.
+    snapshot["trigger"] = read_trigger_configuration(scope)
     for channel in channels:
         values: dict[str, str] = {}
         for suffix, key in (("VDIV?", "vdiv"), ("OFST?", "offset")):
@@ -399,10 +403,22 @@ def scope_snapshot_configuration(scope: ScopeSession, channels: Iterable[str] = 
     return snapshot
 
 
-def scope_prepare_capture(scope: ScopeSession) -> None:
-    """Apply the handover's setup before a new acquisition."""
+def scope_prepare_capture(scope: ScopeSession) -> dict[str, Any]:
+    """Apply a capture setup, using only commands this Skill can read back.
 
-    commands = (
+    The handover's short-form block (``TRSE EDGE,SR,C1,HT,OFF``, ``C1:TRSL POS``,
+    ``C1:TRLV 2.5``) is firmware-observed but unverifiable: ``HT`` is defined
+    nowhere in the 495-page programming guide, and no per-channel trigger slope
+    or level command exists. Writing it means asserting a trigger slope that was
+    never read back. The documented ``:TRIGger:EDGE:*`` commands carry the same
+    settings, accept a query, and were observed readback-clean on
+    ``4.8.12.1.1.6.5``, so this function writes those and verifies each one.
+
+    Returns the requested values with their readbacks so the caller can keep
+    both as evidence.
+    """
+
+    writes = (
         "CHDR OFF",
         "C1:VDIV 2",
         "C2:VDIV 2",
@@ -412,12 +428,44 @@ def scope_prepare_capture(scope: ScopeSession) -> None:
         "C2:OFST 0",
         "C3:OFST 0",
         "C4:OFST 0",
-        "TRSE EDGE,SR,C1,HT,OFF",
-        "C1:TRSL POS",
-        "C1:TRLV 2.5",
+        ":TRIGger:TYPE EDGE",
+        ":TRIGger:EDGE:SOURce C1",
+        ":TRIGger:EDGE:SLOPe RISing",
+        ":TRIGger:EDGE:LEVel 2.5",
     )
-    for command in commands:
+    for command in writes:
         scope.write(command)
+    # Voltage scope is model-dependent (4.1 divisions on SDS800X HD), so the
+    # level is verified by readback rather than assumed from the request.
+    return {
+        "requested": {
+            "trigger_type": "EDGE",
+            "trigger_source": "C1",
+            "trigger_slope": "RISing",
+            "trigger_level_v": 2.5,
+        },
+        "readback": read_trigger_configuration(scope),
+    }
+
+
+def read_trigger_configuration(scope: ScopeSession) -> dict[str, Any]:
+    """Read the edge-trigger configuration without changing acquisition state.
+
+    Every one of these eight queries answered on firmware ``4.8.12.1.1.6.5``.
+    They are the only trustworthy evidence of what the trigger actually is:
+    ``:TRIGger:EDGE:SLOPe?`` is where the manual states rising versus falling.
+    """
+
+    return {
+        "trigger_type": scope.query_ascii(":TRIGger:TYPE?", allow_after_stop=True),
+        "trigger_source": scope.query_ascii(":TRIGger:EDGE:SOURce?", allow_after_stop=True),
+        "trigger_slope": scope.query_ascii(":TRIGger:EDGE:SLOPe?", allow_after_stop=True),
+        "trigger_level": scope.query_ascii(":TRIGger:EDGE:LEVel?", allow_after_stop=True),
+        "trigger_coupling": scope.query_ascii(":TRIGger:EDGE:COUPling?", allow_after_stop=True),
+        "trigger_holdoff": scope.query_ascii(":TRIGger:EDGE:HOLDoff?", allow_after_stop=True),
+        "trigger_noise_reject": scope.query_ascii(":TRIGger:EDGE:NREJect?", allow_after_stop=True),
+        "trigger_impedance": scope.query_ascii(":TRIGger:EDGE:IMPedance?", allow_after_stop=True),
+    }
 
 
 def configure_left_aligned_trigger(

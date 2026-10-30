@@ -57,7 +57,9 @@ WFSU SP,1,NP,0,FP,0
 
 On the target firmware, `ARM` is forbidden. `WFSU` may refresh or replace a stopped frame, so it is never implicit in immutable mode. `DAT2` before `DESC` is required by the handover for this firmware; read all channel DAT2 payloads before any descriptor query.
 
-These are handover short forms, not manual spellings: `TRMD`, `SAST?`, `TRSE`, `TRSL`, `TRLV`, `TRDL?`, `CHDR`, `WFSU`, `C<n>:VDIV`, and `C<n>:OFST` do not appear anywhere in the programming guide. The manual equivalents are `:TRIGger:MODE`, `:TRIGger:STATus?`, `:TRIGger:EDGE:*`, and `:CHANnel<n>:SCALe`/`:OFFSet`. Cite the firmware when using a short form, and cite the manual when using the long form.
+The following forms are firmware-observed, not manual spellings: `TRMD`, `SAST?`, `TRDL?`, `CHDR`, `WFSU`, and `C<n>:VDIV`/`C<n>:OFST` do not appear anywhere in the 495-page programming guide. For those, the manual equivalents are `:TRIGger:MODE`, `:TRIGger:STATus?`, `:TIMebase:DELay?`, `:CHANnel<n>:SCALe`/`:OFFSet` (and `WFSU` has no documented equivalent at all). Cite the firmware when using a short form, and cite the manual when using the long form.
+
+`TRSE`, `TRSL`, and `TRLV` are a different case and must not be filed alongside them as harmless abbreviations. They appear nowhere in the manual, and their apparent argument grammar contradicts it: `TRSE EDGE,SR,C1,...` mixes the type node `EDGE` with the source node `SR`, while the manual keeps type, source, slope and level as separate `:TRIGger:EDGE:*` commands; `C1:TRSL`/`C1:TRLV` prefix a channel number onto functions the manual never makes per-channel. The `HT` token is defined nowhere at all. Use `:TRIGger:EDGE:SOURce`, `:TRIGger:EDGE:SLOPe`, and `:TRIGger:EDGE:LEVel`, which write the same settings and can be read back.
 
 The programming guide documents the IEEE block form as `#N<N-Digits><payload length><payload>`. A response may carry bytes before `#`; that prefix behaviour comes from the handover capture of this firmware, not from the manual, and the bytes are transport prefix, not waveform data.
 
@@ -74,5 +76,29 @@ SAST?        -> Ready
 stimulate DUT
 SAST?        -> Stop
 ```
+
+**Do not reproduce that block verbatim.** It is a handover transcript whose tokens are undefined by the vendor manual, and one of them is self-contradictory under the manual's own grammar:
+
+- `TRSE EDGE,SR,C1,...` — `TRSE` is the short form of `:TRIGger:TYPE`, but `EDGE` in `:TRIGger:EDGE:*` is the *type* node, while `SR` is the *source* node. A `:TRIGger:TYPE` command cannot set a source; source, slope and level are three separate `:TRIGger:EDGE:*` commands.
+- `HT` — never defined in the manual, in the handover, or in this Skill. Under the manual's own optional-shortening rule, the prefix `HT` can abbreviate `HOLDoff`, `HLDTime` (holdoff time), `HLDEVent` (holdoff events), `HSTart`, or a hypothetical `HTIMe`. Reading it as "high transition" is an assumption the document never authorised.
+- `C1:TRSL POS` / `C1:TRLV 2.5` — no per-channel trigger slope or trigger level command exists in the manual. `TRSL`/`TRLV` are not listed anywhere; the documented commands are `:TRIGger:EDGE:SLOPe` and `:TRIGger:EDGE:LEVel`, neither of which takes a channel number.
+
+A search of the full 495-page programming guide finds zero occurrences of `TRSE`, `TRSL`, `TRLV`, `TRMD`, `SAST`, `WFSU`, or a bare `HT` token; `CHDR OFF` appears only once, inside a C# example. Treat every token in that block as *firmware-observed but unreadable*, and never as a self-verifying configuration.
+
+### Use the readable long form
+
+Every setting in the sequence above has a documented long form with a matching query, and those queries read back correctly on firmware `4.8.12.1.1.6.5`:
+
+```text
+:TRIGger:TYPE EDGE          :TRIGger:TYPE?          -> EDGE
+:TRIGger:EDGE:SOURce C2     :TRIGger:EDGE:SOURce?   -> C2
+:TRIGger:EDGE:SLOPe RISing  :TRIGger:EDGE:SLOPe?    -> RISing
+:TRIGger:EDGE:LEVel 1.5     :TRIGger:EDGE:LEVel?    -> 1.50E+00
+:TRIGger:MODE SINGle        :TRIGger:MODE?          -> SINGle
+```
+
+`:TRIGger:EDGE:SLOPe` accepts `{RISing|FALLing|ALTernate}` (manual printed p. 250) — that is the *only* documented place where rising versus falling is stated, and it is a query you can read back. Use it instead of guessing what `HT` meant. `:TRIGger:EDGE:SOURce` accepts `{C<n>|D<d>|EX|EX5|LINE}` (manual printed pp. 250-251); note it also accepts the external-trigger and line inputs, so a source readback of `C2` is positive proof, not a default.
+
+The supported read-only snapshot fields are `:TRIGger:TYPE?`, `:TRIGger:EDGE:SOURce?`, `:TRIGger:EDGE:SLOPe?`, `:TRIGger:EDGE:LEVel?`, `:TRIGger:EDGE:COUPling?`, `:TRIGger:EDGE:HOLDoff?`, `:TRIGger:EDGE:NREJect?`, and `:TRIGger:EDGE:IMPedance?`. All eight answered on `4.8.12.1.1.6.5`; a trigger configuration that cannot be read back must not be reported as verified.
 
 Once `Stop` is observed after `Ready`, do not send state-changing acquisition commands until the caller explicitly releases the frame. `SAST?` replies may include a command prefix such as `SAST Stop`; normalize the state token for control decisions while preserving the raw reply in capture evidence. For signal interpretation, scan original-resolution samples for narrow pulses, validate voltage scaling against a known logic channel, avoid same-frequency observers that alias with the measured signal, and require a hypothesis to explain all periodic observations before declaring a counter frozen.
