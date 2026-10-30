@@ -21,7 +21,7 @@ from waveform_analysis import (
 )
 
 
-def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | None = None, snapshot_vdiv: float | None = None, sample_interval: float = 1e-6) -> Path:
+def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | None = None, snapshot_vdiv: float | None = None, sample_interval: float = 1e-6, snapshot_style: str = "firmware", preamble_start: int = 0) -> Path:
     channel = "C1"
     channel_dir = root / channel
     channel_dir.mkdir(parents=True)
@@ -51,6 +51,7 @@ def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | No
         "sample_interval": sample_interval,
         "horizontal_offset": 0.0,
         "timebase_s": 1.0,
+        "start": preamble_start,
         "vdiv": 2.0 if width == 1 else 1.0,
         "probe": 1.0,
         "offset": 0.0,
@@ -73,9 +74,24 @@ def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | No
         }],
     }
     snapshot_vdiv = snapshot_vdiv if snapshot_vdiv is not None else preamble["vdiv"]
+    # Real capture manifests store the decorated firmware reply, not a bare
+    # float: "C1:VDIV 5.00E+00V" / "C1:OFST 0.00E+00V". A fixture that writes
+    # str(2.0) never exercises the prefix stripping, so the snapshot cross-check
+    # could silently stop running without a single failing test.
+    if snapshot_style == "firmware":
+        channel_snapshot = {
+            "vdiv": f"{channel}:VDIV {snapshot_vdiv:.2E}V",
+            "offset": f"{channel}:OFST 0.00E+00V",
+        }
+    elif snapshot_style == "unparseable":
+        channel_snapshot = {"vdiv": "C1:VDIV <timeout>", "offset": "C1:OFST <timeout>"}
+    elif snapshot_style == "missing":
+        channel_snapshot = {}
+    else:
+        channel_snapshot = {"vdiv": str(snapshot_vdiv), "offset": "0"}
     manifest = {
         "idn": "synthetic,SDS824X HD,test,1",
-        "capture_configuration": {"channels": {channel: {"vdiv": str(snapshot_vdiv), "offset": "0"}}},
+        "capture_configuration": {"channels": {channel: channel_snapshot}},
         "results": [result],
     }
     (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -138,6 +154,57 @@ class WaveformAnalysisTests(unittest.TestCase):
             stale = load_capture(root, "C1", calibration_file=calibration_path)
             self.assertEqual(stale["calibration"]["status"], "OBSERVED_UNVERIFIED")
             self.assertIn("calibration_capture_sha256_mismatch", stale["calibration"]["verification_failures"])
+
+    def test_firmware_decorated_snapshot_vdiv_overrides_placeholder_descriptor(self):
+        # Legacy WAVEDESC on 4.8.12.1.1.5 reported vdiv=0.2/probe=10 on every
+        # channel (a flat 2 V/div) while the panel ran something else. Reading
+        # that descriptor with the decorated reply unparsed reported VALID with
+        # the placeholder scale, scaling voltages by 2.5x on a 5 V/div channel.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0, 10, -10], snapshot_vdiv=5.0)
+            capture = load_capture(root, "C1")
+            calibration = capture["calibration"]
+            self.assertEqual(calibration["status"], "VALID")
+            self.assertEqual(calibration["snapshot_vdiv"], 5.0)
+            # Descriptor says 2 V/div; the panel snapshot must win.
+            self.assertEqual(calibration["effective_vdiv_v_per_div"], 5.0)
+            self.assertAlmostEqual(calibration["code_scale_v"], 5.0 / 10.0)
+            self.assertIn("panel_snapshot_vdiv_overrides_descriptor", calibration["checks"])
+            self.assertNotIn("descriptor_scale_does_not_match_snapshot_vdiv", calibration["verification_failures"])
+            self.assertEqual(summarize_capture(capture, preview_buckets=1)["summary"]["max_v"], 5.0)
+
+    def test_unparseable_snapshot_fails_closed_instead_of_skipping_the_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0, 10, -10], snapshot_style="unparseable")
+            capture = load_capture(root, "C1")
+            calibration = capture["calibration"]
+            self.assertNotEqual(calibration["status"], "VALID")
+            self.assertEqual(calibration["units"], "code")
+            self.assertIn("capture_snapshot_vdiv_unparseable", calibration["verification_failures"])
+            self.assertIn("capture_snapshot_offset_unparseable", calibration["verification_failures"])
+            self.assertNotIn("min_v", summarize_capture(capture, preview_buckets=1)["summary"])
+
+    def test_bare_number_snapshot_still_parses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0, 10], snapshot_vdiv=2.0, snapshot_style="bare")
+            calibration = load_capture(root, "C1")["calibration"]
+            self.assertEqual(calibration["status"], "VALID")
+            self.assertEqual(calibration["snapshot_vdiv"], 2.0)
+            self.assertIn("descriptor_vdiv_times_probe_matches_capture_snapshot", calibration["checks"])
+
+    def test_descriptor_start_offsets_the_reported_origin(self):
+        # DAT2 can return a slice that does not start at record sample 0. Ignoring
+        # `start` shifted every event time by start*interval while the capture
+        # still counted as COMPLETE.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, [0, 10, -10], sample_interval=1e-3, preamble_start=1500)
+            capture = load_capture(root, "C1")
+            self.assertEqual(capture["time_origin_s"], 0.0 - 5.0 + 1500 * 1e-3)
+            self.assertEqual(get_window(capture, 0, 3)["window"]["start_time_s"], -3.5)
 
     def test_relocated_manifest_falls_back_to_capture_relative_paths(self):
         with tempfile.TemporaryDirectory() as directory:

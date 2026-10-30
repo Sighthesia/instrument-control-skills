@@ -508,13 +508,73 @@ def configure_memory_depth(
     return actual_depth
 
 
+# Firmware replies to queries are decorated, e.g. ``C1:VDIV 5.00E+00V``,
+# ``SARA 1.00E+07Sa/s``, ``25.0 Mpts``. A naive ``float()`` yields ``None`` for
+# all of them, and a left-to-right digit scan yields ``1.0`` from the ``C1``
+# prefix. Either failure let the panel-snapshot cross-check silently skip while
+# calibration still reported VALID, which is how a placeholder descriptor VDIV
+# produced voltages scaled by 2.5x. Read the rightmost numeric token instead.
+# This is the single parser for every module: capture_scope.numeric_response and
+# waveform_analysis.parse_scpi_number are thin aliases so the three call sites
+# cannot drift apart again.
+_SCPI_NUMBER_PREFIX = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?")
+# Multipliers are applied on top of the numeric part, so a suffixed magnitude
+# such as ``MSa/s`` scales. Bare base units map to 1.0.
+_UNIT_SCALES: dict[str, float] = {
+    "gsa/s": 1e9, "gsa": 1e9, "msa/s": 1e6, "msa": 1e6, "ksa/s": 1e3, "ksa": 1e3, "sa/s": 1.0,
+    "ghz": 1e9, "mhz": 1e6, "khz": 1e3, "hz": 1.0,
+    "gpts": 1e9, "gpt": 1e9, "mpts": 1e6, "mpt": 1e6, "kpts": 1e3, "kpt": 1e3, "pts": 1.0, "pt": 1.0,
+    "points": 1.0, "point": 1.0, "samples": 1.0, "sample": 1.0,
+    "v": 1.0, "mv": 1e-3, "uv": 1e-6, "a": 1.0, "ma": 1e-3, "ua": 1e-6,
+    "s": 1.0, "ms": 1e-3, "us": 1e-6, "ns": 1e-9, "ps": 1e-12,
+    "w": 1.0, "mw": 1e-3, "uw": 1e-6,
+    "vpp": 1.0, "vrms": 1.0, "ohm": 1.0, "deg": 1.0, "%": 1.0,
+}
+# ``M`` alone is deliberately absent: it is milli in SI and million in scope
+# memory-depth replies, so an ambiguous suffix must not be guessed.
+
+
+def parse_scpi_number(value: Any, *, default_unit: Optional[str] = None) -> Optional[float]:
+    """Parse one SCPI scalar reply, tolerating a command echo and a unit suffix.
+
+    Accepts a bare ``"0.2"``, a firmly decorated ``"C1:VDIV 2.00E-01V"``, and a
+    space-separated magnitude ``"25.0 Mpts"``. Returns ``None`` when no numeric
+    token exists, rather than reading stray digits out of a command echo.
+    """
+
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return number if math.isfinite(number) else None
+    text = str(value).strip()
+    if not text:
+        return None
+    tokens = [token for token in re.split(r"[\s,;]+", text) if token]
+    for index in range(len(tokens) - 1, -1, -1):
+        match = _SCPI_NUMBER_PREFIX.match(tokens[index])
+        if match is None:
+            continue
+        number = float(match.group(0))
+        unit = tokens[index][match.end():].lower()
+        if not unit and index + 1 < len(tokens):
+            unit = tokens[index + 1].lower()
+        if not unit:
+            unit = default_unit.lower() if default_unit else ""
+        if unit and unit not in _UNIT_SCALES:
+            # The suffix is not one we can interpret, so this token was not a
+            # value; keep scanning left before giving up.
+            continue
+        if not math.isfinite(number):
+            continue
+        return number * _UNIT_SCALES.get(unit, 1.0)
+    return None
+
+
 def _parse_numeric(value: Any, label: str) -> float:
-    match = re.search(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?", str(value).replace(" ", ""))
-    if not match:
+    parsed = parse_scpi_number(value)
+    if parsed is None:
         raise ScopeProtocolError(f"{label} did not return a numeric value: {value!r}")
-    parsed = float(match.group(0))
-    if not math.isfinite(parsed):
-        raise ScopeProtocolError(f"{label} returned a non-finite value: {value!r}")
     return parsed
 
 

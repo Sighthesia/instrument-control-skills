@@ -11,6 +11,14 @@ import math
 from pathlib import Path
 from typing import Any, Optional
 
+# The SCPI scalar parser lives in scope_protocol.py so capture_scope.py,
+# waveform_analysis.py, and scope_protocol.py cannot drift apart. Firmware
+# replies are decorated (``C1:VDIV 5.00E+00V``, ``SARA 1.00E+07Sa/s``); reading
+# them with ``float()`` returns None and a left-to-right digit scan returns 1.0
+# from the ``C1`` prefix. Both failure modes let the panel-snapshot cross-check
+# silently skip while calibration still reported VALID.
+from scope_protocol import parse_scpi_number
+
 try:
     import numpy as np
 except ImportError:  # pragma: no cover - exercised by CLI packaging environments
@@ -102,6 +110,30 @@ def _finite_number(value: Any) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
+def _snapshot_number(snapshot: dict[str, Any], key: str) -> tuple[Optional[float], bool]:
+    """Return ``(value, was_present)`` for one channel-snapshot field.
+
+    ``was_present`` distinguishes "the manifest has no such field" from "the
+    manifest has the field but it cannot be parsed". The second case must not
+    silently skip the cross-check.
+    """
+
+    raw = snapshot.get(key)
+    if raw is None:
+        return None, False
+    return parse_scpi_number(raw, default_unit="V"), True
+
+
+def calibration_source(width: int, checks: list[str]) -> str:
+    """Describe which reply supplied the voltage scale, for the JSON evidence."""
+
+    if width != 1:
+        return "WORD voltage scaling requires independent calibration"
+    if "panel_snapshot_vdiv_overrides_descriptor" in checks:
+        return "panel C<n>:VDIV?/OFST? snapshot (descriptor scale was a placeholder)"
+    return "descriptor.vdiv * probe and descriptor.offset * probe"
+
+
 def _resolve_artifact(stored_path: Any, manifest_dir: Path, fallback: Path) -> Path:
     candidates: list[Path] = []
     if stored_path:
@@ -169,8 +201,8 @@ def _load_calibration(
     descriptor_offset = _finite_number(preamble.get("offset"))
     codes_per_div = _finite_number(preamble.get("code_per_div"))
     snapshot = _channel_snapshot(manifest, channel)
-    snapshot_vdiv = _finite_number(snapshot.get("vdiv"))
-    snapshot_offset = _finite_number(snapshot.get("offset"))
+    snapshot_vdiv, vdiv_present = _snapshot_number(snapshot, "vdiv")
+    snapshot_offset, offset_present = _snapshot_number(snapshot, "offset")
 
     issues: list[str] = []
     if descriptor_vdiv is None or descriptor_vdiv <= 0:
@@ -185,16 +217,29 @@ def _load_calibration(
     effective_vdiv = descriptor_vdiv * probe if descriptor_vdiv and probe else None
     effective_offset = descriptor_offset * probe if descriptor_offset is not None and probe else None
     checks: list[str] = []
-    if snapshot_vdiv is not None:
+    # A decorated reply that we cannot parse is a failed verification, never a
+    # skipped one: SKILL.md requires the descriptor scale to be cross-checked
+    # against the captured panel snapshot before voltage fields are emitted.
+    if vdiv_present and snapshot_vdiv is None:
+        issues.append("capture_snapshot_vdiv_unparseable")
+    elif snapshot_vdiv is not None:
         if effective_vdiv is not None and math.isclose(effective_vdiv, snapshot_vdiv, rel_tol=0.02, abs_tol=1e-9):
             checks.append("descriptor_vdiv_times_probe_matches_capture_snapshot")
         else:
-            issues.append("descriptor_scale_does_not_match_snapshot_vdiv")
-    if snapshot_offset is not None:
+            # The legacy WAVEDESC can carry a placeholder scale that disagrees
+            # with the panel (observed on 4.8.12.1.1.5: every channel reported
+            # vdiv_with_probe=2 V/div while the panel ran 5/2/2/1 V/div). The
+            # panel value is authoritative, so adopt it and record the choice.
+            checks.append("panel_snapshot_vdiv_overrides_descriptor")
+            effective_vdiv = snapshot_vdiv
+    if offset_present and snapshot_offset is None:
+        issues.append("capture_snapshot_offset_unparseable")
+    elif snapshot_offset is not None:
         if effective_offset is not None and math.isclose(effective_offset, snapshot_offset, rel_tol=0.02, abs_tol=1e-9):
             checks.append("descriptor_offset_times_probe_matches_snapshot")
         else:
-            issues.append("descriptor_offset_does_not_match_snapshot_offset")
+            checks.append("panel_snapshot_offset_overrides_descriptor")
+            effective_offset = snapshot_offset
 
     if vdiv_override is not None:
         if not math.isfinite(vdiv_override) or vdiv_override <= 0:
@@ -210,7 +255,7 @@ def _load_calibration(
     calibration: dict[str, Any] = {
         "status": "UNKNOWN" if width == 1 else "OBSERVED_UNVERIFIED",
         "units": "V" if width == 1 and not issues else "code",
-        "source": "descriptor.vdiv * probe and descriptor.offset * probe" if width == 1 else "WORD voltage scaling requires independent calibration",
+        "source": calibration_source(width, checks),
         "descriptor_vdiv": descriptor_vdiv,
         "probe_factor": probe,
         "descriptor_offset": descriptor_offset,
@@ -423,7 +468,14 @@ def load_capture(
         raw_sha256=actual_hash,
     )
     interval = sample_interval
-    origin = horizontal_offset - timebase * 5.0
+    # The descriptor reports where the downloaded slice starts inside the whole
+    # record (`start`, a sample index). Ignoring it shifts every reported event
+    # time by start*interval although the capture still counts as COMPLETE.
+    # The window below is [-1.8, +0.2) s of the record with start=15000000; a
+    # reader that drops it reports events 1.5 s too early.
+    record_origin = horizontal_offset - timebase * 5.0
+    record_start = _int_field(preamble.get("start"), "start", 0)
+    origin = record_origin + record_start * interval
     return {
         "manifest_path": manifest_path,
         "manifest_dir": manifest_dir,
@@ -589,7 +641,7 @@ def _sampling_envelope(capture: dict[str, Any]) -> dict[str, Any]:
         "origin_s": capture["time_origin_s"],
         "delay_s": preamble.get("horizontal_offset"),
         "timebase_s": preamble.get("timebase_s"),
-        "origin_formula": "horizontal_offset - timebase_s * 5 (10-division display)",
+        "origin_formula": "horizontal_offset - timebase_s * 5 (10-division display) + start * sample_interval",
         "time_reference": "relative waveform/display time, not wall-clock time",
     }
 

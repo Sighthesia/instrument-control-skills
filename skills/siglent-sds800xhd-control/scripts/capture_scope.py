@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import re
 import sys
 import time
 from dataclasses import asdict
@@ -27,6 +26,7 @@ from scope_protocol import (
     configure_left_aligned_trigger,
     configure_memory_depth,
     scope_prepare_capture,
+    parse_scpi_number,
     parse_wavedesc,
     save_json,
     validate_frame,
@@ -38,25 +38,14 @@ CHANNELS = ("C1", "C2", "C3", "C4")
 
 
 def numeric_response(value):
-    text = str(value).strip().replace(" ", "")
-    match = re.search(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?", text)
-    if not match:
-        return None
-    number = float(match.group(0))
-    suffix = text[match.end() :].lower()
-    if suffix.startswith(("gsa/s", "gsa")):
-        return number * 1e9
-    if suffix.startswith(("msa/s", "msa")):
-        return number * 1e6
-    if suffix.startswith(("ksa/s", "ksa")):
-        return number * 1e3
-    if suffix.startswith(("gpts", "gpt")):
-        return number * 1e9
-    if suffix.startswith(("mpts", "mpt")):
-        return number * 1e6
-    if suffix.startswith(("kpts", "kpt")):
-        return number * 1e3
-    return number
+    """Parse a decorated scope reply; kept as the historical name for callers.
+
+    Delegates to :func:`scope_protocol.parse_scpi_number` so the capture path and
+    the offline analyzer share one parser. The previous local implementation
+    scanned left-to-right and turned ``C1:VDIV 5.00E+00V`` into ``1.0``.
+    """
+
+    return parse_scpi_number(value)
 
 
 def configure_default_capture(scope: ScopeSession) -> None:

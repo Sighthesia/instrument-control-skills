@@ -289,6 +289,28 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(numeric_response("25.0 Mpts"), 25_000_000.0)
         self.assertEqual(numeric_response("-2 s"), -2.0)
 
+    def test_numeric_response_reads_the_value_not_the_command_echo(self):
+        # The old left-to-right digit scan returned 1.0 for every vertical
+        # channel reply because it matched the "1" in "C1".
+        self.assertEqual(numeric_response("C1:VDIV 5.00E+00V"), 5.0)
+        self.assertEqual(numeric_response("C2:VDIV 2.00E+00V"), 2.0)
+        self.assertEqual(numeric_response("C1:OFST -8.00E-01V"), -0.8)
+        self.assertEqual(numeric_response("C4:ATTN 10"), 10.0)
+        self.assertEqual(numeric_response("SARA 1.00E+07Sa/s"), 10_000_000.0)
+        self.assertIsNone(numeric_response("C1:VDIV"))
+        self.assertIsNone(numeric_response("garbage"))
+        # "M" is milli in SI and million in memory depth, so it is never guessed.
+        self.assertIsNone(numeric_response("25M"))
+        self.assertEqual(numeric_response("25.0 Mpts"), 25_000_000.0)
+
+    def test_one_parser_serves_capture_and_analysis_paths(self):
+        from scope_protocol import parse_scpi_number
+        from waveform_analysis import parse_scpi_number as analysis_parser
+
+        self.assertIs(analysis_parser, parse_scpi_number)
+        for reply in ("C1:VDIV 5.00E+00V", "2.00E-01S", "ACQ:POIN? 20000000", "0.2"):
+            self.assertEqual(numeric_response(reply), parse_scpi_number(reply))
+
     def test_left_aligned_trigger_sets_delay_and_memory_before_single(self):
         from scope_protocol import ScopeSession
 
