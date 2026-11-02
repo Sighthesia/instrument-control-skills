@@ -43,6 +43,8 @@ Every setting has both a read and a write form, **except where it does not**: `S
 
 Start with the matching reference's read-only snapshot. Use a setup/enable command only when that workflow requires it and the caller authorized changing scope state. Each reference distinguishes target-hardware-tested behavior from manual-documented behavior and notes feature prerequisites.
 
+**When a setting does not take effect, the next step is a read, not another write.** Read the value back, drain `SYSTem:ERRor?`, and if either disagrees with the request, load [Command reference](references/command-reference.md) → *Write-Failure Modes* before touching the command spelling again. Two of the documented causes (acquisition context written while `Stop`, an over-limit `TIMebase:SCALe`) produce no error at all, and neither is a locked instrument — do not "recover" by resetting the scope, reconnecting, or retrying a variant spelling, because each of those destroys the evidence that would identify the real cause.
+
 ## Raw TCP Session
 
 1. Connect once to SCPI TCP port `5025`; do not use legacy shell port `5024`.

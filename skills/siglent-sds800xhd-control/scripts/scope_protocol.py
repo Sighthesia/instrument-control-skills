@@ -753,6 +753,14 @@ def configure_acquisition_context(
         # below would be dropped and would queue nothing.
         scope.write("TRMD AUTO", explicit_release=True)
         scope.query_ascii("*IDN?")
+        # ``ScopeSession.stopped`` is a latch that only ``mark_state`` sets, so
+        # the release above does not clear it. Leaving it set would make every
+        # following configuration write raise "command forbidden after Stop"
+        # through ``FORBIDDEN_AFTER_STOP`` -- a config helper that cannot
+        # configure. Clearing it here is the explicit release the caller asked
+        # for by calling a *configuration* helper; the immutable-frame rule
+        # still applies to everyone who does not call one.
+        scope.stopped = False
 
     steps = [
         write_and_verify(scope, "ACQuire:MMANagement FSRate", "ACQ:MMAN?", expect="FSRate"),

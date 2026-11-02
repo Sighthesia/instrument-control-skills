@@ -745,6 +745,28 @@ class SilentWriteTests(unittest.TestCase):
         self.assertEqual(result["unapplied"], [])
         self.assertTrue(result["observed"]["points_per_second_consistent"])
 
+    def test_context_clears_the_stop_latch_so_configuration_is_allowed(self):
+        # ScopeSession.stopped is a latch that only mark_state sets. A config
+        # helper that releases the instrument must clear it, otherwise every
+        # following write raises "command forbidden after Stop" and the helper
+        # cannot configure anything.
+        scope = self.fake_scope(
+            {
+                "SAST?": ["SAST Stop", "SAST Ready"],
+                "ACQ:MMAN?": ["FSRate"],
+                "ACQ:MDEP?": ["25M"],
+                "SARA?": ["SARA 2.00E+07Sa/s"],
+                "TDIV?": ["1.00E-01S"],
+                "ACQ:POIN?": ["2.00E+07"],
+                "*IDN?": "Siglent Technologies,SDS824X HD,SDS08A0Q909185,4.8.12.1.1.6.5",
+            }
+        )
+        scope.mark_state("SAST Ready")
+        scope.mark_state("SAST Stop")
+        self.assertTrue(scope.stopped)
+        configure_acquisition_context(scope, sample_rate=20e6, timebase_s_per_div=1e-1)
+        self.assertFalse(scope.stopped)
+
     def test_context_orders_sample_rate_before_timebase(self):
         scope = self.fake_scope(
             {
