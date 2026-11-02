@@ -399,12 +399,43 @@ def drain_error_queue(scope: ScopeSession, *, limit: int = 32) -> list[str]:
     """
 
     entries: list[str] = []
+    terminated = False
     for _ in range(limit):
         response = scope.query_ascii("SYST:ERR?", allow_after_stop=True).strip()
-        if response.startswith("0"):
+        # ``+0`` / ``0`` is the empty terminator; anything else (including
+        # ``-350,"Queue overflow"``) is an entry. ``startswith("0")`` alone would
+        # also accept a malformed ``0x`` reply, so the boundary is checked.
+        if re.match(r"\+?0(\D|$)", response):
+            terminated = True
             break
         entries.append(response)
+    if not terminated:
+        # Never let an exhausted budget look like an empty queue: the next
+        # caller would then attribute this backlog to its own write.
+        entries.append(f"<error queue not empty after {limit} reads>")
     return entries
+
+
+def parse_memory_depth(value: Any) -> Optional[float]:
+    """Parse a memory-depth reply into points, accepting both observed forms.
+
+    The firmware answers ``ACQ:MDEP?`` with a bare class token (``25M`` on
+    ``4.8.12.1.1.6.5``), while other captures and the module's own notes show a
+    decorated magnitude (``25.0 Mpts``). ``parse_scpi_number`` deliberately
+    refuses a bare ``M`` because it is ambiguous between milli and million, so
+    depth needs its own parser; treating ``25M`` as unparseable would score an
+    accepted write as a failure.
+    """
+
+    text = str(value or "").strip().upper()
+    if not text:
+        return None
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(M|K)?\s*(?:PTS?|POINTS?|SAMPLES?)?\s*$", text)
+    if match is None:
+        return None
+    magnitude = float(match.group(1))
+    multiplier = {"M": 1e6, "K": 1e3, None: 1.0}[match.group(2)]
+    return magnitude * multiplier
 
 
 def _last_token(value: Any) -> str:
@@ -427,6 +458,7 @@ def write_and_verify(
     *,
     expect: Optional[str] = None,
     numeric_expect: Optional[float] = None,
+    depth_expect: Optional[float] = None,
     rel_tol: float = 1e-6,
     allow_after_stop: bool = False,
 ) -> dict[str, Any]:
@@ -458,7 +490,12 @@ def write_and_verify(
     scope.write(command, allow_after_stop=allow_after_stop)
     after = scope.query_ascii(query, allow_after_stop=allow_after_stop).strip()
     errors = drain_error_queue(scope)
-    if numeric_expect is not None:
+    if depth_expect is not None:
+        observed = parse_memory_depth(after)
+        applied = observed is not None and math.isclose(
+            observed, float(depth_expect), rel_tol=rel_tol, abs_tol=abs(depth_expect) * rel_tol
+        )
+    elif numeric_expect is not None:
         observed = parse_scpi_number(after)
         applied = observed is not None and math.isclose(
             observed, float(numeric_expect), rel_tol=rel_tol, abs_tol=abs(numeric_expect) * rel_tol
@@ -474,6 +511,7 @@ def write_and_verify(
         "after": after,
         "expect": expect,
         "numeric_expect": numeric_expect,
+        "depth_expect": depth_expect,
         "applied": applied,
         "errors": errors,
     }
@@ -657,7 +695,15 @@ def configure_memory_depth(
         raise ScopeProtocolError("memory_depth must be one of 100M, 50M, or 25M")
     scope.write(f"ACQ:MDEP {normalized_depth}")
     actual_depth = scope.query_ascii("ACQ:MDEP?").strip().upper()
-    if normalized_depth not in actual_depth:
+    # The reply is a class token (``25M``) on this firmware and a decorated
+    # magnitude (``25.0 Mpts``) elsewhere; compare the parsed points, not text.
+    requested_points = parse_memory_depth(normalized_depth)
+    actual_points = parse_memory_depth(actual_depth)
+    if (
+        requested_points is None
+        or actual_points is None
+        or not math.isclose(requested_points, actual_points, rel_tol=1e-6)
+    ):
         raise ScopeProtocolError(f"memory depth readback mismatch: requested {normalized_depth}, read {actual_depth!r}")
     return actual_depth
 
@@ -713,6 +759,7 @@ def configure_acquisition_context(
     memory_depth: Optional[str] = None,
     channel_count: int = 4,
     horizontal_delay_s: Optional[float] = None,
+    release_from_stop: bool = False,
 ) -> dict[str, Any]:
     """Set sample rate, depth and timebase in the only order that can succeed.
 
@@ -724,6 +771,13 @@ def configure_acquisition_context(
 
     The requested window is therefore checked against the depth *before* any
     write, and every write is followed by a readback comparison.
+
+    ``release_from_stop`` is deliberately opt-in and defaults to ``False``.
+    Leaving ``Stop`` with ``TRMD AUTO`` resumes free-running acquisition and
+    overwrites the single-shot record, which is exactly what this Skill forbids
+    while a stopped frame is being read; only a caller that knows the current
+    frame is expendable may ask for it. With the flag off and the scope stopped,
+    this raises before sending anything.
     """
 
     if channel_count not in (1, 2, 3, 4):
@@ -733,7 +787,23 @@ def configure_acquisition_context(
     if not math.isfinite(timebase_s_per_div) or timebase_s_per_div <= 0:
         raise ScopeProtocolError("timebase_s_per_div must be positive and finite")
 
-    depth_points = {"100M": 100e6, "50M": 50e6, "25M": 25e6, "10M": 10e6, "1M": 1e6}[str(memory_depth or "25M").strip().upper()]
+    depth_table = {"100M": 100e6, "50M": 50e6, "25M": 25e6, "10M": 10e6, "1M": 1e6}
+    depth_key = str(memory_depth or "25M").strip().upper()
+    if depth_key not in depth_table:
+        raise ScopeProtocolError(
+            f"memory_depth must be one of {sorted(depth_table)}, got {memory_depth!r}"
+        )
+    # Four enabled channels cap the depth class at 25M on SDS800X HD (manual
+    # printed pp. 19-20). Accepting a deeper class would compute the timebase
+    # bound against a depth the instrument cannot hold, and the resulting clamp
+    # would then be blamed on the sample rate.
+    max_depth_by_channels = {1: "100M", 2: "50M", 3: "25M", 4: "25M"}[channel_count]
+    if depth_table[depth_key] > depth_table[max_depth_by_channels]:
+        raise ScopeProtocolError(
+            f"memory_depth {depth_key} is unavailable with {channel_count} channels; "
+            f"the deepest class there is {max_depth_by_channels}"
+        )
+    depth_points = depth_table[depth_key]
     limit = max_timebase_for_context(depth_points, sample_rate)
     if timebase_s_per_div > limit * (1 + 1e-9):
         raise ScopeProtocolError(
@@ -748,23 +818,34 @@ def configure_acquisition_context(
     # legitimately start from a stopped scope, so only the raw state is read.
     state = normalize_acquisition_state(scope.query_ascii("SAST?", allow_after_stop=True))
     released_from_stop = state == "STOP"
+    release_errors: list[str] = []
     if released_from_stop:
+        if not release_from_stop:
+            raise ScopeProtocolError(
+                "scope is stopped and releasing it was not authorized: leaving Stop with "
+                "TRMD AUTO overwrites the stopped frame. Pass release_from_stop=True only "
+                "when the current frame is expendable."
+            )
         # Not an error on the instrument, but every acquisition-context write
-        # below would be dropped and would queue nothing.
-        scope.write("TRMD AUTO", explicit_release=True)
-        scope.query_ascii("*IDN?")
-        # ``ScopeSession.stopped`` is a latch that only ``mark_state`` sets, so
-        # the release above does not clear it. Leaving it set would make every
-        # following configuration write raise "command forbidden after Stop"
-        # through ``FORBIDDEN_AFTER_STOP`` -- a config helper that cannot
-        # configure. Clearing it here is the explicit release the caller asked
-        # for by calling a *configuration* helper; the immutable-frame rule
-        # still applies to everyone who does not call one.
-        scope.stopped = False
+        # below would be dropped and would queue nothing. ``scope_restore_run_mode``
+        # is the blessed release seam: it clears ``stopped``, ``ready_seen`` and
+        # ``roll_seen`` together. Clearing only ``stopped`` would leave
+        # ``ready_seen`` set, so the next capture could claim a ``Ready -> Stop``
+        # transition it never observed.
+        scope_restore_run_mode(scope)
+        release_errors = drain_error_queue(scope)
+        still = normalize_acquisition_state(scope.query_ascii("SAST?", allow_after_stop=True))
+        if still == "STOP":
+            raise ScopeProtocolError(
+                "scope did not leave Stop after TRMD AUTO; refusing to configure "
+                f"(errors: {release_errors})"
+            )
 
     steps = [
         write_and_verify(scope, "ACQuire:MMANagement FSRate", "ACQ:MMAN?", expect="FSRate"),
-        write_and_verify(scope, f"ACQuire:MDEPth {memory_depth or '25M'}", "ACQ:MDEP?", expect=memory_depth or "25M"),
+        write_and_verify(
+            scope, f"ACQuire:MDEPth {depth_key}", "ACQ:MDEP?", depth_expect=depth_points
+        ),
         write_and_verify(
             scope, f"ACQuire:SRATe {sample_rate:.6E}", "SARA?", numeric_expect=sample_rate
         ),
@@ -807,6 +888,7 @@ def configure_acquisition_context(
             "horizontal_delay_s": horizontal_delay_s,
         },
         "released_from_stop": released_from_stop,
+        "release_errors": release_errors,
         "max_timebase_bound_s_per_div": limit,
         "largest_standard_step_s_per_div": largest_standard_timebase_step(limit),
         "steps": steps,

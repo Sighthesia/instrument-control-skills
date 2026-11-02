@@ -349,7 +349,7 @@ class ProtocolTests(unittest.TestCase):
                     "TRMD?": "TRMD SINGle",
                     "SAST?": "SAST Stop",
                     "ACQ:POIN?": "2.00E+07",
-                    "ACQ:MDEP?": "25M",
+                    "ACQ:MDEP?": "25.0 Mpts",
                     "SARA?": "SARA 1.00E+08Sa/s",
                     "TDIV?": "2.00E-02S",
                     "TRDL?": "TRDL -8.00E-02S",
@@ -609,8 +609,12 @@ class SilentWriteTests(unittest.TestCase):
     """
 
     @staticmethod
-    def fake_scope(answers, errors_on_write=None):
-        """``answers`` maps a query to either one reply or a list consumed in order."""
+    def fake_scope(answers, errors_on_write=None, trmd_leaves_stop=True):
+        """``answers`` maps a query to either one reply or a list consumed in order.
+
+        ``trmd_leaves_stop=False`` models an instrument that acknowledges
+        ``TRMD AUTO`` but keeps reporting ``Stop``, which must abort configuration.
+        """
 
         from scope_protocol import ScopeSession
 
@@ -626,10 +630,14 @@ class SilentWriteTests(unittest.TestCase):
                 self.queue = []
 
             def write(self, command, **kwargs):
+                # Drive the real gate: a permissive fake hides the very bug this
+                # class exists to catch (a config helper that cannot configure a
+                # stopped scope because FORBIDDEN_AFTER_STOP still blocks it).
+                self._check_allowed(command, explicit_release=kwargs.get("explicit_release", False))
                 self.written.append(command)
                 if command in self.errors_on_write:
                     self.queue.append(self.errors_on_write[command])
-                if command == "TRMD AUTO":
+                if command == "TRMD AUTO" and trmd_leaves_stop:
                     self.replies["SAST?"] = ["SAST Ready"]
 
             def query_ascii(self, command, **kwargs):
@@ -653,6 +661,15 @@ class SilentWriteTests(unittest.TestCase):
         self.assertEqual(len(entries), 2)
         self.assertIn("Undefined header", entries[0])
         self.assertEqual(drain_error_queue(scope), [])
+
+    def test_drain_error_queue_marks_an_exhausted_budget(self):
+        # An exhausted budget must not look like an empty queue, or the next
+        # caller attributes this backlog to its own write.
+        scope = self.fake_scope({})
+        scope.queue = ['-113,"Undefined header;A"'] * 5
+        entries = drain_error_queue(scope, limit=3)
+        self.assertEqual(len(entries), 4)
+        self.assertIn("not empty after 3 reads", entries[-1])
 
     def test_write_and_verify_reports_silent_no_op(self):
         # Acquisition context written while Stop: value unchanged, no error.
@@ -728,7 +745,7 @@ class SilentWriteTests(unittest.TestCase):
             {
                 "SAST?": ["SAST Stop", "SAST Ready"],
                 "ACQ:MMAN?": ["FSRate"],
-                "ACQ:MDEP?": ["25M"],
+                "ACQ:MDEP?": ["25.0 Mpts"],
                 "SARA?": ["SARA 2.00E+07Sa/s"],
                 "TDIV?": ["1.00E-01S"],
                 "ACQ:POIN?": ["2.00E+07"],
@@ -737,13 +754,80 @@ class SilentWriteTests(unittest.TestCase):
         )
         scope.stopped = True
         result = configure_acquisition_context(
-            scope, sample_rate=20e6, timebase_s_per_div=1e-1, memory_depth="25M"
+            scope,
+            sample_rate=20e6,
+            timebase_s_per_div=1e-1,
+            memory_depth="25M",
+            release_from_stop=True,
         )
         self.assertTrue(result["released_from_stop"])
         self.assertEqual(scope.written[0], "TRMD AUTO")
         self.assertIn("ACQuire:SRATe 2.000000E+07", scope.written)
         self.assertEqual(result["unapplied"], [])
+        self.assertEqual(result["release_errors"], [])
         self.assertTrue(result["observed"]["points_per_second_consistent"])
+
+    def test_context_refuses_to_release_a_stopped_frame_by_default(self):
+        # Leaving Stop with TRMD AUTO overwrites the single-shot record, so the
+        # helper must not do it unless the caller says the frame is expendable.
+        scope = self.fake_scope({"SAST?": "SAST Stop"})
+        with self.assertRaises(ScopeProtocolError) as caught:
+            configure_acquisition_context(scope, sample_rate=20e6, timebase_s_per_div=1e-1)
+        self.assertIn("stopped", str(caught.exception).lower())
+        self.assertEqual(scope.written, [])
+
+    def test_context_raises_when_release_does_not_leave_stop(self):
+        scope = self.fake_scope(
+            {
+                "SAST?": ["SAST Stop", "SAST Stop"],
+                "ACQ:MMAN?": ["FSRate"],
+                "ACQ:MDEP?": ["25M"],
+                "SARA?": ["SARA 2.00E+07Sa/s"],
+                "TDIV?": ["1.00E-01S"],
+                "ACQ:POIN?": ["2.00E+07"],
+            },
+            trmd_leaves_stop=False,
+        )
+        scope.stopped = True
+        with self.assertRaises(ScopeProtocolError) as caught:
+            configure_acquisition_context(
+                scope,
+                sample_rate=20e6,
+                timebase_s_per_div=1e-1,
+                release_from_stop=True,
+            )
+        self.assertIn("did not leave Stop", str(caught.exception))
+
+    def test_context_rejects_depth_unavailable_at_this_channel_count(self):
+        scope = self.fake_scope({"SAST?": "SAST Ready"})
+        with self.assertRaises(ScopeProtocolError) as caught:
+            configure_acquisition_context(
+                scope,
+                sample_rate=1e6,
+                timebase_s_per_div=1e-1,
+                memory_depth="100M",
+                channel_count=4,
+            )
+        self.assertIn("unavailable", str(caught.exception))
+        self.assertEqual(scope.written, [])
+
+    def test_context_accepts_decorated_mpts_depth_readback(self):
+        # The firmware answers ACQ:MDEP? with "25.0 Mpts", which a string
+        # comparison against "25M" scores as a failure for an accepted write.
+        scope = self.fake_scope(
+            {
+                "SAST?": "SAST Ready",
+                "ACQ:MMAN?": ["FSRate"],
+                "ACQ:MDEP?": ["25.0 Mpts"],
+                "SARA?": ["SARA 2.00E+07Sa/s"],
+                "TDIV?": ["1.00E-01S"],
+                "ACQ:POIN?": ["2.00E+07"],
+            }
+        )
+        result = configure_acquisition_context(
+            scope, sample_rate=20e6, timebase_s_per_div=1e-1, memory_depth="25M"
+        )
+        self.assertEqual(result["unapplied"], [])
 
     def test_context_clears_the_stop_latch_so_configuration_is_allowed(self):
         # ScopeSession.stopped is a latch that only mark_state sets. A config
@@ -754,7 +838,7 @@ class SilentWriteTests(unittest.TestCase):
             {
                 "SAST?": ["SAST Stop", "SAST Ready"],
                 "ACQ:MMAN?": ["FSRate"],
-                "ACQ:MDEP?": ["25M"],
+                "ACQ:MDEP?": ["25.0 Mpts"],
                 "SARA?": ["SARA 2.00E+07Sa/s"],
                 "TDIV?": ["1.00E-01S"],
                 "ACQ:POIN?": ["2.00E+07"],
@@ -764,15 +848,21 @@ class SilentWriteTests(unittest.TestCase):
         scope.mark_state("SAST Ready")
         scope.mark_state("SAST Stop")
         self.assertTrue(scope.stopped)
-        configure_acquisition_context(scope, sample_rate=20e6, timebase_s_per_div=1e-1)
+        configure_acquisition_context(
+            scope, sample_rate=20e6, timebase_s_per_div=1e-1, release_from_stop=True
+        )
         self.assertFalse(scope.stopped)
+        # Clearing only ``stopped`` is not enough: a stale ``ready_seen`` lets the
+        # next capture claim a Ready -> Stop transition it never observed.
+        self.assertFalse(scope.ready_seen)
+        self.assertFalse(scope.roll_seen)
 
     def test_context_orders_sample_rate_before_timebase(self):
         scope = self.fake_scope(
             {
                 "SAST?": "SAST Ready",
                 "ACQ:MMAN?": ["FSRate"],
-                "ACQ:MDEP?": ["25M"],
+                "ACQ:MDEP?": ["25.0 Mpts"],
                 "SARA?": ["SARA 2.00E+07Sa/s"],
                 "TDIV?": ["1.00E-01S"],
                 "ACQ:POIN?": ["2.00E+07"],
@@ -791,7 +881,7 @@ class SilentWriteTests(unittest.TestCase):
             {
                 "SAST?": "SAST Ready",
                 "ACQ:MMAN?": ["FSRate"],
-                "ACQ:MDEP?": ["25M"],
+                "ACQ:MDEP?": ["25.0 Mpts"],
                 "SARA?": ["SARA 2.00E+07Sa/s"],
                 "TDIV?": ["1.25E-01S", "1.00E-01S"],
                 "ACQ:POIN?": ["2.00E+07"],
