@@ -101,4 +101,11 @@ Every setting in the sequence above has a documented long form with a matching q
 
 The supported read-only snapshot fields are `:TRIGger:TYPE?`, `:TRIGger:EDGE:SOURce?`, `:TRIGger:EDGE:SLOPe?`, `:TRIGger:EDGE:LEVel?`, `:TRIGger:EDGE:COUPling?`, `:TRIGger:EDGE:HOLDoff?`, `:TRIGger:EDGE:NREJect?`, and `:TRIGger:EDGE:IMPedance?`. All eight answered on `4.8.12.1.1.6.5`; a trigger configuration that cannot be read back must not be reported as verified.
 
+The short forms are not merely cosmetic replacements for the long ones. Three concrete traps, all reproduced on `4.8.12.1.1.6.5`:
+
+- **The short form takes a different value word than the long form.** `:TRIGger:EDGE:SLOPe RISing` is accepted; `C4:TRSL RIS` is `-224,"Illegal parameter value"`. The short form wants `POSitive`/`NEGative`. Configuring from the long-form spelling and then "fixing it" with the short form is how a slope silently stays what it was.
+- **A per-channel level write moves the trigger source.** With the source on `C3`, writing `C4:TRLV 2.5` left the source on `C4`. A subsequent `TRSE?` readback then reports the channel you just touched, which looks like success while an unrelated channel became the trigger. Assert `:TRIGger:EDGE:SOURce` *after* any level write and verify the source last.
+- **`TRSE` only lands as the first command of a TCP write.** Alone or as line 1 of one batch it applies; as line 2 or later it is dropped with `-113,"Undefined header"` and every later line of that batch is affected too. This is why a capture script can appear to "randomly" lose its trigger source between runs.
+
+
 Once `Stop` is observed after `Ready`, do not send state-changing acquisition commands until the caller explicitly releases the frame. `SAST?` replies may include a command prefix such as `SAST Stop`; normalize the state token for control decisions while preserving the raw reply in capture evidence. For signal interpretation, scan original-resolution samples for narrow pulses, validate voltage scaling against a known logic channel, avoid same-frequency observers that alias with the measured signal, and require a hypothesis to explain all periodic observations before declaring a counter frozen.

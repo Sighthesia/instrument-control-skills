@@ -41,7 +41,7 @@ pre-trigger  = margin_div * Timebase
 post-trigger = (10 - margin_div) * Timebase
 ```
 
-For `margin_div=1`, this is `Delay=+4*Timebase`, one division before the trigger and nine divisions after it. Use this only for events expected to continue after the trigger. Set `TIM:SCAL`, `TIM:DEL`, optional `TIM:REF:POS`, and `ACQ:MDEP` before `TRMD SINGLE`; never apply them while reading an existing stopped frame.
+For `margin_div=1`, this is `Delay=+4*Timebase`, one division before the trigger and nine divisions after it. Use this only for events expected to continue after the trigger. Set `TIM:SCAL`, `TIM:DEL`, optional `TIM:REF:POS`, and `ACQ:MDEP` before `TRMD SINGLE`; never apply them while reading an existing stopped frame. `ACQ:MDEP` is additionally dropped outright while `SAST?` is `Stop`, and `TIM:SCAL` is clamped by `ACQ:POIN?/(SARA*10)` — see [Sample Rate and Memory Management](#sample-rate-and-memory-management).
 
 ## Vertical Channel Control
 
@@ -99,7 +99,28 @@ Sample rate is settable only in `FSRate` mode:
 
 `SARA` / `ACQ:SRAT` are the short forms. The documented example is `5.00E9`; the manual states no discrete rate list, only that an out-of-range request is snapped to a settable value, so always read the rate back and record it as observed, not requested. Setting the rate changes the acquisition context, so it is an authorized write before `TRMD SINGLE` only; never while reading a stopped frame.
 
-Memory depth is a per-channel-count table, not a three-value choice. For SDS800X HD the manual lists `{10k|100k|1M|10M|100M}` single channel, `{10k|100k|1M|10M|50M}` dual channel, and `{10k|100k|1M|10M|25M}` four channel (manual printed pp. 19-20). `scripts/scope_protocol.py` currently accepts only `100M`, `50M`, and `25M` as the default-per-channel-count convenience values; the smaller classes are documented but not implemented by the script. Digital channels, averaging/ERES acquisition type, and roll mode all reduce the usable depth.
+**The write is dropped in two situations that report no error at all** (`firmware-scoped`, reproduced with fresh sessions):
+
+- `SAST?` is `Stop`. `:ACQuire:SRATe`, `:ACQuire:MDEPth` and `:ACQuire:MMANagement` all read back unchanged while `SYST:ERR?` answers `0,"No error"`. Return to run state (`TRMD AUTO` / `:TRIGger:RUN`) before writing acquisition context.
+- The command is not the first command of a single TCP write. Only the first command of one batch reliably executes; do not pipeline.
+
+A third trap is purely lexical: **`SARA` is a query-only short form.** `SARA 2.00E+07` is rejected with `-113,"Undefined header"` while `SARA?` reads fine, so a script that "sets" the rate through `SARA` silently changes nothing. Use `:ACQuire:SRATe` or `ACQ:SRAT` / `ACQ:SRATe` for writes.
+
+### Timebase is clamped by the record length, not locked
+
+`TDIV` is not an independent setting. The scope holds a fixed `ACQ:POIN?` record and derives the visible window from it:
+
+```text
+total_window = 10 * TDIV
+total_window = ACQ:POIN? / SARA          =>   TDIV_max = ACQ:POIN? / (SARA * 10)
+```
+
+An over-limit `TIMebase:SCALe` write is **silently clamped to the largest legal value and `SYST:ERR?` still answers `0,"No error"`**. Verified 4/4 on the target firmware: 25 Mpts at 500 MSa/s refuses to exceed `5.00E-03S`; 25 Mpts at 20 MSa/s reaches `1.00E-01S`; 1 Mpts at 1 MSa/s also reaches `1.00E-01S`. In `FSRate` mode the rate is pinned by you, so the clamp is the observable symptom and it is easy to mistake for a frozen timebase.
+
+Therefore set the acquisition context **in this order**: `:ACQuire:MMANagement FSRate` → `:ACQuire:MDEPth` → `:ACQuire:SRATe` → `:TIMebase:SCALe` → `:TIMebase:DELay`. Writing the timebase first and the rate afterwards looks equally reasonable and cannot reach the requested window. Compute the maximum before writing and refuse locally instead of relying on the clamp.
+
+
+Memory depth is a per-channel-count table, not a three-value choice. For SDS800X HD the manual lists `{10k|100k|1M|10M|100M}` single channel, `{10k|100k|1M|10M|50M}` dual channel, and `{10k|100k|1M|10M|25M}` four channel (manual printed pp. 19-20). `scripts/scope_protocol.py` currently accepts only `100M`, `50M`, and `25M` as the default-per-channel-count convenience values; the smaller classes are documented but not implemented by the script. Digital channels, averaging/ERES acquisition type, and roll mode all reduce the usable depth. **Like the sample rate, a depth write is silently discarded while `SAST?` is `Stop`** (`firmware-scoped`: requesting `10M` from `25M` left `25M` in place with `0,"No error"`).
 
 ## Other Acquisition Settings
 
@@ -226,6 +247,9 @@ These argument-bearing queries must include their arguments exactly as documente
 - Require sample rate to cover the signal's relevant bandwidth with margin. A 4-5x fundamental-frequency heuristic is not sufficient for fast edges or harmonics; use edge bandwidth/rise time when known.
 - Set `:FORMat:DATA` before trusting a numeric reading. The default is 3 significant digits; a 7-digit frequency counter or a small ripple measurement is meaningless at that precision. Use `:FORMat:DATA DOUBle` (14 digits) or `:FORMat:DATA CUSTom,<1..64>` when the reading is used in statistics.
 - Every setting write changes acquisition context. Apply only authorized writes before arming a new capture, wait for `*OPC?` as appropriate, and obtain a fresh capture before analysis.
+- **Verify every write by read-back, and drain `SYST:ERR?` (loop until `0,"No error"`) after each write.** Silence is the normal outcome of a rejected or inapplicable write: acquisition-context writes (`:ACQuire:SRATe`, `:ACQuire:MDEPth`, `:AcQuire:MMANagement`) are discarded while `SAST?` is `Stop` with no error, and an over-limit `TIM:SCAL` is clamped with no error. Treat "the read-back kept the old value" as a hard failure and diagnose it, never as a reason to retry another spelling.
+- **Send one command per `write()`.** Only the first command of a pipelined TCP batch reliably executes; `TRSE` as line 2+ is reproducibly rejected with `-113`. The bundled `scope_protocol.py` already obeys this — hand-rolled sockets do not.
+- **Never invent a query spelling.** An undefined-header query returns no bytes at all (not even an error string), which shifts every subsequent response by one and turns the session into a cascade of timeouts that looks like a dead instrument. If a query stops answering, re-read `*IDN?`; if it is also skewed, open a new session and re-verify, and treat the instrument as healthy until proven otherwise.
 
 ## Evidence and Manual Pages
 

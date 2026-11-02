@@ -385,6 +385,100 @@ def scope_identify(scope: ScopeSession) -> str:
     return scope.query_ascii("*IDN?")
 
 
+def drain_error_queue(scope: ScopeSession, *, limit: int = 32) -> list[str]:
+    """Empty ``SYSTem:ERRor?`` and return every entry that was queued.
+
+    The vendor programming guide never documents an error query, so this is a
+    firmware-observed capability (``4.8.12.1.1.6.5``), not a documented one. It
+    is still the only cheap detector for the *rejected* class of write failure;
+    the *inapplicable* class (acquisition context written while ``Stop``, an
+    over-limit ``TIM:SCAL``) queues nothing at all and must be caught by
+    readback comparison. Draining in a loop matters: a single call reports a
+    stale backlog from an earlier experiment and sends the caller chasing a
+    phantom failure.
+    """
+
+    entries: list[str] = []
+    for _ in range(limit):
+        response = scope.query_ascii("SYST:ERR?", allow_after_stop=True).strip()
+        if response.startswith("0"):
+            break
+        entries.append(response)
+    return entries
+
+
+def _last_token(value: Any) -> str:
+    """Trailing token of a possibly query-echoing reply, upper-cased.
+
+    Firmware answers a scalar query either bare (``C1``, ``1.00E-01S``) or with
+    the query text repeated as a prefix (``:TRIGGER:EDGE:SOURCE C1``,
+    ``C1:VDIV 2.00E+00V``). Whole-string comparison therefore rejects a reply
+    that is actually correct.
+    """
+
+    parts = str(value or "").strip().split()
+    return parts[-1].strip("\"'").upper() if parts else ""
+
+
+def write_and_verify(
+    scope: ScopeSession,
+    command: str,
+    query: str,
+    *,
+    expect: Optional[str] = None,
+    numeric_expect: Optional[float] = None,
+    rel_tol: float = 1e-6,
+    allow_after_stop: bool = False,
+) -> dict[str, Any]:
+    """Write one setting, then prove it took effect.
+
+    Three ways to judge the result, in order of preference:
+
+    - ``numeric_expect``: compare the readback numerically. Preferred for
+      rates, timebases and levels, because the firmware decorates replies
+      (``SARA 2.00E+07Sa/s``) and quantizes the stored value;
+    - ``expect``: trailing-token comparison, for enums such as ``FSRate``;
+    - neither: any change away from the pre-write value counts as applied.
+
+    An idempotent re-write must not be reported as a failure, so callers should
+    pass an expectation wherever the target value is known.
+
+    Returns ``applied`` rather than raising, because the caller must be able to
+    distinguish "scope refused" from "scope accepted and clamped" -- both can
+    leave the old value in place, and only ``errors`` tells them apart.
+
+    One command per ``write()`` is deliberate: only the first command of a
+    pipelined TCP batch reliably executes on the target firmware, and a batched
+    ``TRSE`` is rejected with ``-113`` while the identical command alone is
+    accepted.
+    """
+
+    drain_error_queue(scope)
+    before = scope.query_ascii(query, allow_after_stop=allow_after_stop).strip()
+    scope.write(command, allow_after_stop=allow_after_stop)
+    after = scope.query_ascii(query, allow_after_stop=allow_after_stop).strip()
+    errors = drain_error_queue(scope)
+    if numeric_expect is not None:
+        observed = parse_scpi_number(after)
+        applied = observed is not None and math.isclose(
+            observed, float(numeric_expect), rel_tol=rel_tol, abs_tol=abs(numeric_expect) * rel_tol
+        )
+    elif expect is not None:
+        applied = _last_token(expect) in _last_token(after) or _last_token(expect) in after.upper()
+    else:
+        applied = after != before
+    return {
+        "command": command,
+        "query": query,
+        "before": before,
+        "after": after,
+        "expect": expect,
+        "numeric_expect": numeric_expect,
+        "applied": applied,
+        "errors": errors,
+    }
+
+
 def scope_snapshot_configuration(scope: ScopeSession, channels: Iterable[str] = ("C1", "C2", "C3", "C4")) -> dict[str, Any]:
     """Read a snapshot without changing acquisition state."""
 
@@ -435,8 +529,19 @@ def scope_prepare_capture(scope: ScopeSession) -> dict[str, Any]:
     )
     for command in writes:
         scope.write(command)
+    # A per-channel level write also switches the trigger source to that
+    # channel, so the source is asserted once more after the level and read
+    # back below; otherwise a level write could quietly retarget the trigger.
+    scope.write(":TRIGger:EDGE:SOURce C1")
     # Voltage scope is model-dependent (4.1 divisions on SDS800X HD), so the
     # level is verified by readback rather than assumed from the request.
+    readback = read_trigger_configuration(scope)
+    lost = drain_error_queue(scope)
+    # The reply may be bare (``C1``) or echo the query (``:TRIGGER:EDGE:SOURCE C1``),
+    # so compare the trailing token rather than the whole string.
+    observed_source = str(readback.get("trigger_source", "")).split()[-1].strip("\"'").upper() if str(readback.get("trigger_source", "")).split() else ""
+    if observed_source != "C1":
+        raise ScopeProtocolError(f"trigger source readback mismatch: requested C1, read {readback.get('trigger_source')!r}")
     return {
         "requested": {
             "trigger_type": "EDGE",
@@ -444,7 +549,8 @@ def scope_prepare_capture(scope: ScopeSession) -> dict[str, Any]:
             "trigger_slope": "RISing",
             "trigger_level_v": 2.5,
         },
-        "readback": read_trigger_configuration(scope),
+        "readback": readback,
+        "errors": lost,
     }
 
 
@@ -554,6 +660,151 @@ def configure_memory_depth(
     if normalized_depth not in actual_depth:
         raise ScopeProtocolError(f"memory depth readback mismatch: requested {normalized_depth}, read {actual_depth!r}")
     return actual_depth
+
+
+def max_timebase_for_context(record_points: float, sample_rate: float) -> float:
+    """Upper bound on s/div for a fixed record, from the window conservation law.
+
+    ``10 * TDIV == record_points / sample_rate``. This is a *necessary* bound,
+    not an achievable value: the scope also quantizes s/div to its own step
+    table, so the value it settles on is the largest legal step at or below the
+    bound. Verified 4/4 on ``4.8.12.1.1.6.5``: 25 Mpts at 500 MSa/s settles at
+    5 ms/div (bound 5 ms); 25 Mpts at 20 MSa/s settles at 100 ms/div (bound
+    125 ms, i.e. one step down); 1 Mpts at 1 MSa/s and 10 Mpts at 10 MSa/s both
+    settle at 100 ms/div (bound 100 ms).
+
+    An over-limit ``TIMebase:SCALe`` write is silently clamped and still answers
+    ``0,"No error"`` to ``SYST:ERR?``, so a timebase that "will not take" is
+    almost always this bound rather than a locked instrument.
+    """
+
+    if not math.isfinite(record_points) or record_points <= 0:
+        raise ScopeProtocolError("record_points must be positive and finite")
+    if not math.isfinite(sample_rate) or sample_rate <= 0:
+        raise ScopeProtocolError("sample_rate must be positive and finite")
+    return record_points / (sample_rate * 10.0)
+
+
+def largest_standard_timebase_step(bound: float) -> Optional[float]:
+    """Largest 1-2-5 s/div step at or below ``bound``, or ``None`` if none.
+
+    Advisory only: the visible clamp on the instrument is consistent with the
+    standard 1-2-5 sequence (a 125 ms bound settled at 100 ms/div), but this
+    Skill has not enumerated the firmware's step table, so the return value
+    must not be presented as a verified limit.
+    """
+
+    if not math.isfinite(bound) or bound <= 0:
+        return None
+    exponent = math.floor(math.log10(bound))
+    for candidate_exponent in (exponent, exponent - 1):
+        for mantissa in (5.0, 2.0, 1.0):
+            candidate = mantissa * (10.0 ** candidate_exponent)
+            if candidate <= bound * (1 + 1e-9):
+                return candidate
+    return None
+
+
+def configure_acquisition_context(
+    scope: ScopeSession,
+    *,
+    sample_rate: float,
+    timebase_s_per_div: float,
+    memory_depth: Optional[str] = None,
+    channel_count: int = 4,
+    horizontal_delay_s: Optional[float] = None,
+) -> dict[str, Any]:
+    """Set sample rate, depth and timebase in the only order that can succeed.
+
+    The order is not cosmetic. ``FSRate`` pins the rate, and the window is then
+    bounded by ``record_points / sample_rate``, so writing the timebase before
+    lowering the rate clamps the timebase and every later readback looks like a
+    frozen setting. Acquisition-context writes are also dropped outright while
+    ``SAST?`` is ``Stop``, which queues no error either.
+
+    The requested window is therefore checked against the depth *before* any
+    write, and every write is followed by a readback comparison.
+    """
+
+    if channel_count not in (1, 2, 3, 4):
+        raise ScopeProtocolError("channel_count must be between 1 and 4")
+    if not math.isfinite(sample_rate) or sample_rate <= 0:
+        raise ScopeProtocolError("sample_rate must be positive and finite")
+    if not math.isfinite(timebase_s_per_div) or timebase_s_per_div <= 0:
+        raise ScopeProtocolError("timebase_s_per_div must be positive and finite")
+
+    depth_points = {"100M": 100e6, "50M": 50e6, "25M": 25e6, "10M": 10e6, "1M": 1e6}[str(memory_depth or "25M").strip().upper()]
+    limit = max_timebase_for_context(depth_points, sample_rate)
+    if timebase_s_per_div > limit * (1 + 1e-9):
+        raise ScopeProtocolError(
+            "requested timebase is unreachable for this acquisition context: "
+            f"{timebase_s_per_div:.6g} s/div needs {10 * timebase_s_per_div * sample_rate:.6g} points "
+            f"at {sample_rate:.6g} Sa/s, but the depth allows at most {limit:.6g} s/div; "
+            "lower the sample rate or raise the memory depth"
+        )
+
+    # Deliberately not ``query_state()``: that records capture evidence and
+    # rejects a ``Stop`` seen without a prior ``Ready``. Configuration may
+    # legitimately start from a stopped scope, so only the raw state is read.
+    state = normalize_acquisition_state(scope.query_ascii("SAST?", allow_after_stop=True))
+    released_from_stop = state == "STOP"
+    if released_from_stop:
+        # Not an error on the instrument, but every acquisition-context write
+        # below would be dropped and would queue nothing.
+        scope.write("TRMD AUTO", explicit_release=True)
+        scope.query_ascii("*IDN?")
+
+    steps = [
+        write_and_verify(scope, "ACQuire:MMANagement FSRate", "ACQ:MMAN?", expect="FSRate"),
+        write_and_verify(scope, f"ACQuire:MDEPth {memory_depth or '25M'}", "ACQ:MDEP?", expect=memory_depth or "25M"),
+        write_and_verify(
+            scope, f"ACQuire:SRATe {sample_rate:.6E}", "SARA?", numeric_expect=sample_rate
+        ),
+        write_and_verify(
+            scope,
+            f"TIMebase:SCALe {timebase_s_per_div:.6E}",
+            "TDIV?",
+            numeric_expect=timebase_s_per_div,
+        ),
+    ]
+    if horizontal_delay_s is not None:
+        steps.append(
+            write_and_verify(
+                scope,
+                f"TIMebase:DELay {horizontal_delay_s:.6E}",
+                "TIM:DEL?",
+                numeric_expect=horizontal_delay_s,
+            )
+        )
+
+    record_points = _parse_numeric(scope.query_ascii("ACQ:POIN?"), "ACQ:POIN?")
+    actual_rate = _parse_numeric(scope.query_ascii("SARA?"), "SARA?")
+    actual_timebase = _parse_numeric(scope.query_ascii("TDIV?"), "TDIV?")
+    observed = {
+        "record_points": record_points,
+        "sample_rate": actual_rate,
+        "timebase_s_per_div": actual_timebase,
+        "window_s": (10.0 * actual_timebase) if actual_timebase else None,
+        "points_per_second_consistent": None,
+    }
+    if record_points and actual_rate and actual_timebase:
+        observed["points_per_second_consistent"] = math.isclose(
+            actual_rate * 10.0 * actual_timebase, record_points, rel_tol=5e-3
+        )
+    return {
+        "requested": {
+            "sample_rate": sample_rate,
+            "memory_depth": memory_depth or "25M",
+            "timebase_s_per_div": timebase_s_per_div,
+            "horizontal_delay_s": horizontal_delay_s,
+        },
+        "released_from_stop": released_from_stop,
+        "max_timebase_bound_s_per_div": limit,
+        "largest_standard_step_s_per_div": largest_standard_timebase_step(limit),
+        "steps": steps,
+        "observed": observed,
+        "unapplied": [step["command"] for step in steps if not step["applied"]],
+    }
 
 
 # Firmware replies to queries are decorated, e.g. ``C1:VDIV 5.00E+00V``,

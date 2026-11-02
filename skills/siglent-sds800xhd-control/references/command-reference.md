@@ -11,6 +11,30 @@
 |---|---|---|---|---|
 | `*IDN?` | query | — | 返回厂商、型号、序列号、固件；任何型号相关命令之前必须先执行并保存结果。手册印刷 pp. 13-14；discovery 发送 `*IDN?\n`。 | signal-discovery-and-measurement.md (manual pp. 13-14)<br>connection-and-storage.md<br>SKILL.md<br>scripts/discover_scope.py<br>scripts/scope_protocol.py |
 | `*OPC?` | query | — | 挂起操作完成时返回 `1`；不能证明发生过触发。等待设置写入生效时可作为同步点。手册印刷 pp. 13-14。 | signal-discovery-and-measurement.md (manual pp. 13-14) |
+| `SYSTem:ERRor?` / `SYST:ERR?` | query | — | **手册未记录，但在固件 `4.8.12.1.1.6.5` 上实测可用**，返回 `0,"No error"` 或 `-113,"Undefined header;<原文>"`、`-224,"Illegal parameter value"`、`-350,"Queue overflow"`。**每次写入后的唯一静默失败探测器**；它不是万能的（采集上下文类写入被丢弃时不报错，见“写入失败模式”），但拒绝类失败全靠它。详见该节的读法与陷阱。 | `firmware-scoped` 实测（手册 pp. 13-14 未列） |
+
+## Write-Failure Modes (read this before diagnosing any setting that "did not take")
+
+Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCPI TCP `5025`, four channels enabled. Every row below was reproduced with a fresh single TCP session and a write-then-read-back.
+
+**The default outcome of a rejected or inapplicable write is silence.** `SYST:ERR?` answers `0,"No error"` while the value stays unchanged. A read-back that differs from what was just requested is therefore the *primary* evidence, and the error queue is only a secondary one.
+
+| Symptom you observe | Actual cause | Detector | Correct action |
+|---|---|---|---|
+| A setting "does not take", no error at all, scope is `Stop` | **Acquisition-context writes are dropped while stopped.** Confirmed `NO-OP` with no error for `:ACQuire:SRATe`, `:ACQuire:MDEPth`, `:ACQuire:MMANagement`. | Write → read back → compare. `SYST:ERR?` stays clean. | Return to run state (`TRMD AUTO`, or `:TRIGger:RUN`) **before** writing acquisition context. Do not conclude the scope is frozen. |
+| Same, but the setting is `TDIV`/`TIM:SCAL` | Not a Stop problem: **conservation law**. `TDIV_max = ACQ:POIN? / (SARA * 10)`. In `FSRate` mode the sample rate is fixed, so a large `TDIV` is silently clamped and no error is queued. | Compare requested `TDIV` with `ACQ:POIN?/(SARA*10)`. Read `TDIV?` back. | Lower `SRATe` first, *then* raise `TIM:SCAL`. Verified 4/4: 25Mpts@500MSa/s clamps to 5 ms/div; 25Mpts@20MSa/s reaches 100 ms/div. |
+| `-113,"Undefined header"` for a command that exists | **A second and later command inside one TCP write is discarded.** Only the first command of a single `sendall` batch reliably executes; `\n`-separated batches silently lose everything after line 1, and `;` compounds lose the tail too. `TRSE` is the reproducible victim (it is accepted alone or as line 1, rejected as line 2+). The rejected text is echoed in the error string. Other comma-free setters (`C1:OFST`, `:TRIGger:EDGE:SOURce`) happened to survive, so **do not treat "it worked last time" as proof the batching is safe**. | Send one command per `write()`, then read `SYST:ERR?`. | Never pipeline commands. `scripts/scope_protocol.py` already writes one command per `sendall`; if you hand-roll a socket, you lose that protection. |
+| `-224,"Illegal parameter value"` | Short form takes a **different value spelling** than the long form. Concrete case: `:TRIGger:EDGE:SLOPe RISing` is valid but `C4:TRSL RIS` is `-224`; the short form requires `POSitive`/`NEGative`. | `SYST:ERR?` does report this one. | Prefer the documented long form `:TRIGger:EDGE:SLOPe`; it is also the only form whose value readback is quoted in the manual. |
+| The trigger source changed even though you only set slope or level | Writing `C<n>:TRSL` or `C<n>:TRLV` **also switches the trigger source to that channel** (observed: source was `C3`, `C4:TRLV 2.5` made it `C4`). The readback then looks correct while an unrelated channel quietly became the trigger. | Read `:TRIGger:EDGE:SOURce?`, not just `TRSE?`. | Set the source explicitly with `:TRIGger:EDGE:SOURce C<n>` *after* any per-channel level write, and verify the source last. |
+| `SYST:ERR?` itself times out and the whole session then desynchronises | **An undefined-header *query* answers nothing at all.** `TRSL?`, `MMAN?`, `ZOOM?` produce no reply line but do queue `-113`. Every later `readline()` is then short by one response, so subsequent "timeouts" are off-by-one response skew, not a dead instrument. | A query that returns nothing; later queries returning the previous query's answer. | Never invent a query spelling. If one times out, assume the reply stream is skewed: open a new session (a new connection is fine; the instrument is healthy) and re-read a known-good query such as `*IDN?`. |
+
+### Reading the error queue
+
+- `SYST:ERR?` returns one entry per call, oldest first, and `0,"No error"` when empty. **Drain in a loop until it returns `0`**; a single call will report a stale backlog left by an earlier experiment and make you chase a phantom.
+- The queue **overflows** (`-350,"Queue overflow"`) after a burst of rejects, so drain before a diagnostic write, not after a long batch.
+- An error entry can survive on the unit for several seconds after the offending write; if a fresh session immediately reports a `-113` whose text matches *your previous* experiment, it is backlog, not a new failure.
+- The echoed command text in `-113,"Undefined header;<text>"` is the authoritative record of what the instrument tried to parse. Use it to distinguish "command spelling wrong" from "command lost in a batch".
+
 
 ## System / communication
 
@@ -55,10 +79,11 @@
 |---|---|---|---|---|
 | `:ACQuire:NUMACq?` | query | — | 已采集帧数；水平/垂直变更等影响采集的操作会使其复位；不是通用平均完成标志。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23) |
 | `:ACQuire:POINts?` / `ACQ:POIN?` | query | — | 当前记录点数（`scope_record_points`）；用于与描述符点数比对判断 `COMPLETE`/`INCOMPLETE`。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py |
-| `:ACQuire:SRATe?` | query | — | 当前采样率（Sa/s）。**没有离散档位表**：手册只说“超过可设定值会自动匹配”，因此不能预先枚举，必须在设备上读取。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
-| `:ACQuire:SRATe` / `ACQ:SRAT` | set | `<rate>`，浮点 NR3，如 `5.00E9`；手册未给离散档位表，只说明“超过可设定值会自动匹配” | **仅在 `:ACQuire:MMANagement FSRate` 固定采样率模式下有效**；写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。Roll 模式下是否可写未见手册说明，属 `UNVERIFIED`。手册印刷 p. 22。证据等级 `documented`。 | signal-discovery-and-measurement.md (manual pp. 22-23) |
-| `:ACQuire:MMANagement?` | query | 返回 `AUTO`、`FSRate`、`FMDepth` | 存储管理方式；决定采样率与存储深度哪一个由用户控制。写采样率或深度前应先确认此模式。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
-| `:ACQuire:MMANagement` / `ACQ:MMAN` | set | `AUTO`、`FSRate`、`FMDepth` | `AUTO` 保持最大采样率并按时基推两者；`FSRate` 固定采样率、深度随时基；`FMDepth` 固定深度、采样率随时基。改变采集上下文，写入后回读。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
+| `:ACQuire:SRATe?` / `SARA?` | query | — | 当前采样率（Sa/s）。**没有离散档位表**：手册只说“超过可设定值会自动匹配”，因此不能预先枚举，必须在设备上读取。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
+| `:ACQuire:SRATe` / `ACQ:SRAT` / `ACQ:SRATe` | set | `<rate>`，浮点 NR3，如 `5.00E9`；手册未给离散档位表，只说明“超过可设定值会自动匹配” | **三个条件同时成立才生效**：`MMANagement FSRate`、**`SAST?` 不在 `Stop`**、带单位前缀的形式。写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。**`SARA <值>` 是只读短形式，写入被拒 `-113 Undefined header`，回读却仍走 `SARA?`**——这是本 Skill 记录过的唯一“读写不同拼写”的项。手册印刷 p. 22。`firmware-scoped` 实测（4.8.12.1.1.6.5）。 | signal-discovery-and-measurement.md (manual pp. 22-23)<br>scripts/scope_protocol.py |
+| `MMAN?` | — | — | **不存在**。`MMAN?`（无论 `ACQ:MMAN?`、`ACQuire:MMAN?`）都会回 `-113 Undefined header`，而且**不回包**，详见“写入失败模式”一节的查询型误用。 | 固件实测 `firmware-scoped` |
+| `:ACQuire:MMANagement?` / `ACQ:MMAN?` | query | 返回 `AUTO`、`FSRate`、`FMDepth` | 存储管理方式；决定采样率与存储深度哪一个由用户控制。写采样率或深度前应先确认此模式。手册印刷 p. 18。 | signal-discovery-and-measurement.md (manual p. 18) |
+| `:ACQuire:MMANagement` / `ACQ:MMAN` | set | `AUTO`、`FSRate`、`FMDepth` | `AUTO` 保持最大采样率并按时基推两者；`FSRate` 固定采样率、深度随时基；`FMDepth` 固定深度、采样率随时基。改变采集上下文，写入后回读。**`SAST?` 为 `Stop` 时写入静默 NO-OP 且不报错**，必须回到运行态再写。手册印刷 p. 18。`firmware-scoped` 实测。 | signal-discovery-and-measurement.md (manual p. 18)<br>scripts/scope_protocol.py |
 | `:ACQuire:MODE` | set/query | `YT`、`XY`、`ROLL` | 采集模式。`ROLL` 为滚动流式显示：**`SAST?` 只报 `Roll` 不报 `Ready`**，因此不能用于本 Skill 的 `Ready -> Stop` 单次采集；只在 50 ms/div 及更慢时可用，水平延迟无效，运行中不支持 Zoom，并限制存储深度。详见 `signal-discovery-and-measurement.md` 的 Roll Mode 一节。手册印刷 pp. 18-19 + 用户手册印刷 p. 44。 | signal-discovery-and-measurement.md (manual pp. 18-19)<br>scripts/scope_protocol.py |
 | `:ACQuire:AMODe` | set/query | `FAST`、`SLOW` | 快采/慢采，影响波形捕获率。手册印刷 p. 17。 | signal-discovery-and-measurement.md (manual p. 17) |
 | `:ACQuire:TYPE` | set/query | `NORMal`、`PEAK`、`AVERage[,<times>]`、`ERES[,<bits>]`；`<times>` = 4..8192 的 2 次幂，`<bits>` = 0.5..4.0 步进 0.5 | 采集方式；**分段采集开启时平均/ERES 不可用**；平均与 ERES 会限制存储深度。手册印刷 p. 23。 | signal-discovery-and-measurement.md (manual p. 23) |
@@ -69,21 +94,22 @@
 | `:ACQuire:CSWeep` | event | — | 清除扫描并重新开始采集，等价于前面板 Clear Sweeps。手册印刷 p. 17。 | signal-discovery-and-measurement.md (manual p. 17) |
 
 | `:ACQuire:MDEPth?` / `ACQ:MDEP?` | query | — | 当前存储深度。SDS800X HD 手册档位为：单通道 `{10k,100k,1M,10M,100M}`、双通道 `{10k,100k,1M,10M,50M}`、四通道 `{10k,100k,1M,10M,25M}`。手册印刷 pp. 19-20。 | signal-discovery-and-measurement.md (manual pp. 19-20)<br>scripts/scope_protocol.py |
-| `ACQ:MDEP` | set | 手册全档位见上；`configure_memory_depth` 目前只接受 `100M`、`50M`、`25M` 三个便捷值（默认按通道数 1/2/3/4 取 100M/50M/25M/25M） | 必须在 `TRMD SINGLE` 之前写入；写入后回读校验；不可变读取期间禁止。脚本未实现的更小档位（10k/100k/1M/10M）需直接发送命令并自行回读。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
+| `ACQ:MDEP` / `ACQuire:MDEPth` | set | 手册全档位见上；`configure_memory_depth` 目前只接受 `100M`、`50M`、`25M` 三个便捷值（默认按通道数 1/2/3/4 取 100M/50M/25M/25M） | 必须在 `TRMD SINGLE` 之前写入；写入后回读校验；不可变读取期间禁止。**`SAST?` 为 `Stop` 时静默 NO-OP 且不报错**（`firmware-scoped` 实测：Stop 下 `ACQuire:MDEPth 10M` 从 25M 请求读完仍是 25M，`SYST:ERR?` 为 `0,"No error"`）。脚本未实现的更小档位（10k/100k/1M/10M）需直接发送命令并自行回读。 | signal-discovery-and-measurement.md<br>scripts/scope_protocol.py |
 | `:TIMebase:SCALe?` / `TIM:SCAL?` / `TDIV?` | query | — | 主时基（s/div）；左对齐触发策略先读取它计算 `Delay`，写入后再回读校验。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `:TIMebase:DELay?` / `TIM:DEL?` / `TRDL?` | query | — | 水平延迟（s）；`TRDL?` 为旧式字段，延迟符号约定不要与新式 `TIMebase:DELay?` 混用。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `TIM:DEL` | set | 秒，`(5 - margin_div) * Timebase`（`margin_div` 取值 (0, 5]） | 触发跟随窗口策略的显式可选项；只在 `TRMD SINGLE` 之前写，写完回读；与 `--existing-stopped` 不兼容。 | signal-discovery-and-measurement.md<br>SKILL.md<br>scripts/scope_protocol.py |
 | `:TIMebase:REFerence:POSition?` / `TIM:REF:POS?` | query | 0..100（百分比） | 延迟固定展开时的水平参考位置；写入后回读。手册印刷 pp. 239-242。 | signal-discovery-and-measurement.md (manual pp. 239-242)<br>scripts/scope_protocol.py |
 | `TIM:REF:POS` | set | 整数 0..100 | 可选写入；`capture_scope.py --reference-position` 暴露；仅在采集前使用。 | signal-discovery-and-measurement.md<br>SKILL.md<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
-| `TDIV` | set | — | 时基写入；Stop 后禁止（列入 `FORBIDDEN_AFTER_STOP`），会改变采集上下文。 | scripts/scope_protocol.py |
+| `TDIV` / `:TIMebase:SCALe` | set | 受守恒律钳制：`TDIV_max = ACQ:POIN? / (SARA * 10)` | 时基写入；Stop 后禁止（列入 `FORBIDDEN_AFTER_STOP`），会改变采集上下文。**超限写入被静默钳到可取值，且 `SYST:ERR?` 仍返回 `0,"No error"`**——`firmware-scoped` 实测 4/4 命中公式：25Mpoints@500MSa/s → 最大 `5.00E-03S`；25Mpoints@20MSa/s → 最大 `1.00E-01S`；1Mpoints@1MSa/s → 最大 `1.00E-01S`。改时基前先降采样率，否则“写不进 100 ms/div”是守恒律而不是故障。公式见 `signal-discovery-and-measurement.md`。 | scripts/scope_protocol.py<br>`firmware-scoped` 实测 |
 
 ## Trigger
 
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
-| `TRSE` | set | `EDGE,SR,C1,HT,OFF`（handover 记录的唯一形式） | **不要在 Stop 之后使用，也不要把它当作可验证的配置。**`HT` 在整个 495 页编程手册中无定义；按手册自己的可选缩写规则，`HT` 前缀可指 `HOLDoff`、`HLDTime`、`HLDEVent`、`HSTart` 或假想的 `HTIMe`，把它读作“上升沿”是假设。实测 `:TRIGger:EDGE:SLOPe?` 读回 `RISing` 可用于确认斜率。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
-| `C1:TRSL` | set | `POS` | 短形式，手册无此拼写；手册形式为 `:TRIGger:EDGE:SLOPe {RISing\|FALLing\|ALTernate}`（印刷 p. 250，可查询读回）。注意手册形式不带通道号。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
-| `C1:TRLV` | set | 电压值，示例 `2.5`（V） | 短形式，手册无此拼写；手册形式为 `:TRIGger:EDGE:LEVel <NR3>`（印刷 p. 249，可查询读回，范围 `[-4.1*垂直档位-垂直偏移, 4.1*垂直档位-垂直偏移]`）。手册形式不带通道号。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `TRSE` | set | `EDGE,SR,C1,HT,OFF`（handover 记录的唯一形式） | **不要在 Stop 之后使用，也不要把它当作可验证的配置。**`HT` 在整个 495 页编程手册中无定义；按手册自己的可选缩写规则，`HT` 前缀可指 `HOLDoff`、`HLDTime`、`HLDEVent`、`HSTart` 或假想的 `HTIMe`，把它读作“上升沿”是假设。实测 `:TRIGger:EDGE:SLOPe?` 读回 `RISing` 可用于确认斜率。必须在 `TRMD SINGLE` 之前；Stop 后禁止。**另外：`TRSE` 只有在单次 TCP 写入的首条命令位置才可靠生效；作为第 2 条及以后会被丢弃并回 `-113`**（`firmware-scoped` 实测 3/3，前导命令换成 `C1:VDIV`／`*CLS`／4 通道块结果一致）。优先改用 `:TRIGger:EDGE:SOURce`。 | programming-guide.md<br>scripts/scope_protocol.py<br>`firmware-scoped` 实测 |
+| `C1:TRSL` | set | **`POS`**（合法）、`NEG`（合法）；**`RIS` / `RISing` 非法** | 短形式，手册无此拼写；手册形式为 `:TRIGger:EDGE:SLOPe {RISing\|FALLing\|ALTernate}`（印刷 p. 250，可查询读回）。**参数值与长形式不同名**：长形式用 `RISing`/`FALLing`，短形式只收 `POSitive`/`NEGative`；`C4:TRSL RIS` 回 `-224 Illegal parameter value`（`firmware-scoped` 实测），所以从长形式“猜”短形式参数会静默失败。注意手册形式不带通道号。**写入 `C<n>:TRSL` 或 `C<n>:TRLV` 会把触发源切到该通道**（`firmware-scoped` 实测），因此不能把它当纯参数写入。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py<br>`firmware-scoped` 实测 |
+| `C1:TRLV` | set | 电压值，示例 `2.5`（V）或 `2.5V`（带单位均可） | 短形式，手册无此拼写；手册形式为 `:TRIGger:EDGE:LEVel <NR3>`（印刷 p. 249，可查询读回，范围 `[-4.1*垂直档位-垂直偏移, 4.1*垂直档位-垂直偏移]`）。手册形式不带通道号。同样会把触发源切到该通道。必须在 `TRMD SINGLE` 之前；Stop 后禁止。 | programming-guide.md<br>scripts/scope_protocol.py |
+| `TRSL` / `TRLV`（无通道前缀） | — | — | **不存在**，回 `-113 Undefined header`：触发斜率/电平的短形式必须带通道前缀（`C<n>:TRSL`、`C<n>:TRLV`）。 | `firmware-scoped` 实测 |
 | `:TRIGger:TYPE` / `:TRIGger:EDGE:*` 可读回组合 | set/query | 见下 | 替代 handover 短形式块。固件 `4.8.12.1.1.6.5` 实测全部可读回：`:TRIGger:TYPE?`→`EDGE`、`:TRIGger:EDGE:SOURce?`→`C2`、`:TRIGger:EDGE:SLOPe?`→`RISing`、`:TRIGger:EDGE:LEVel?`→`1.50E+00`、`:TRIGger:EDGE:COUPling?`→`DC`、`:TRIGger:EDGE:HOLDoff?`→`OFF`、`:TRIGger:EDGE:NREJect?`→`OFF`、`:TRIGger:EDGE:IMPedance?`→`ONEMeg`。手册印刷 pp. 249-251。 | programming-guide.md (manual pp. 249-251)<br>scripts/scope_protocol.py |
 | `:TRIGger:EDGE:SLOPe?` | query | — | 边沿触发斜率，返回 `RISing`/`FALLing`/`ALTernate`。**这是整个手册中唯一明确给出上升/下降语义的地方**；需要 slope 证据时必须查它，不得从 `HT` 之类的短形式推断。手册印刷 p. 250。 | programming-guide.md (manual p. 250) |
 | `:TRIGger:EDGE:SOURce?` | query | — | 边沿触发源，返回 `{C<n>\|D<d>\|EX\|EX5\|LINE}`。允许外部触发与市电，因此 `C2` 这一读回是正向证据而不是默认值。手册印刷 pp. 250-251。 | programming-guide.md (manual pp. 250-251) |
@@ -265,7 +291,7 @@
 本文件之前，Skill 内没有任何完整命令枚举；现有文档只覆盖发现/连接、采集与传输、测量、解码、搜索/掩码、计数器/光标/历史、截图与 PDF 相关路径。以下子系统手册有覆盖但本 Skill **未记录**具体命令，使用时必须回查 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 并据此标注 `documented`：
 
 - **IEEE 488.2 其余命令**：手册本身只列出 `*IDN`、`*OPC`、`*RST` 三条（印刷 pp. 13-14）；`*CLS`、`*ESE`、`*ESR?`、`*SRE`、`*STB?`、`*TRG`、`*TST?`、`*SAV`/`*RCL` **不在该手册中**，是否支持需按固件实测，不得假设。
-- **错误队列与状态寄存器**：手册未记录任何查询；本 Skill 也不提供。任何“读错误队列”的说法都必须在目标固件上实测确认，不得直接写进流程。
+- **错误队列与状态寄存器**：手册未记录任何查询。**`SYSTem:ERRor?` 已在固件 `4.8.12.1.1.6.5` 上实测可用**（见“Write-Failure Modes”一节），因此写入后的探测不再属于未知项；但 `*ESR?`/`*STB?`/`*SRE`/`*CLS` 等仍不得假设支持。手册 pp. 13-14。
 - **系统设置**：`SYSTem` 已记录 LAN、`NSTorage`（含 `DISConnect`）、`REMote`、`DATE?`/`TIME?`；`BUZZer`、`CLOCk`、`VNCPort`、`EDUMode`、`LANGuage`、`MENU`、`PON`、`SSAVer`、`TOUCh` 未记录（手册印刷 pp. 257-266）；`REBoot`、`SHUTdown`、`SELFCal` 属破坏性/耗时操作，刻意不提供。
 - **通道/垂直写入**：已记录 `SCALe`、`OFFSet`、`SWITch`、`COUPling`、`PROBe`、`BWLimit`、`INVert`、`IMPedance`、`UNIT`、`SKEW`、`LABel`、`LABel:TEXT`、`VISible`、`CHANnel:REFerence`（手册印刷 pp. 24-30）。
 - **数字通道与选件**：MSO 数字通道（`:DIGital:*`，选件）、`:WGEN:*`（外部 SAG1021I 发生器选件，不是本机内置）、`:METEr:*`（仅手持 SHS 系列）均不属于本机基础能力，刻意不收录。

@@ -10,9 +10,13 @@ from scope_protocol import (
     ScopeProtocolError,
     BufferedSocket,
     Segment,
+    configure_acquisition_context,
     decide_waveform_width,
     configure_left_aligned_trigger,
     configure_memory_depth,
+    drain_error_queue,
+    largest_standard_timebase_step,
+    max_timebase_for_context,
     read_wav_segment,
     normalize_acquisition_state,
     parse_ieee_block,
@@ -24,6 +28,7 @@ from scope_protocol import (
     signed_8bit,
     validate_frame,
     validate_segments,
+    write_and_verify,
 )
 from capture_scope import numeric_response
 from capture_scope import merge_segment_payloads
@@ -312,6 +317,7 @@ class ProtocolTests(unittest.TestCase):
                     ":TRIGger:EDGE:HOLDoff?": "OFF",
                     ":TRIGger:EDGE:NREJect?": "OFF",
                     ":TRIGger:EDGE:IMPedance?": "ONEMeg",
+                    "SYST:ERR?": '0,"No error"',
                 }
                 self.stopped = True
 
@@ -590,6 +596,224 @@ class ProtocolTests(unittest.TestCase):
                 )
             self.assertFalse((channel_dir / "waveform-bad.bin").exists())
             self.assertFalse((channel_dir / "waveform-bad.bin.partial").exists())
+
+
+class SilentWriteTests(unittest.TestCase):
+    """Regression guards for the silent-failure modes found on firmware 4.8.12.1.1.6.5.
+
+    Every case here was reproduced on the instrument: a rejected or inapplicable
+    write changes nothing and queues no error, so a readback comparison is the
+    only general detector. The fake returns one queued answer per query, so a
+    test states the readback it wants before and after the write instead of
+    modelling the firmware's reply formatting.
+    """
+
+    @staticmethod
+    def fake_scope(answers, errors_on_write=None):
+        """``answers`` maps a query to either one reply or a list consumed in order."""
+
+        from scope_protocol import ScopeSession
+
+        class FakeScope(ScopeSession):
+            def __init__(self):
+                super().__init__("example.invalid")
+                self.written = []
+                self.replies = {
+                    key: (list(value) if isinstance(value, list) else [value])
+                    for key, value in answers.items()
+                }
+                self.errors_on_write = dict(errors_on_write or {})
+                self.queue = []
+
+            def write(self, command, **kwargs):
+                self.written.append(command)
+                if command in self.errors_on_write:
+                    self.queue.append(self.errors_on_write[command])
+                if command == "TRMD AUTO":
+                    self.replies["SAST?"] = ["SAST Ready"]
+
+            def query_ascii(self, command, **kwargs):
+                if command == "SYST:ERR?":
+                    return self.queue.pop(0) if self.queue else '0,"No error"'
+                queued = self.replies.get(command)
+                if not queued:
+                    raise KeyError(command)
+                return queued.pop(0) if len(queued) > 1 else queued[0]
+
+        return FakeScope()
+
+    def test_drain_error_queue_loops_past_stale_backlog(self):
+        scope = self.fake_scope({})
+        scope.queue = [
+            '-113,"Undefined header;TRSL RIS"',
+            '-224,"Illegal parameter value"',
+            '0,"No error"',
+        ]
+        entries = drain_error_queue(scope)
+        self.assertEqual(len(entries), 2)
+        self.assertIn("Undefined header", entries[0])
+        self.assertEqual(drain_error_queue(scope), [])
+
+    def test_write_and_verify_reports_silent_no_op(self):
+        # Acquisition context written while Stop: value unchanged, no error.
+        scope = self.fake_scope({"SARA?": ["SARA 2.00E+07Sa/s", "SARA 2.00E+07Sa/s"]})
+        result = write_and_verify(scope, "ACQuire:SRATe 1.00E+06", "SARA?")
+        self.assertFalse(result["applied"])
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["before"], result["after"])
+
+    def test_write_and_verify_detects_applied_change(self):
+        scope = self.fake_scope({"TDIV?": ["1.00E-01S", "2.00E-02S"]})
+        result = write_and_verify(scope, "TIMebase:SCALe 2.00E-02", "TDIV?")
+        self.assertTrue(result["applied"])
+        self.assertEqual(result["after"], "2.00E-02S")
+
+    def test_write_and_verify_honours_explicit_expectation(self):
+        # A no-op write of the value already set is still an applied setting.
+        scope = self.fake_scope({"ACQ:MMAN?": ["FSRate", "FSRate"]})
+        result = write_and_verify(
+            scope, "ACQuire:MMANagement FSRate", "ACQ:MMAN?", expect="FSRate"
+        )
+        self.assertTrue(result["applied"])
+
+    def test_write_and_verify_accepts_query_echoing_reply(self):
+        # Real firmware mixes bare and echoing replies for the same value.
+        scope = self.fake_scope({"ACQ:MMAN?": ["AUTO", "ACQ:MMAN FSRate"]})
+        result = write_and_verify(
+            scope, "ACQuire:MMANagement FSRate", "ACQ:MMAN?", expect="FSRate"
+        )
+        self.assertTrue(result["applied"])
+
+    def test_write_and_verify_surfaces_rejection_error(self):
+        # C4:TRSL RIS is -224 Illegal parameter value on the instrument.
+        scope = self.fake_scope(
+            {"C4:TRSL?": ["C4:TRSL POSitive", "C4:TRSL POSitive"]},
+            errors_on_write={"C4:TRSL RIS": '-224,"Illegal parameter value"'},
+        )
+        result = write_and_verify(scope, "C4:TRSL RIS", "C4:TRSL?")
+        self.assertFalse(result["applied"])
+        self.assertEqual(result["errors"], ['-224,"Illegal parameter value"'])
+
+    def test_max_timebase_follows_the_window_conservation_law(self):
+        # The bound is necessary but not achievable: s/div is quantized, so the
+        # reproduced instrument values are settled values, not the bound.
+        self.assertAlmostEqual(max_timebase_for_context(25e6, 500e6), 5e-3)
+        self.assertAlmostEqual(max_timebase_for_context(25e6, 20e6), 0.125)
+        self.assertAlmostEqual(max_timebase_for_context(1e6, 1e6), 1e-1)
+        self.assertAlmostEqual(max_timebase_for_context(10e6, 10e6), 1e-1)
+        for bad in (0, -1):
+            with self.assertRaises(ScopeProtocolError):
+                max_timebase_for_context(bad, 1e6)
+            with self.assertRaises(ScopeProtocolError):
+                max_timebase_for_context(1e6, bad)
+
+    def test_standard_step_is_one_step_below_a_125ms_bound(self):
+        # 25 Mpts at 20 MSa/s bounds TDIV at 125 ms yet settled at 100 ms/div.
+        self.assertAlmostEqual(largest_standard_timebase_step(0.125), 0.1)
+        self.assertAlmostEqual(largest_standard_timebase_step(5e-3), 5e-3)
+        self.assertAlmostEqual(largest_standard_timebase_step(1.0), 1.0)
+        self.assertIsNone(largest_standard_timebase_step(0))
+
+    def test_context_rejects_unreachable_timebase_before_writing(self):
+        scope = self.fake_scope({"SAST?": "SAST Ready"})
+        with self.assertRaises(ScopeProtocolError) as caught:
+            configure_acquisition_context(
+                scope, sample_rate=500e6, timebase_s_per_div=1e-1, memory_depth="25M"
+            )
+        self.assertIn("unreachable", str(caught.exception))
+        self.assertEqual(scope.written, [])
+
+    def test_context_escapes_stop_before_writing_acquisition(self):
+        scope = self.fake_scope(
+            {
+                "SAST?": ["SAST Stop", "SAST Ready"],
+                "ACQ:MMAN?": ["FSRate"],
+                "ACQ:MDEP?": ["25M"],
+                "SARA?": ["SARA 2.00E+07Sa/s"],
+                "TDIV?": ["1.00E-01S"],
+                "ACQ:POIN?": ["2.00E+07"],
+                "*IDN?": "Siglent Technologies,SDS824X HD,SDS08A0Q909185,4.8.12.1.1.6.5",
+            }
+        )
+        scope.stopped = True
+        result = configure_acquisition_context(
+            scope, sample_rate=20e6, timebase_s_per_div=1e-1, memory_depth="25M"
+        )
+        self.assertTrue(result["released_from_stop"])
+        self.assertEqual(scope.written[0], "TRMD AUTO")
+        self.assertIn("ACQuire:SRATe 2.000000E+07", scope.written)
+        self.assertEqual(result["unapplied"], [])
+        self.assertTrue(result["observed"]["points_per_second_consistent"])
+
+    def test_context_orders_sample_rate_before_timebase(self):
+        scope = self.fake_scope(
+            {
+                "SAST?": "SAST Ready",
+                "ACQ:MMAN?": ["FSRate"],
+                "ACQ:MDEP?": ["25M"],
+                "SARA?": ["SARA 2.00E+07Sa/s"],
+                "TDIV?": ["1.00E-01S"],
+                "ACQ:POIN?": ["2.00E+07"],
+            }
+        )
+        configure_acquisition_context(scope, sample_rate=20e6, timebase_s_per_div=1e-1)
+        rate_at = next(i for i, c in enumerate(scope.written) if c.startswith("ACQuire:SRATe"))
+        tdiv_at = next(i for i, c in enumerate(scope.written) if c.startswith("TIMebase:SCALe"))
+        self.assertLess(rate_at, tdiv_at)
+
+    def test_context_reports_a_quantized_timebase_as_unapplied(self):
+        # 25 Mpts at 20 MSa/s bounds s/div at 125 ms, but the settled value
+        # observed on the instrument is 100 ms/div: reachable, still clamped by
+        # the s/div step table, and it must be reported rather than assumed.
+        scope = self.fake_scope(
+            {
+                "SAST?": "SAST Ready",
+                "ACQ:MMAN?": ["FSRate"],
+                "ACQ:MDEP?": ["25M"],
+                "SARA?": ["SARA 2.00E+07Sa/s"],
+                "TDIV?": ["1.25E-01S", "1.00E-01S"],
+                "ACQ:POIN?": ["2.00E+07"],
+            }
+        )
+        result = configure_acquisition_context(
+            scope, sample_rate=20e6, timebase_s_per_div=0.125, memory_depth="25M"
+        )
+        self.assertIn("TIMebase:SCALe 1.250000E-01", result["unapplied"])
+        self.assertAlmostEqual(result["largest_standard_step_s_per_div"], 0.1)
+
+    def test_prepare_reasserts_source_after_level_write(self):
+        # A per-channel level write retargets the trigger to that channel, so the
+        # source must be asserted last and verified.
+        scope = self.fake_scope(
+            {
+                ":TRIGger:TYPE?": "EDGE",
+                ":TRIGger:EDGE:SOURce?": ["C1"],
+                ":TRIGger:EDGE:SLOPe?": "RISing",
+                ":TRIGger:EDGE:LEVel?": "2.50E+00",
+                ":TRIGger:EDGE:COUPling?": "DC",
+                ":TRIGger:EDGE:HOLDoff?": "OFF",
+                ":TRIGger:EDGE:NREJect?": "OFF",
+                ":TRIGger:EDGE:IMPedance?": "ONEMeg",
+            }
+        )
+        scope_prepare_capture(scope)
+        self.assertEqual(scope.written[-1], ":TRIGger:EDGE:SOURce C1")
+
+    def test_prepare_raises_when_source_did_not_stick(self):
+        scope = self.fake_scope(
+            {
+                ":TRIGger:TYPE?": "EDGE",
+                ":TRIGger:EDGE:SOURce?": ["C3"],
+                ":TRIGger:EDGE:SLOPe?": "RISing",
+                ":TRIGger:EDGE:LEVel?": "2.50E+00",
+                ":TRIGger:EDGE:COUPling?": "DC",
+                ":TRIGger:EDGE:HOLDoff?": "OFF",
+                ":TRIGger:EDGE:NREJect?": "OFF",
+                ":TRIGger:EDGE:IMPedance?": "ONEMeg",
+            }
+        )
+        with self.assertRaises(ScopeProtocolError):
+            scope_prepare_capture(scope)
 
 
 if __name__ == "__main__":
