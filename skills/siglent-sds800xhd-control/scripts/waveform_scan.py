@@ -28,15 +28,6 @@ TYPICAL_SAMPLE_RATE_HZ = 5.0e6
 TYPICAL_RECORD_SPAN_S = 5.0
 TYPICAL_CONTEXT_RATIO_RANGE = (0.8, 1.25)
 
-# Histogram occupancy rule: a code bin is occupied when it holds at least
-# max(1, total * 1e-6) samples, and a plateau must hold 5% of the record.
-OCCUPIED_BIN_FRACTION = 1.0e-6
-PLATEAU_MASS_FRACTION = 0.05
-# Runs separated by less than max(2, 0.5% of the occupied span) codes are one
-# plateau: that gap is code-space dither, not a level boundary.
-MERGE_GAP_FRACTION = 0.005
-MERGE_GAP_MIN_CODES = 2.0
-
 # Level detection uses histogram mass peaks, not contiguous occupancy runs.
 # A fast oscillation spends a large share of its samples in the transitions
 # between its two levels: on the reference capture the band between the levels
@@ -54,8 +45,28 @@ MERGE_GAP_MIN_CODES = 2.0
 # choice is not knife-edge.
 PEAK_MIN_RELATIVE_MASS = 0.10
 PEAK_MIN_ABSOLUTE_SAMPLES = 3
-PEAK_MIN_SEPARATION_CODES = 200
-PEAK_NEIGHBOURHOOD_CODES = 40
+# Peak geometry is expressed as a fraction of the code domain, never as an
+# absolute code distance. A code distance is meaningless across transfer widths:
+# a 200-code merge distance is a sensible fraction of the 65535-code WORD domain
+# and is wider than the whole 256-code BYTE domain, so every BYTE square wave
+# collapsed to a single peak. The reference values are the WORD-domain distances
+# the scanner shipped with, divided by the WORD span; the floor carries the
+# resolution a narrow domain needs, and the cap makes the WORD result identical
+# to the previous fixed distances.
+WORD_CODE_SPAN = 65535.0
+PEAK_MIN_SEPARATION_FRACTION = 200.0 / WORD_CODE_SPAN
+PEAK_NEIGHBOURHOOD_FRACTION = 40.0 / WORD_CODE_SPAN
+PEAK_MIN_SEPARATION_FLOOR_CODES = 8
+PEAK_NEIGHBOURHOOD_FLOOR_CODES = 2
+# The same trap hides in the noise-band radius. A 400-code search window spans
+# more than half of a 256-code BYTE domain, so the measured sigma is half the
+# domain and the 3-sigma placement test can never pass on a BYTE frame.
+NOISE_RADIUS_FRACTION = 400.0 / WORD_CODE_SPAN
+NOISE_RADIUS_FLOOR_CODES = 2
+NOISE_RADIUS_CEILING_CODES = 400
+# Refusal-path candidate excursions sit this many sigma away from the reference
+# code, matching the placement rule the level scan uses for its thresholds.
+DEVIATION_THRESHOLD_SIGMAS = 3.0
 # Thresholds sit symmetrically about the middle of the level gap, so both clear
 # their own level's noise band whatever the duty cycle is. The second pair is a
 # deliberately tighter re-scan used to detect a pulse split by an intermediate
@@ -63,8 +74,18 @@ PEAK_NEIGHBOURHOOD_CODES = 40
 THRESHOLD_GAP_OFFSETS = (0.25, 0.75)
 SECOND_PAIR_GAP_OFFSETS = (0.40, 0.60)
 
-# A window is "dense" when its local cycle rate is at least half of the fastest
-# window; the window-local frequency is the median over that subset.
+# Window-table label cutoffs (spec §4.3 step 5), decided from a window's own
+# duty cycle and edge count. A window with no transition is a held level: at or
+# below 1% high it is `silent`, at or above 99% high it is `steady_high`, and
+# between those two it is `steady_high` when more than half its samples are high
+# and `steady_low` otherwise. A window with transitions is `dense` when its
+# local cycle rate reaches half of the fastest window's rate and `sparse` below
+# that; the same fraction selects the dense subset whose window-local
+# statistics are reported. `mixed` is the fallback for a window the rules do
+# not classify.
+WINDOW_SILENT_DUTY_MAX = 0.01
+WINDOW_STEADY_HIGH_DUTY_MIN = 0.99
+WINDOW_STEADY_HIGH_DUTY_MIDPOINT = 0.5
 DENSE_WINDOW_FRACTION_OF_PEAK = 0.5
 INTERMITTENT_RATE_RATIO = 2.0
 BIMODAL_MEDIAN_MEAN_RATIO = 0.5
@@ -97,6 +118,29 @@ def _code_domain(width: int) -> tuple[int, int, int]:
     if width == 2:
         return -32768, 32767, 32767
     raise AnalysisError("WIDTH_UNSUPPORTED", f"Unsupported waveform width: {width}")
+
+
+def _scaled_code_distance(span: int, fraction: float, floor: int, ceiling: int) -> int:
+    """A code distance for this transfer width, bounded to ``floor..ceiling``."""
+
+    if span <= 0:
+        return floor
+    return max(floor, min(ceiling, int(round(span * fraction))))
+
+
+def _peak_distances(span: int) -> tuple[int, int]:
+    """``(merge_distance, neighbourhood)`` in codes for a code domain of ``span``."""
+
+    return (
+        _scaled_code_distance(span, PEAK_MIN_SEPARATION_FRACTION, PEAK_MIN_SEPARATION_FLOOR_CODES, 200),
+        _scaled_code_distance(span, PEAK_NEIGHBOURHOOD_FRACTION, PEAK_NEIGHBOURHOOD_FLOOR_CODES, 40),
+    )
+
+
+def _noise_radius(span: int) -> int:
+    """Search radius, in codes, of the level noise-band measurement."""
+
+    return _scaled_code_distance(span, NOISE_RADIUS_FRACTION, NOISE_RADIUS_FLOOR_CODES, NOISE_RADIUS_CEILING_CODES)
 
 
 def _codes_per_div(capture: dict[str, Any]) -> Optional[float]:
@@ -203,7 +247,13 @@ def _band_fraction(histogram: Any, code_min: int, low: float, high: float, count
     return float(int(histogram[start:end].sum(dtype=np.int64))) / float(count)
 
 
-def _level_noise_spread(histogram: Any, code_min: int, peak_code: int, count: int, radius: int = 400) -> Optional[float]:
+def _level_noise_spread(
+    histogram: Any,
+    code_min: int,
+    peak_code: int,
+    count: int,
+    radius: int = NOISE_RADIUS_CEILING_CODES,
+) -> Optional[float]:
     """Robust half-width of the mass concentrated around one level peak.
 
     The fraction of samples lying between two thresholds is not a usable
@@ -213,6 +263,11 @@ def _level_noise_spread(histogram: Any, code_min: int, peak_code: int, count: in
     reference capture). What actually matters is whether each threshold sits
     outside the level's own noise band, so this measures that band directly and
     the caller compares the threshold distance against it.
+
+    ``radius`` is the search half-width in codes and must be scaled to the
+    transfer width by the caller (see ``_noise_radius``): the WORD default spans
+    more than half a BYTE code domain and would measure the domain rather than
+    the level.
     """
 
     if count <= 0:
@@ -246,8 +301,8 @@ def _thresholds_outside_noise(
 ) -> tuple[bool, dict[str, Any]]:
     """Whether both thresholds clear their level's noise band by ``minimum_sigmas``."""
 
-    low_sigma = _level_noise_spread(histogram, code_min, low_peak, count)
-    high_sigma = _level_noise_spread(histogram, code_min, high_peak, count)
+    low_sigma = _level_noise_spread(histogram, code_min, low_peak, count, radius=_noise_radius(int(histogram.size) - 1))
+    high_sigma = _level_noise_spread(histogram, code_min, high_peak, count, radius=_noise_radius(int(histogram.size) - 1))
     evidence: dict[str, Any] = {
         "low_level_sigma_codes": None if low_sigma is None else round(low_sigma, 3),
         "high_level_sigma_codes": None if high_sigma is None else round(high_sigma, 3),
@@ -308,6 +363,28 @@ def _window_bounds(points: int, interval: float, window_s: float, max_windows: i
     return total_windows, window_count, bounds
 
 
+def _window_label(edge_count: int, duty: float, cycle_rate_hz: float, peak_rate_hz: float) -> str:
+    """Label one window from its own duty cycle and edge count.
+
+    The vocabulary is closed (spec §4.3 step 5): ``silent``, ``sparse``,
+    ``dense``, ``steady_high``, ``steady_low``, ``mixed``. The cutoffs live in
+    the module constants next to ``DENSE_WINDOW_FRACTION_OF_PEAK`` so the label
+    rule and the dense-subset rule cannot drift apart.
+    """
+
+    if edge_count == 0:
+        if duty <= WINDOW_SILENT_DUTY_MAX:
+            return "silent"
+        if duty >= WINDOW_STEADY_HIGH_DUTY_MIN:
+            return "steady_high"
+        # No transitions but a mid-range duty is a held level: report the level
+        # the window spends most of its time at.
+        return "steady_high" if duty > WINDOW_STEADY_HIGH_DUTY_MIDPOINT else "steady_low"
+    if peak_rate_hz > 0:
+        return "dense" if cycle_rate_hz >= DENSE_WINDOW_FRACTION_OF_PEAK * peak_rate_hz else "sparse"
+    return "mixed"
+
+
 def _window_index(index: int, window_starts: Sequence[int], covered_end: int) -> Optional[int]:
     if not window_starts or index >= covered_end:
         return None
@@ -359,7 +436,8 @@ def _histogram_peaks(histogram: Any, code_min: int, count: int) -> list[tuple[in
     candidates = np.flatnonzero(histogram >= threshold)
     if not candidates.size:
         return []
-    span = PEAK_NEIGHBOURHOOD_CODES
+    merge_distance, neighbourhood = _peak_distances(int(histogram.size) - 1)
+    span = neighbourhood
     peaks: list[int] = []
     for code in candidates:
         left = max(0, code - span)
@@ -368,34 +446,12 @@ def _histogram_peaks(histogram: Any, code_min: int, count: int) -> list[tuple[in
             peaks.append(int(code))
     merged: list[int] = []
     for code in peaks:
-        if merged and code - merged[-1] <= PEAK_MIN_SEPARATION_CODES:
+        if merged and code - merged[-1] <= merge_distance:
             if histogram[code] > histogram[merged[-1]]:
                 merged[-1] = code
         else:
             merged.append(code)
     return [(code + code_min, int(histogram[code])) for code in merged]
-
-
-def _split_code(histogram: Any, code_min: int, low_peak: int, high_peak: int, fraction: float) -> float:
-    """Code that splits the mass between two level peaks at ``fraction``.
-
-    Using a mass split rather than the midpoint keeps the thresholds on the
-    signal's own levels when the transition band is asymmetric, and it is what
-    makes the 25/75 pair differ from the 40/60 re-scan pair.
-    """
-
-    start = low_peak - code_min
-    stop = high_peak - code_min
-    if stop <= start:
-        return float(low_peak)
-    band = histogram[start:stop + 1]
-    total = int(band.sum(dtype=np.int64))
-    if total <= 0:
-        return float(low_peak + high_peak) / 2.0
-    cumulative = np.cumsum(band, dtype=np.int64)
-    target = total * fraction
-    index = int(np.searchsorted(cumulative, target, side="left"))
-    return float(code_min + start + index)
 
 
 def derive_thresholds(capture: dict[str, Any], *, chunk_points: int = DEFAULT_CHUNK_POINTS) -> dict[str, Any]:
@@ -666,15 +722,30 @@ def scan_hysteresis_aggregates(
                     high_samples[window] += int(prefix[overlap_end - block_start] - prefix[overlap_start - block_start])
 
     mean_code = total_sum / points
+    # The label rule and the dense subset share one cutoff: a window is dense
+    # when its local cycle rate reaches half of the fastest window's rate.
+    window_spans = [
+        round(origin + end * interval, 12) - round(origin + start * interval, 12) for start, end in bounds
+    ]
+    window_rates = [
+        edge_counts[index] / 2.0 / window_spans[index] if window_spans[index] > 0 else 0.0
+        for index in range(window_count)
+    ]
+    peak_rate = max(window_rates) if window_rates else 0.0
+
     window_rows: list[dict[str, Any]] = []
-    window_spans: list[float] = []
     for index, (start, end) in enumerate(bounds):
         t0 = round(origin + start * interval, 12)
         t1 = round(origin + end * interval, 12)
-        span = t1 - t0
-        window_spans.append(span)
+        span = window_spans[index]
         duty = high_samples[index] / (end - start) if end > start else 0.0
-        row: dict[str, Any] = {"t0_s": t0, "t1_s": t1, "duty": round(duty, 6), "edge_count": edge_counts[index]}
+        row: dict[str, Any] = {
+            "t0_s": t0,
+            "t1_s": t1,
+            "label": _window_label(edge_counts[index], duty, window_rates[index], peak_rate),
+            "duty": round(duty, 6),
+            "edge_count": edge_counts[index],
+        }
         if edge_counts[index] > 0 and span > 0:
             row["cycle_rate_hz"] = round(edge_counts[index] / 2.0 / span, 3)
         window_rows.append(row)
@@ -682,9 +753,7 @@ def scan_hysteresis_aggregates(
     # Dense windows are the ones whose local cycle rate reaches half of the
     # fastest window; the window-local statistics describe those only, so a
     # bimodal record cannot be summarised by a single record-wide number.
-    window_rates = [edge_counts[index] / 2.0 / window_spans[index] if window_spans[index] > 0 else 0.0 for index in range(window_count)]
     dense_indexes: list[int] = []
-    peak_rate = max(window_rates) if window_rates else 0.0
     if peak_rate > 0:
         dense_indexes = [index for index, rate in enumerate(window_rates) if rate >= DENSE_WINDOW_FRACTION_OF_PEAK * peak_rate]
     dense_histogram: dict[int, int] = {}
@@ -745,6 +814,241 @@ def scan_hysteresis_aggregates(
     }
 
 
+def _reference_and_noise(histogram: Any, code_min: int, count: int) -> tuple[Optional[int], Optional[float]]:
+    """Median code and robust noise sigma of the dense mass around it.
+
+    Used only when the level split could not be derived: with no two levels to
+    measure, the median code is the best available reference and the noise band
+    around it is measured with the same statistic ``_level_noise_spread`` uses
+    for a level peak. That spread is measured around the *median*, not around a
+    local maximum, so a record whose dense mass is a single flat level yields a
+    sub-code spread and the candidate band falls back to one code.
+    """
+
+    median_code = _median_code(histogram, code_min)
+    if median_code is None:
+        return None, None
+    sigma = _level_noise_spread(histogram, code_min, median_code, count, radius=_noise_radius(int(histogram.size) - 1))
+    return median_code, sigma
+
+
+def _boolean_run_bounds(flags: Any) -> tuple[Any, Any]:
+    """Inclusive ``(starts, ends)`` of every run of True in ``flags``."""
+
+    if not flags.size:
+        empty = np.zeros(0, dtype=np.int64)
+        return empty, empty
+    padded = np.concatenate((np.zeros(1, dtype=np.int8), flags.astype(np.int8), np.zeros(1, dtype=np.int8)))
+    changes = np.flatnonzero(np.diff(padded))
+    return changes[0::2], changes[1::2] - 1
+
+
+def _extreme_code(values: Any, start: int, end: int, reference: float) -> int:
+    """Code in ``values[start:end + 1]`` furthest from ``reference``."""
+
+    window = values[start : end + 1]
+    highest = int(window.max())
+    lowest = int(window.min())
+    if abs(lowest - reference) > abs(highest - reference):
+        return lowest
+    return highest
+
+
+def scan_candidate_excursions(
+    capture: dict[str, Any],
+    *,
+    reference_code: int,
+    noise_sigma: Optional[float],
+    minimum_duration_samples: int = 2,
+    max_candidates: int = 200,
+    chunk_points: int = DEFAULT_CHUNK_POINTS,
+) -> dict[str, Any]:
+    """Find excursions away from a reference code without deriving a level pair.
+
+    This is the refusal-path scan: when the level split is unresolved there is
+    no hysteresis threshold pair, so no edge structure can be asserted. What a
+    caller still needs to know is whether the record is featureless or merely
+    unresolved, and a narrow pulse makes that difference. The scan therefore
+    walks the whole record at original resolution and reports *candidates*: a
+    departure from ``reference_code`` wider than ``deviation_threshold_sigmas``
+    sigma that returns to the band, held for at least
+    ``minimum_duration_samples`` samples.
+
+    A candidate is not a confirmed level. The reference is the record median
+    rather than a derived level, and the band is a noise estimate rather than a
+    hysteresis width, so a candidate excursion is evidence that structure exists
+    and never evidence of what a level is. ``candidate_count`` is authoritative
+    even when ``max_candidates`` bounds the returned list.
+
+    State is carried across chunk boundaries, so the chunk size cannot change
+    the result: an excursion spanning a boundary is one excursion.
+    """
+
+    _require_numpy()
+    if chunk_points <= 0:
+        raise AnalysisError("LIMIT_INVALID", "chunk_points must be positive")
+    if minimum_duration_samples <= 0:
+        raise AnalysisError("LIMIT_INVALID", "minimum_duration_samples must be positive")
+    if max_candidates <= 0:
+        raise AnalysisError("LIMIT_INVALID", "max_candidates must be positive")
+    reference = _finite(reference_code)
+    if reference is None:
+        raise AnalysisError("LIMIT_INVALID", "reference_code must be a finite code")
+
+    samples = capture["samples"]
+    points = int(capture["points"])
+    if points <= 0:
+        raise AnalysisError("LENGTH_MISMATCH", "Capture record contains no samples")
+    interval = _finite(capture["sample_interval_s"])
+    origin = _finite(capture["time_origin_s"])
+    if interval is None or interval <= 0:
+        raise AnalysisError("DESCRIPTOR_MISMATCH", "Sample interval must be a positive duration")
+    if origin is None:
+        raise AnalysisError("DESCRIPTOR_MISMATCH", "Time origin must be a finite display time")
+
+    limitations: list[str] = []
+    sigma = _finite(noise_sigma)
+    sigma_value: Optional[float]
+    if sigma is None or sigma <= 0.0:
+        # No measurable spread: fall back to a one-code band rather than a
+        # zero-width band, and say so. A zero-width band would turn every dither
+        # sample into an excursion.
+        sigma_value = None
+        band = 1.0
+        limitations.append("noise_sigma_unmeasurable_band_is_one_code")
+    else:
+        sigma_value = float(sigma)
+        band = DEVIATION_THRESHOLD_SIGMAS * sigma_value
+    low_band = reference - band
+    high_band = reference + band
+
+    candidates: list[dict[str, Any]] = []
+    candidate_count = 0
+    truncated = False
+    in_excursion = False
+    start_sample = 0
+    peak_code = 0
+
+    def emit(start: int, end: int, peak_arg: int) -> None:
+        """Append one already-counted candidate while the cap allows."""
+
+        nonlocal truncated
+        if len(candidates) >= max_candidates:
+            truncated = True
+            return
+        start_time = round(origin + start * interval, 12)
+        end_time = round(origin + end * interval, 12)
+        candidates.append(
+            {
+                "start_sample": start,
+                "end_sample": end,
+                "start_time_s": start_time,
+                "end_time_s": end_time,
+                "duration_s": round(end_time - start_time, 12),
+                "peak_code": peak_arg,
+                "peak_deviation_sigmas": None if sigma_value is None else round(abs(peak_arg - reference) / sigma_value, 3),
+            }
+        )
+
+    def close(start: int, end: int, peak_arg: int) -> None:
+        """Count and record a carried excursion if it meets the duration rule."""
+
+        nonlocal candidate_count
+        if end - start < minimum_duration_samples:
+            return
+        candidate_count += 1
+        emit(start, end, peak_arg)
+
+    for block_start in range(0, points, chunk_points):
+        block_end = min(block_start + chunk_points, points)
+        values = np.asarray(samples[block_start:block_end], dtype=np.int64)
+        size = int(values.size)
+        if not size:
+            continue
+        outside = (values < low_band) | (values > high_band)
+        starts, ends = _boolean_run_bounds(outside)
+
+        if not starts.size:
+            # The whole chunk sits at the reference level, so a carried
+            # excursion returned to the band at this chunk's first sample.
+            if in_excursion:
+                close(start_sample, block_start, peak_code)
+                in_excursion = False
+            continue
+
+        first_inner = 0
+        carried_index = -1
+        if in_excursion:
+            if int(starts[0]) == 0:
+                # The first run continues the carried excursion across the
+                # boundary; the boundary is not a return to the band.
+                block_peak = _extreme_code(values, 0, int(ends[0]), reference)
+                if abs(block_peak - reference) > abs(peak_code - reference):
+                    peak_code = block_peak
+                first_inner = 1
+                if int(ends[0]) + 1 < size:
+                    close(start_sample, block_start + int(ends[0]) + 1, peak_code)
+                    in_excursion = False
+                else:
+                    # The carried excursion reaches this chunk's last sample, so
+                    # the tail below is the same excursion and its original
+                    # start must survive.
+                    carried_index = 0
+            else:
+                # Every sample before the first run is inside the band.
+                close(start_sample, block_start, peak_code)
+                in_excursion = False
+
+        # Runs that end before the chunk's final sample are complete excursions.
+        # A run still open at the last sample may continue into the next chunk,
+        # so it is carried rather than closed here. The duration filter is
+        # applied to the whole run table at once: a record of one-sample speckle
+        # produces a million runs, and testing each one in Python is what makes
+        # this scan slow on the very records most likely to refuse.
+        open_tail = int(ends[-1]) + 1 == size
+        last_inner = int(starts.size) - 2 if open_tail else int(starts.size) - 1
+        if last_inner >= first_inner:
+            inner_starts = starts[first_inner : last_inner + 1]
+            inner_ends = ends[first_inner : last_inner + 1]
+            long_enough = np.flatnonzero(inner_ends - inner_starts + 1 >= minimum_duration_samples)
+            candidate_count += int(long_enough.size)
+            room = max_candidates - len(candidates)
+            if int(long_enough.size) > room:
+                truncated = True
+            for index in long_enough[: max(0, room)].tolist():
+                first = int(inner_starts[index])
+                last = int(inner_ends[index])
+                emit(
+                    block_start + first,
+                    block_start + last + 1,
+                    _extreme_code(values, first, last, reference),
+                )
+
+        if open_tail and carried_index != int(starts.size) - 1:
+            tail = int(starts.size) - 1
+            in_excursion = True
+            start_sample = block_start + int(starts[tail])
+            peak_code = _extreme_code(values, int(starts[tail]), int(ends[tail]), reference)
+
+    if in_excursion:
+        # The record ended mid-excursion; the excursion is still real evidence.
+        close(start_sample, points, peak_code)
+
+    if truncated:
+        limitations.append(f"candidates_capped_to_{max_candidates}_of_{candidate_count}")
+
+    return {
+        "candidate_count": candidate_count,
+        "candidates": candidates,
+        "candidates_truncated": truncated,
+        "reference_code": int(round(reference)),
+        "noise_sigma": None if sigma_value is None else round(sigma_value, 3),
+        "deviation_threshold_sigmas": DEVIATION_THRESHOLD_SIGMAS,
+        "scan": "full_record_original_resolution",
+        "limitations": limitations,
+    }
+
+
 def _record_extremes(capture: dict[str, Any], chunk_points: int) -> dict[str, Any]:
     """Threshold-free record aggregates, used when the level split is unresolved."""
 
@@ -794,19 +1098,86 @@ def _context_deviations(capture: dict[str, Any], points: int, interval: float) -
     return deviations
 
 
-def _refusal_detail(code: str, thresholds: dict[str, Any], near_threshold: float, near_threshold_limit: float) -> str:
+def _refusal_detail(
+    code: str,
+    thresholds: dict[str, Any],
+    placement: dict[str, Any],
+    minimum_sigmas: float,
+) -> str:
+    """One sentence stating the rule that actually refused the record.
+
+    Every clause here must name a test the code performs. The between-threshold
+    sample fraction and ``near_threshold_limit`` are diagnostics only and must
+    not appear: they take no part in the refusal decision.
+    """
+
+    plateau_count = len(thresholds["plateaus"])
+    mass_rule = (
+        f"a peak counts as a level only when it is a local maximum holding at least "
+        f"{PEAK_MIN_RELATIVE_MASS:.0%} of the dominant peak's mass"
+    )
     if code == "multi_level_unresolved":
-        return f"{len(thresholds['plateaus'])} code plateaus each hold at least 5% of the record; the level structure is unresolved"
+        return (
+            f"{plateau_count} level peaks were found, more than the two a two-level split requires; "
+            f"{mass_rule}. The level structure is unresolved, so no threshold pair and no edge structure "
+            "can be asserted"
+        )
     if code == "thresholds_inside_noise":
-        return f"{near_threshold:.4%} of samples lie strictly between the thresholds; the limit is {near_threshold_limit:.4%}"
+        low_clearance = placement.get("low_threshold_clearance_sigmas")
+        high_clearance = placement.get("high_threshold_clearance_sigmas")
+        if low_clearance is None or high_clearance is None:
+            measured = "a level noise band was not measurable, so only the one-code threshold distance could be tested"
+        else:
+            measured = (
+                f"the derived thresholds clear the low level by {low_clearance:.3f} sigma and the high level "
+                f"by {high_clearance:.3f} sigma"
+            )
+        return (
+            f"{measured}; threshold placement requires at least {minimum_sigmas:.3f} sigma clearance on both "
+            "levels, so a threshold sits inside its own level's noise band and no edge structure can be asserted"
+        )
     if code == "no_crossing_observed":
         return "no sample completed a hysteresis crossing across the full record, so no edge structure exists to report"
-    if not thresholds["plateaus"]:
-        return "no code plateau holds at least 5% of the record; no level separation is observable"
+    if not plateau_count:
+        return (
+            f"no level peak was found; {mass_rule}, so no level separation is observable and no threshold pair "
+            "can be derived"
+        )
+    if plateau_count == 1:
+        return (
+            "only 1 level peak was found where a two-level split requires exactly two separated levels; "
+            f"{mass_rule}, so no threshold pair and no edge structure can be asserted"
+        )
+    # Two peaks exist but nothing crosses between them: the thresholds in use
+    # leave one side of the record empty, so the state machine never transitions.
     return (
-        f"only {len(thresholds['plateaus'])} code plateau holds at least 5% of the record; "
-        "a two-level split requires exactly two separated plateaus"
+        f"{plateau_count} level peaks were found, but the thresholds in use leave one side of the record "
+        "empty, so no sample crosses from one level to the other and no edge structure can be asserted"
     )
+
+
+def _no_clipping_claim(
+    min_code: int,
+    max_code: int,
+    rail_samples: int,
+    representable_limit: int,
+    clip_limit_div: Optional[float],
+) -> tuple[bool, Optional[str]]:
+    """Whether the record proves no clipping, plus the entry when it does not.
+
+    A clean rail count alone is not proof: clipping is only observable up to
+    ``clip_limit_div`` (4.267 divisions on a WORD 2 V/div frame), because the
+    transport cannot carry a code beyond ``representable_limit``. The claim
+    therefore needs the observed range to stay strictly inside that limit as
+    well. When it does not, the caller must say up to which boundary clipping
+    was unobservable instead of claiming it did not happen.
+    """
+
+    inside = abs(min_code) < representable_limit and max_code < representable_limit
+    if rail_samples == 0 and inside:
+        return True, None
+    boundary = "unrecorded" if clip_limit_div is None else f"{clip_limit_div:.3f}"
+    return False, f"clipping_beyond_{boundary}_divisions_unobservable"
 
 
 def build_verdict(
@@ -891,6 +1262,7 @@ def build_verdict(
             )
 
     scan: Optional[dict[str, Any]] = None
+    candidate_excursions: Optional[dict[str, Any]] = None
     if separated:
         scan = scan_hysteresis_aggregates(
             capture,
@@ -905,6 +1277,21 @@ def build_verdict(
     else:
         envelope = _record_extremes(capture, chunk_points)
         limitations.append("record_structure_not_scanned_thresholds_not_separated")
+        # A refusal must not discard the evidence. No hysteresis pair exists, so
+        # no edge count can be asserted, but the record still has to be read far
+        # enough to say whether it is featureless. The reference is the record
+        # median and the band is measured noise, so these are candidates only.
+        reference_code, noise_sigma = _reference_and_noise(histogram, code_min, count)
+        if reference_code is None:
+            candidate_excursions = None
+        else:
+            candidate_excursions = scan_candidate_excursions(
+                capture,
+                reference_code=reference_code,
+                noise_sigma=noise_sigma,
+                chunk_points=chunk_points,
+            )
+            limitations.extend(candidate_excursions["limitations"])
 
     refusal_code: Optional[str] = None
     if not separated:
@@ -913,20 +1300,30 @@ def build_verdict(
         refusal_code = "thresholds_inside_noise"
     elif scan is not None and scan["edge_count"] == 0:
         refusal_code = "no_crossing_observed"
-    refusal_detail = _refusal_detail(refusal_code, thresholds, near_threshold, near_threshold_limit) if refusal_code else None
+    refusal_detail = (
+        _refusal_detail(refusal_code, thresholds, placement_evidence, minimum_sigmas) if refusal_code else None
+    )
 
     if scale_status != "VALID":
         limitations.append("absolute_voltage_fields_withheld_scale_not_valid")
 
-    frame_evidence = (
-        "existing_stopped_no_ready_to_stop"
-        if capture["manifest"].get("existing_stop_claims_new_transition") is False
-        else "observed_ready_to_stop"
-    )
+    # A frame is only evidence of a Ready -> Stop transition when the manifest
+    # says so explicitly. An absent key is not evidence of that transition, and
+    # reporting either label for it would invent provenance the capture does
+    # not carry, so it gets its own third label.
+    transition_claim = capture["manifest"].get("existing_stop_claims_new_transition")
+    if transition_claim is True:
+        frame_evidence = "observed_ready_to_stop"
+    elif transition_claim is False:
+        frame_evidence = "existing_stopped_no_ready_to_stop"
+    else:
+        frame_evidence = "provenance_unrecorded"
     provenance = {
         "frame_evidence": frame_evidence,
         "context_deviations": _context_deviations(capture, points, interval),
     }
+    if frame_evidence == "provenance_unrecorded":
+        limitations.append("frame_provenance_unrecorded")
 
     domain_block = {
         "code_domain": "word" if width == 2 else "byte",
@@ -957,15 +1354,23 @@ def build_verdict(
             "p99": thresholds["percentile_cross_check"]["p99"],
             "near_threshold_fraction": near_threshold,
             "near_threshold_fraction_note": "diagnostic only; a fast oscillation fills this band with its own transitions, so it is not a placement test",
+            "near_threshold_limit": near_threshold_limit,
+            "near_threshold_limit_note": "diagnostic only; the refusal decision is the sigma clearance test in `placement`, and this fraction never participates in it",
             "placement": placement_evidence,
             "plateaus": thresholds["plateaus"],
         },
     }
 
     structure_block = {
-        # A refusal never asserts the full-resolution state scan it did not run.
+        # A refusal never asserts the full-resolution hysteresis state scan it did
+        # not run; the candidate excursion scan is reported separately below.
         "scan": "full_record_original_resolution" if scan is not None else "record_extremes_only_thresholds_not_separated",
         "edge_count": envelope["edge_count"],
+        # Null edge count means the hysteresis scan did not run, not that the
+        # record is featureless. This count is the evidence that it was read.
+        "candidate_excursion_count": (
+            None if candidate_excursions is None else candidate_excursions["candidate_count"]
+        ),
         "detection_resolution_s": interval,
         "rail_samples": envelope["rail_samples"],
         "clipped": envelope["clipped"],
@@ -1051,25 +1456,51 @@ def build_verdict(
         dense_local_frequency and full_record_mean_frequency_hz and dense_local_frequency >= INTERMITTENT_RATE_RATIO * full_record_mean_frequency_hz
     )
     can_claim: list[str] = []
+    cannot_claim: list[str] = []
     if refusal_code is None:
         can_claim.append("levels")
         if dense_local_frequency:
             can_claim.append("dense_window_local_frequency")
         if intermittent:
             can_claim.append("intermittent_burst_structure")
-        if not envelope["clipped"]:
+        no_clipping, clipping_boundary = _no_clipping_claim(
+            envelope["min_code"],
+            envelope["max_code"],
+            envelope["rail_samples"],
+            envelope["representable_code_limit"],
+            envelope["clip_limit_div"],
+        )
+        if no_clipping:
             can_claim.append("no_clipping")
-    cannot_claim: list[str] = []
+        elif clipping_boundary is not None:
+            cannot_claim.append(clipping_boundary)
+    elif candidate_excursions is not None and candidate_excursions["candidate_count"] > 0:
+        # Something was observed, so the caller may say so. The matching
+        # limitation string keeps it from reading as a confirmed level.
+        can_claim.append("candidate_excursions")
     if scale_status != "VALID":
         cannot_claim.append("absolute_voltage_accuracy")
     cannot_claim.extend(["period_stability_beyond_sample_grid", "stability_and_transition_analysis", "multi_channel_causality"])
     if bimodal:
         cannot_claim.append("single_continuous_frequency")
+    # `must_state` is a CLOSED vocabulary: every entry is emitted by this tool
+    # and is a complete limitation statement the caller must reproduce verbatim.
+    #   existing_stopped_no_ready_to_stop         frame provenance recorded as an existing-stop read
+    #   provenance_unrecorded                     manifest carries no transition claim either way
+    #   scale_observed_unverified_no_calibration_available
+    #                                             no verified scale, so no absolute voltage exists
+    #   detection_resolution_<ns>ns               the sample interval bounds every timing claim
+    #   frequency_basis_is_window_local_not_record_wide
+    #                                             the headline frequency is a dense-window median
+    #   single_channel_analysis_only              no cross-channel relationship was analysed
+    # Adding an entry here is a contract change, not a wording tweak.
     must_state: list[str] = []
     if frame_evidence == "existing_stopped_no_ready_to_stop":
         must_state.append("existing_stopped_no_ready_to_stop")
+    elif frame_evidence == "provenance_unrecorded":
+        must_state.append("frame_provenance_unrecorded")
     if scale_status != "VALID":
-        must_state.append("scale_observed_unverified_internal_consistency_only")
+        must_state.append("scale_observed_unverified_no_calibration_available")
     must_state.append(f"detection_resolution_{_nanosecond_token(interval)}ns")
     if dense_local_frequency:
         must_state.append("frequency_basis_is_window_local_not_record_wide")
@@ -1103,4 +1534,8 @@ def build_verdict(
     }
     if refusal_code is not None:
         verdict["refusal"] = {"code": refusal_code, "detail": refusal_detail}
+        if candidate_excursions is not None:
+            verdict["refusal"]["candidate_excursions"] = candidate_excursions
+            if candidate_excursions["candidate_count"] > 0:
+                limitations.append("candidates_are_not_confirmed_levels")
     return verdict

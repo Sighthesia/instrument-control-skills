@@ -22,6 +22,7 @@ from pathlib import Path
 from test_waveform_analysis import _write_capture
 from waveform_analysis import load_capture
 from waveform_scan import (
+    _no_clipping_claim,
     build_verdict,
     derive_thresholds,
     scan_hysteresis_aggregates,
@@ -32,6 +33,9 @@ from waveform_scan import (
 # 2 V/div, i.e. 3840 codes/V.
 REFERENCE_INTERVAL_S = 50e-9
 WORD_CODES_PER_DIV = 7680.0
+
+# Distinguishes "the manifest carries no provenance key" from an explicit False.
+_UNRECORDED = object()
 
 
 def _square_wave(points: int, period: int, low: int = 0, high: int = 19200) -> list[int]:
@@ -61,19 +65,24 @@ def _verdict(values, **kwargs):
     width = kwargs.pop("width", 2)
     interval = kwargs.pop("interval", REFERENCE_INTERVAL_S)
     capture_options = kwargs.pop("capture_options", {})
+    # _UNRECORDED leaves the provenance key absent, which is what the shared
+    # fixture writes; True/False record an explicit transition claim.
+    provenance = kwargs.pop("provenance", _UNRECORDED)
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         _write_capture(root, values, width=width, sample_interval=interval, **capture_options)
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if width == 2:
             # The shared fixture writes a generic descriptor; give it the real
             # firmware WORD layout so the domain resolution is exercised rather
             # than defaulted. A WORD frame carries vertical_code_field = 7680.
-            manifest_path = root / "manifest.json"
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             preamble = manifest["results"][0]["preamble"]
             preamble["vertical_code_field"] = WORD_CODES_PER_DIV
             preamble["code_per_div"] = WORD_CODES_PER_DIV
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        if provenance is not _UNRECORDED:
+            manifest["existing_stop_claims_new_transition"] = provenance
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         capture = load_capture(root, "C1")
         return build_verdict(capture, **kwargs)
 
@@ -116,6 +125,48 @@ class ThresholdDerivationTests(unittest.TestCase):
         self.assertLess(low, second[0])
         self.assertLess(second[0], second[1])
         self.assertLess(second[1], high)
+
+    def test_sigma_placement_refusal_describes_the_sigma_test_not_the_diagnostic(self):
+        # `near_threshold_limit` is validated and reported, but it never decides
+        # a refusal. A message that quotes it claims a limit took effect when the
+        # decision was made by the sigma clearance test, so it must not appear.
+        verdict = _verdict(_noisy_square_wave(40000, 200), threshold_codes=(5, 19195))
+        self.assertEqual(verdict["status"], "REFUSED")
+        self.assertEqual(verdict["refusal"]["code"], "thresholds_inside_noise")
+        detail = verdict["refusal"]["detail"]
+        self.assertIn("sigma", detail)
+        self.assertNotIn("the limit is", detail)
+        self.assertNotIn("near_threshold_limit", detail)
+        placement = verdict["levels"]["threshold_evidence"]["placement"]
+        self.assertLess(placement["low_threshold_clearance_sigmas"], placement["minimum_sigmas"])
+
+    def test_refusal_wording_states_the_mass_floor_the_code_implements(self):
+        # The messages used to say "at least 5% of the record", which the peak
+        # detector has not implemented since the mass floor became relative to
+        # the dominant peak.
+        three_levels = []
+        for index in range(30000):
+            phase = index % 300
+            three_levels.append(9600 if 100 <= phase < 200 else 19200 if phase >= 200 else 0)
+        for values in (three_levels, [100] * 40000):
+            verdict = _verdict(values)
+            detail = verdict["refusal"]["detail"]
+            self.assertNotIn("5% of the record", detail)
+            self.assertIn("10% of the dominant peak's mass", detail)
+
+    def test_narrow_pulse_refusal_exposes_the_candidate_excursion(self):
+        # A refusal must not be a blank answer: the narrow pulse that stops the
+        # level split from resolving is still reported as a candidate, with its
+        # own samples, and the structure count matches the returned list.
+        values = [0] * 150000 + [19200] * 2000 + [0] * 48000
+        verdict = _verdict(values)
+        self.assertEqual(verdict["status"], "REFUSED")
+        excursions = verdict["refusal"]["candidate_excursions"]
+        self.assertGreaterEqual(len(excursions["candidates"]), 1)
+        self.assertEqual(verdict["structure"]["candidate_excursion_count"], len(excursions["candidates"]))
+        pulse = excursions["candidates"][0]
+        self.assertEqual((pulse["start_sample"], pulse["end_sample"]), (150000, 152000))
+        self.assertIn("candidate_excursions", verdict["claims"]["can_claim"])
 
 
 class EdgeScanTests(unittest.TestCase):
@@ -192,6 +243,43 @@ class EdgeScanTests(unittest.TestCase):
         self.assertTrue(verdict["structure"]["clipped"])
         self.assertGreater(verdict["structure"]["rail_samples"], 0)
 
+    def test_no_clipping_is_claimed_only_inside_the_representable_limit(self):
+        # E2 in the other direction: an empty rail count is not proof by itself.
+        # Clipping is unobservable beyond `clip_limit_div`, so the claim needs the
+        # observed range to stay strictly inside the representable limit too. A
+        # synthetic WORD record topping out at 32766 is the realistic edge: it
+        # never reaches the rail and stays inside, so the claim holds.
+        clean = _verdict(_square_wave(20000, 200))
+        self.assertIn("no_clipping", clean["claims"]["can_claim"])
+        self.assertEqual(clean["structure"]["rail_samples"], 0)
+
+        near_limit = _verdict([0] * 10000 + [32766] * 10000)
+        self.assertIn("no_clipping", near_limit["claims"]["can_claim"])
+        self.assertEqual(near_limit["structure"]["rail_samples"], 0)
+        self.assertLess(near_limit["structure"]["max_code"], near_limit["structure"]["representable_code_limit"])
+
+    def test_a_range_touching_the_representable_limit_withholds_no_clipping(self):
+        # The negative path cannot be produced by a real capture: no WORD sample
+        # can exceed 32767, so a clean rail count and a range outside the limit
+        # never coexist. The boundary logic is therefore asserted directly, with
+        # the same arguments the verdict passes, and the emitted claim shape is
+        # pinned separately through a rail-saturated record.
+        self.assertEqual(_no_clipping_claim(-100, 100, 0, 32767, 32767 / WORD_CODES_PER_DIV), (True, None))
+        for min_code, max_code in ((-32767, 100), (0, 32767)):
+            allowed, entry = _no_clipping_claim(min_code, max_code, 0, 32767, 32767 / WORD_CODES_PER_DIV)
+            self.assertFalse(allowed)
+            self.assertEqual(entry, "clipping_beyond_4.267_divisions_unobservable")
+
+        saturated = _verdict([0] * 10000 + [32767] * 10000)
+        self.assertNotIn("no_clipping", saturated["claims"]["can_claim"])
+        boundary_claims = [
+            entry for entry in saturated["claims"]["cannot_claim"]
+            if entry.startswith("clipping_beyond_")
+        ]
+        self.assertEqual(len(boundary_claims), 1)
+        expected = saturated["structure"]["clip_limit_div"]
+        self.assertEqual(boundary_claims[0], f"clipping_beyond_{expected:.3f}_divisions_unobservable")
+
 
 class DomainTests(unittest.TestCase):
     def test_word_without_calibration_withholds_voltage(self):
@@ -251,6 +339,29 @@ class TimingAndWindowTests(unittest.TestCase):
         verdict = _verdict(_square_wave(100000, 200))
         self.assertFalse(verdict["timing"]["distribution_note"].startswith("bimodal:"))
 
+    def test_every_window_carries_a_label_from_the_closed_vocabulary(self):
+        # Spec §4.3 step 5: the window table is the replacement for gate step 2,
+        # so every row must carry a label from the closed vocabulary.
+        vocabulary = {"silent", "sparse", "dense", "steady_high", "steady_low", "mixed"}
+        verdict = _verdict(_square_wave(40000, 200))
+        self.assertTrue(verdict["windows"])
+        for window in verdict["windows"]:
+            self.assertIn(window["label"], vocabulary)
+
+    def test_a_mixed_record_yields_several_distinct_window_labels(self):
+        # A quiet prefix, a dense section, a slower section and a steady-high
+        # stretch in one record: the label is a per-window property, so the
+        # table must show the difference instead of one record-wide verdict.
+        quiet = [0] * 40000
+        dense = _square_wave(40000, 200)
+        sparse = _square_wave(40000, 4000)
+        steady = [19200] * 40000
+        verdict = _verdict(quiet + dense + sparse + steady, window_s=1e-4)
+        self.assertEqual(verdict["status"], "OBSERVED")
+        labels = {window["label"] for window in verdict["windows"]}
+        self.assertGreaterEqual(len(labels), 3, f"expected at least three labels, saw {sorted(labels)}")
+        self.assertTrue({"silent", "dense", "steady_high"} <= labels, sorted(labels))
+
     def test_unit_conversion_is_not_off_by_1000(self):
         # E5: 34085 samples at 50 ns is 1.704 ms, not 1.7 s.
         samples = 34085
@@ -259,34 +370,31 @@ class TimingAndWindowTests(unittest.TestCase):
 
 
 class ProvenanceTests(unittest.TestCase):
-    def test_existing_stopped_frame_is_stated_not_implied(self):
-        # E10: a Stop without a prior Ready is not proof of a new capture. The
-        # fixture leaves the provenance flag absent, and an absent flag is not
-        # evidence of a Ready->Stop transition, so the weaker label is correct.
+    def test_missing_provenance_key_is_reported_as_unrecorded(self):
+        # A missing key is not evidence of a Ready -> Stop transition. Reporting
+        # either explicit label for it would invent provenance the manifest does
+        # not carry, so the absence gets its own label and its own limitation.
         verdict = _verdict(_square_wave(40000, 200))
-        self.assertIn(
-            verdict["provenance"]["frame_evidence"],
-            {"existing_stopped_no_ready_to_stop", "observed_ready_to_stop"},
-        )
-        self.assertTrue(verdict["claims"]["must_state"])
+        self.assertEqual(verdict["provenance"]["frame_evidence"], "provenance_unrecorded")
+        self.assertIn("frame_provenance_unrecorded", verdict["claims"]["must_state"])
+        self.assertIn("frame_provenance_unrecorded", verdict["limitations"])
+        self.assertNotIn("existing_stopped_no_ready_to_stop", verdict["claims"]["must_state"])
 
     def test_ready_to_stop_transition_is_recorded_when_claimed(self):
-        # The opposite direction: an explicit True means the capture claimed a
-        # Ready -> Stop transition and the label must say so.
-        values = _square_wave(40000, 200)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            _write_capture(root, values, width=2, sample_interval=REFERENCE_INTERVAL_S)
-            manifest_path = root / "manifest.json"
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            preamble = manifest["results"][0]["preamble"]
-            preamble["vertical_code_field"] = WORD_CODES_PER_DIV
-            preamble["code_per_div"] = WORD_CODES_PER_DIV
-            manifest["existing_stop_claims_new_transition"] = True
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-            verdict = build_verdict(load_capture(root, "C1"))
+        # An explicit True means the capture claimed a Ready -> Stop transition
+        # and the label must say so.
+        verdict = _verdict(_square_wave(40000, 200), provenance=True)
         self.assertEqual(verdict["provenance"]["frame_evidence"], "observed_ready_to_stop")
         self.assertNotIn("existing_stopped_no_ready_to_stop", verdict["claims"]["must_state"])
+        self.assertNotIn("frame_provenance_unrecorded", verdict["claims"]["must_state"])
+
+    def test_explicit_false_is_the_existing_stopped_label(self):
+        # E10: a Stop without a prior Ready is not proof of a new capture, and an
+        # explicit False is the one manifest value that says so.
+        verdict = _verdict(_square_wave(40000, 200), provenance=False)
+        self.assertEqual(verdict["provenance"]["frame_evidence"], "existing_stopped_no_ready_to_stop")
+        self.assertIn("existing_stopped_no_ready_to_stop", verdict["claims"]["must_state"])
+        self.assertNotIn("frame_provenance_unrecorded", verdict["claims"]["must_state"])
 
     def test_off_profile_context_is_flagged(self):
         # E11: 20 MSa/s over 2 ms is far from the documented 5 MSa/s / 5 s.
@@ -296,7 +404,8 @@ class ProvenanceTests(unittest.TestCase):
     def test_must_state_uses_only_the_closed_vocabulary(self):
         allowed = {
             "existing_stopped_no_ready_to_stop",
-            "scale_observed_unverified_internal_consistency_only",
+            "frame_provenance_unrecorded",
+            "scale_observed_unverified_no_calibration_available",
             "frequency_basis_is_window_local_not_record_wide",
             "single_channel_analysis_only",
         }
@@ -305,6 +414,22 @@ class ProvenanceTests(unittest.TestCase):
             self.assertTrue(
                 entry in allowed or entry.startswith("detection_resolution_"),
                 f"unexpected must_state entry: {entry}",
+            )
+
+    def test_unverified_scale_does_not_claim_an_internal_consistency_check(self):
+        # Capture-time PKPK measurement is not implemented, so no internal
+        # consistency check exists and no must_state entry may imply one. The
+        # old wording must be gone from every verdict, refusal or not.
+        observed = _verdict(_square_wave(40000, 200))
+        refused = _verdict([100] * 40000)
+        for verdict in (observed, refused):
+            self.assertNotIn(
+                "scale_observed_unverified_internal_consistency_only",
+                json.dumps(verdict),
+            )
+            self.assertIn(
+                "scale_observed_unverified_no_calibration_available",
+                verdict["claims"]["must_state"],
             )
 
     def test_verdict_is_bound_to_the_merged_waveform_hash(self):

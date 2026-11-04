@@ -709,7 +709,74 @@ it does mean E4 is only half solved. A time-contiguity test (a level that forms 
 contiguous run is a level regardless of mass) is the natural next step and is not
 part of this change.
 
-## 11. Approval
+## 11. Second Review Round (2026-11-04, post-ship)
+
+An independent advisor reviewed HEAD `4aee417`. Every finding below was
+re-verified by the parent against the code before acting; none were accepted on
+the advisor's word alone.
+
+**Confirmed, and the largest of them was missed by the parent.**
+
+| Finding | Verification |
+|---|---|
+| **BYTE captures could never resolve a level.** `PEAK_MIN_SEPARATION_CODES = 200` is an absolute code distance, but a BYTE transfer spans only -128..127, so the merge distance exceeded the whole code domain. Synthetic 0/127, -64/+64, -100/+100 and 0/30 square waves all returned `thresholds_not_separated`. | Reproduced. This silently disabled the historical BYTE capture path that `SKILL.md` documents. |
+| A third absolute constant blocked the same fix: `_level_noise_spread(radius=400)` searched +/-400 codes, which spans the entire 256-bin BYTE domain, so sigma measured 63.5 codes and the 3-sigma placement test refused every BYTE case even after the merge distance was scaled. | Found by the implementing agent during verification, not by the advisor. |
+| `_split_code` was dead code and its docstring described the abandoned mass-quantile algorithm. Four constants (`OCCUPIED_BIN_FRACTION`, `PLATEAU_MASS_FRACTION`, `MERGE_GAP_FRACTION`, `MERGE_GAP_MIN_CODES`) were left over from the same rewrite. | Confirmed by reference count. |
+| `near_threshold_limit` never participates in a refusal, yet `thresholds_inside_noise` printed "the limit is 2.0000%". Placement is decided by `minimum_sigmas`. | Confirmed: the parameter is range-validated and passed to the message only. |
+| Refusal messages claim "at least 5% of the record", but peak detection uses a mass floor relative to the dominant peak (0.10), not 5% of the record. | Confirmed. |
+| A **missing** `existing_stop_claims_new_transition` key reported `observed_ready_to_stop`. A missing key is not evidence of a Ready -> Stop transition. | Reproduced with a synthetic manifest: `None` -> `observed_ready_to_stop`. |
+| `must_state` emitted `scale_observed_unverified_internal_consistency_only` while capture-time PKPK measurement is not implemented, so no internal-consistency check exists. | Confirmed. |
+| `no_clipping` was claimed on `rail_samples == 0` alone, without checking that the observed range stayed inside the representable limit. | Confirmed; the spec itself required the stronger condition and the implementation dropped it. |
+
+**Fixed in the follow-up change:**
+
+- Code distances are now a fraction of the code domain with both a floor and a
+  cap: merge 200/8, neighbourhood 40/2, noise radius 400/2 for WORD/BYTE. The cap
+  keeps WORD bit-identical, which is why the reference capture's four channels
+  return exactly the same numbers after the change (C4 still 280,637 edges).
+  The floor carries the intended BYTE resolution; the advisor's evidence decided
+  it — with realistic dither, 8/2 resolves two plateaus while 1/1 regresses to
+  3/6/7 plateaus and `multi_level_unresolved`.
+- `scan_candidate_excursions` now runs whenever the hysteresis scan does not, so a
+  refusal is no longer a blank answer. It reports candidate start/end samples,
+  display times, duration, peak code and deviation in sigmas, explicitly labelled
+  as candidates rather than confirmed levels, and `can_claim` gains
+  `candidate_excursions`. On the narrow-pulse record it finds the pulse exactly
+  (start 150000, end 152000, 2000 samples) instead of reporting a featureless
+  refusal. This is the resolution of the E4 trade-off recorded in section 10: the
+  scanner still refuses to assert a two-level split, but it no longer refuses to
+  look.
+- `windows[].label`, the dead code, and all four wording/provenance/claim defects
+  are corrected in the same change.
+
+**Not done, with reasons.**
+
+- **`check` (section 4.5) remains unimplemented, deliberately.** The advisor's
+  argument was that a regex over Chinese or English prose is easy to miss and easy
+  to over-trigger, and that an advisory checker does not prevent the skip it is
+  meant to detect. The stronger design — a report renderer that accepts only a
+  verdict artifact bound to the waveform SHA-256 — is a larger change than this
+  round, and shipping a weak checker would create the appearance of enforcement.
+- **Capture-time work (section 4.4) is deferred.** PKPK is an internal
+  consistency check between two readings of the same instrument, so it cannot
+  become an absolute calibration; implementing it also risks disturbing the
+  stopped-frame read path. The context-profile and error-queue parts are
+  independent of the analysis failures and are not on the critical path.
+- **`--channels` alignment summary (section 4.3 step 9) is deferred.** The four
+  reference channels are currently analysed by four separate calls, which works
+  and is scriptable; automatic cross-channel comparison would need a causality
+  claim the design explicitly refuses to make.
+
+**Most likely recurrence, as identified by the advisor and accepted here.** An
+agent meets a record the scanner refuses (BYTE, multi-level, or low-duty), and
+because a refusal used to carry no candidates it falls back to hand-rolled
+NumPy — bypassing exactly the thresholds, edge rule and time units the gate
+exists to standardise. The candidate-excursion scan is the direct answer to that
+specific path. The second path, an agent writing a free-text conclusion without
+running `verdict` at all, still has no detector, and section 11 states that
+plainly rather than implying otherwise.
+
+## 12. Approval
 
 - [ ] User approved the direction: one-command gate, parser domain fix, linear
       budget, capture-time auto calibration, detectable skipped gate.
