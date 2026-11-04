@@ -1235,6 +1235,20 @@ TIMEBASE_ENUM = [
 ]
 
 
+def representable_code_limit(data_width_bytes: int) -> int:
+    """Largest code the transfer width itself can represent.
+
+    This is a transport limit, not a full-scale or calibrated range: a WORD
+    frame carries signed 16-bit codes and a BYTE frame signed 8-bit codes.
+    """
+
+    if data_width_bytes == 2:
+        return 32767
+    if data_width_bytes == 1:
+        return 127
+    raise ScopeProtocolError(f"unsupported waveform transfer width: {data_width_bytes} bytes")
+
+
 def parse_wavedesc(payload: bytes) -> dict[str, Any]:
     """Decode the common SDS800X HD WAVEDESC offsets from raw payload bytes."""
 
@@ -1307,13 +1321,19 @@ def parse_wavedesc(payload: bytes) -> dict[str, Any]:
     result["byte_order"] = "MSB" if result["comm_order"] == 1 else "LSB"
     # SDS824X HD firmware reports MAX_VALUE=7680 at this legacy descriptor
     # offset, while the handover confirms codes_per_div=30. Older descriptors
-    # may put codes_per_div directly here, so preserve both interpretations.
-    if abs(result["vertical_code_field"]) > 256:
-        result["max_value"] = result["vertical_code_field"]
-        result["code_per_div"] = result["vertical_code_field"] / 256.0
+    # may put codes_per_div directly here, so preserve both interpretations,
+    # and publish each domain separately so neither is mistaken for the other.
+    vcf = result["vertical_code_field"]
+    if abs(vcf) > 256:
+        word_cpd, byte_cpd = vcf, vcf / 256.0
     else:
-        result["code_per_div"] = result["vertical_code_field"]
-        result["max_value"] = result["vertical_code_field"] * 256.0
+        byte_cpd, word_cpd = vcf, vcf * 256.0
+    result["max_value"] = word_cpd
+    result["transfer_width"] = "word" if result["comm_type"] == 1 else "byte"
+    result["code_domain"] = result["transfer_width"]
+    result["codes_per_div_byte"] = byte_cpd
+    result["codes_per_div_word"] = word_cpd
+    result["code_per_div"] = byte_cpd if result["code_domain"] == "byte" else word_cpd
     result["data_width_bytes"] = 1 if result["comm_type"] == 0 else 2
     if result["wave_array_1_bytes"] != result["wave_array_count"] * result["data_width_bytes"]:
         raise ScopeProtocolError(

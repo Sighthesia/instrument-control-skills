@@ -35,6 +35,7 @@ from waveform_analysis import (
     load_capture,
     summarize_capture,
 )
+from waveform_scan import build_verdict
 
 
 def _add_capture_args(parser: argparse.ArgumentParser) -> None:
@@ -58,6 +59,21 @@ def build_parser() -> argparse.ArgumentParser:
     _add_capture_args(summary)
     summary.add_argument("--chunk-points", type=int, default=DEFAULT_CHUNK_POINTS)
     summary.add_argument("--preview-buckets", type=int, default=DEFAULT_PREVIEW_BUCKETS)
+
+    verdict = commands.add_parser(
+        "verdict",
+        help="one-command analysis gate: levels, full-record edge aggregates, window table and claims",
+    )
+    _add_capture_args(verdict)
+    # Thresholds are optional here, unlike structure/regimes: the whole point of
+    # the gate is that it derives them itself and refuses when it cannot.
+    verdict_threshold = verdict.add_mutually_exclusive_group(required=False)
+    verdict_threshold.add_argument("--threshold-codes", nargs=2, type=float, metavar=("LOW", "HIGH"))
+    verdict_threshold.add_argument("--threshold-volts", nargs=2, type=float, metavar=("LOW", "HIGH"))
+    verdict.add_argument("--window-s", type=float, default=0.05)
+    verdict.add_argument("--near-threshold-limit", type=float, default=0.02)
+    verdict.add_argument("--minimum-sigmas", type=float, default=3.0)
+    verdict.add_argument("--chunk-points", type=int, default=DEFAULT_CHUNK_POINTS)
 
     events = commands.add_parser("events", help="scan full-resolution threshold edges and pulse timing")
     _add_capture_args(events)
@@ -183,11 +199,24 @@ def _ensure_output_is_external(output: Path, capture_dir: Path) -> Path:
 def _emit(args: argparse.Namespace, value: dict[str, Any]) -> None:
     value = bound_json(value, args.max_json_bytes)
     if value.get("truncated"):
+        marker = "json_output_truncated_items_are_prefixes"
+        annotated = False
         evidence = value.get("evidence")
         if isinstance(evidence, dict):
             limitations = evidence.get("limitations")
-            if isinstance(limitations, list) and "json_output_truncated_items_are_prefixes" not in limitations:
-                limitations.append("json_output_truncated_items_are_prefixes")
+            if isinstance(limitations, list):
+                if marker not in limitations:
+                    limitations.append(marker)
+                annotated = True
+        if not annotated:
+            # verdict has no `evidence` block, so a truncated verdict would
+            # otherwise be truncated with no warning at all.
+            top_level = value.get("limitations")
+            if not isinstance(top_level, list):
+                top_level = []
+                value["limitations"] = top_level
+            if marker not in top_level:
+                top_level.append(marker)
     encoded = json.dumps(value, separators=(",", ":"), sort_keys=True, allow_nan=False)
     if args.out:
         output = _ensure_output_is_external(args.out, args.capture if args.capture.is_dir() else args.capture.parent)
@@ -207,6 +236,32 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
     )
     if args.command == "inspect":
         return _inspect(capture)
+    if args.command == "verdict":
+        threshold_codes = args.threshold_codes
+        if threshold_codes is None and args.threshold_volts:
+            # A voltage threshold needs a valid scale. When there is none, the
+            # correct outcome is a REFUSED verdict, not an exception, so the
+            # conversion failure is reported through the verdict itself.
+            if capture["calibration"]["status"] != "VALID":
+                return build_verdict(
+                    capture,
+                    window_s=args.window_s,
+                    near_threshold_limit=args.near_threshold_limit,
+                    minimum_sigmas=args.minimum_sigmas,
+                    chunk_points=args.chunk_points,
+                )
+            low_v, high_v = args.threshold_volts
+            scale = capture["calibration"]["code_scale_v"]
+            offset = capture["calibration"]["effective_offset_v"]
+            threshold_codes = [(low_v + offset) / scale, (high_v + offset) / scale]
+        return build_verdict(
+            capture,
+            threshold_codes=tuple(threshold_codes) if threshold_codes else None,
+            window_s=args.window_s,
+            near_threshold_limit=args.near_threshold_limit,
+            minimum_sigmas=args.minimum_sigmas,
+            chunk_points=args.chunk_points,
+        )
     if args.command == "summarize":
         return summarize_capture(capture, chunk_points=args.chunk_points, preview_buckets=args.preview_buckets)
     if args.command == "events":

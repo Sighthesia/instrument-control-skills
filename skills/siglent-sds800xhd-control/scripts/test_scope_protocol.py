@@ -21,6 +21,7 @@ from scope_protocol import (
     normalize_acquisition_state,
     parse_ieee_block,
     parse_wavedesc,
+    representable_code_limit,
     decode_analog_byte,
     read_trigger_configuration,
     scope_prepare_capture,
@@ -37,6 +38,23 @@ from capture_scope import merge_segment_payloads
 def block(payload: bytes, prefix: bytes = b"\x00DAT2,") -> bytes:
     length = str(len(payload)).encode("ascii")
     return prefix + b"#" + str(len(length)).encode("ascii") + length + payload
+
+
+def wavedesc_bytes(comm_type: int, vertical_code_field: float, *, points: int = 10, adc_bit: int = 16) -> bytes:
+    """Build a minimal 346-byte WAVEDESC with the given transfer layout."""
+
+    raw = bytearray(346)
+    raw[:8] = b"WAVEDESC"
+    struct.pack_into("<h", raw, 32, comm_type)
+    struct.pack_into("<h", raw, 34, 0)
+    struct.pack_into("<i", raw, 36, 346)
+    struct.pack_into("<i", raw, 60, points * (1 if comm_type == 0 else 2))
+    struct.pack_into("<i", raw, 116, points)
+    struct.pack_into("<f", raw, 156, 2.0)
+    struct.pack_into("<f", raw, 164, vertical_code_field)
+    struct.pack_into("<h", raw, 172, adc_bit)
+    struct.pack_into("<h", raw, 324, 28)
+    return bytes(raw)
 
 
 class ProtocolTests(unittest.TestCase):
@@ -104,6 +122,33 @@ class ProtocolTests(unittest.TestCase):
 
         eight_bit_descriptor = dict(parsed, comm_type=0, data_width_bytes=1, nominal_bits=8)
         self.assertEqual(decide_waveform_width(eight_bit_descriptor, "auto")["width_command"], "BYTE")
+
+    def test_word_wavedesc_publishes_word_code_domain(self):
+        parsed = parse_wavedesc(wavedesc_bytes(comm_type=1, vertical_code_field=7680.0, adc_bit=16))
+        self.assertEqual(parsed["data_width_bytes"], 2)
+        self.assertEqual(parsed["nominal_bits"], 16)
+        self.assertEqual(parsed["transfer_width"], "word")
+        self.assertEqual(parsed["code_domain"], "word")
+        self.assertEqual(parsed["code_per_div"], 7680.0)
+        self.assertEqual(parsed["codes_per_div_byte"], 30.0)
+        self.assertEqual(parsed["codes_per_div_word"], 7680.0)
+        self.assertEqual(parsed["max_value"], 7680.0)
+
+    def test_legacy_byte_wavedesc_keeps_byte_code_domain(self):
+        parsed = parse_wavedesc(wavedesc_bytes(comm_type=0, vertical_code_field=30.0, adc_bit=8))
+        self.assertEqual(parsed["data_width_bytes"], 1)
+        self.assertEqual(parsed["transfer_width"], "byte")
+        self.assertEqual(parsed["code_domain"], "byte")
+        self.assertEqual(parsed["code_per_div"], 30.0)
+        self.assertEqual(parsed["codes_per_div_byte"], 30.0)
+        self.assertEqual(parsed["codes_per_div_word"], 7680.0)
+        self.assertEqual(parsed["max_value"], 7680.0)
+
+    def test_representable_code_limit_tracks_transfer_width(self):
+        self.assertEqual(representable_code_limit(2), 32767)
+        self.assertEqual(representable_code_limit(1), 127)
+        with self.assertRaises(ScopeProtocolError):
+            representable_code_limit(4)
 
     def test_decorated_acquisition_state_is_normalized(self):
         from scope_protocol import ScopeSession, scope_assume_existing_stop, scope_wait_ready, scope_wait_stop

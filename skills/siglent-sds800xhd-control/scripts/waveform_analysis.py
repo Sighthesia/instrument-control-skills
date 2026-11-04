@@ -4021,6 +4021,58 @@ def analyze_waveform_regimes(
     }
 
 
+def _compact_json_bytes(value: Any) -> int:
+    """Compact UTF-8 byte size of a JSON-encodable value.
+
+    The length is independent of key order, so it matches the sorted output
+    encoding, and it is additive across nested containers: a list measured on
+    its own can be subtracted from the document total. Budget enforcement uses
+    that additivity instead of re-serializing the whole document per edit.
+    """
+    return len(json.dumps(value, separators=(",", ":"), allow_nan=False).encode("utf-8"))
+
+
+def _item_byte_cost(values: list[Any], sample: int = 32) -> float:
+    """Estimated serialized bytes per item, separators included.
+
+    One measurement per list: item tables are homogeneous, so a head/tail sample
+    average predicts what a kept prefix costs and what dropping the tail saves.
+    The caller verifies the finished document instead of re-serializing it for
+    every removed item.
+    """
+    head = values[:sample]
+    measured = head + (values[-sample:] if len(values) > sample else [])
+    if not measured:
+        return 0.0
+    return (_compact_json_bytes(measured) - 2 - (len(measured) - 1)) / len(measured)
+
+
+def _trim_to_budget(values: list[Any], excess_bytes: int) -> int:
+    """Index of the first kept item once ``excess_bytes`` is trimmed off the tail."""
+    count = len(values)
+    if count == 0 or excess_bytes <= 0:
+        return count
+    item_cost = _item_byte_cost(values)
+    if item_cost <= 0:
+        return 0
+    return max(0, count - int(math.ceil(excess_bytes / item_cost)))
+
+
+def _trim_tail_exactly(values: list[Any], excess_bytes: int) -> tuple[int, int]:
+    """Index of the first kept item and bytes saved, charging each item its size.
+
+    Repair path for item tables whose sampled estimate under-cut the budget: the
+    walk is linear in the items actually removed, and each one is charged its
+    real serialized size plus its separator.
+    """
+    keep = len(values)
+    saved = 0
+    while keep > 0 and saved < excess_bytes:
+        keep -= 1
+        saved += len(json.dumps(values[keep], separators=(",", ":"), allow_nan=False).encode("utf-8")) + 1
+    return keep, saved
+
+
 def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
     if max_bytes <= 0 or max_bytes > MAX_JSON_BYTES:
         raise AnalysisError("LIMIT_INVALID", f"max_json_bytes must be in 1..{MAX_JSON_BYTES}")
@@ -4059,12 +4111,13 @@ def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
                 }
             )
     result["truncated"] = False
-    if len(json.dumps(result, separators=(",", ":"), allow_nan=False).encode("utf-8")) <= max_bytes:
+    measured_bytes = _compact_json_bytes(result)
+    if measured_bytes <= max_bytes:
         return result
     result["truncated"] = True
 
     def size() -> int:
-        return len(json.dumps(result, separators=(",", ":"), sort_keys=True, allow_nan=False).encode("utf-8"))
+        return _compact_json_bytes(result)
 
     # Bounded list sections. Every section keeps its authoritative ``count``; a
     # shortened ``items`` list is always flagged so a bounded response can never
@@ -4081,62 +4134,77 @@ def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
         ("pulse_clusters", "items", "returned"),
         ("preview", "points", "selected_points"),
     )
-    for section_key, list_key, counter_key in sections:
-        parent = result.get(section_key)
-        if not isinstance(parent, dict):
-            continue
-        values = parent.get(list_key)
-        if not isinstance(values, list) or not values:
-            continue
-        is_events = section_key == "events"
+    def _event_cursor(parent: dict[str, Any], items: list[Any]) -> Optional[str]:
+        # Cursor generation requires real event items and a returned counter;
+        # synthetic or partially populated sections must not raise here.
+        if "returned" not in parent or not items:
+            return None
+        last = items[-1]
+        if not isinstance(last, dict) or "start_sample" not in last or "type" not in last:
+            return None
+        return _encode_cursor(result.get("capture", {}).get("raw_sha256", ""), _event_cursor_key(last))
 
-        def _event_cursor(items: list[Any]) -> Optional[str]:
-            # Cursor generation requires real event items and a returned counter;
-            # synthetic or partially populated sections must not raise here.
-            if "returned" not in parent or not items:
-                return None
-            last = items[-1]
-            if not isinstance(last, dict) or "start_sample" not in last or "type" not in last:
-                return None
-            return _encode_cursor(result.get("capture", {}).get("raw_sha256", ""), _event_cursor_key(last))
-
-        while values:
-            if size() <= max_bytes:
-                return result
-            values.pop()
+    def truncate_sections(current_bytes: int) -> None:
+        """Cut every bounded list at most once, in priority order, until it fits."""
+        for section_key, list_key, counter_key in sections:
+            if current_bytes <= max_bytes:
+                return
+            parent = result.get(section_key)
+            if not isinstance(parent, dict):
+                continue
+            values = parent.get(list_key)
+            if not isinstance(values, list) or not values:
+                continue
+            excess = current_bytes - max_bytes
+            keep = _trim_to_budget(values, excess)
+            removed = values[keep:]
+            if removed:
+                current_bytes -= _compact_json_bytes(removed) + 1
+            del values[keep:]
             if counter_key in parent:
                 parent[counter_key] = len(values)
-            if list_key == "items" and not is_events:
+            if list_key == "items" and section_key != "events":
                 parent["items_truncated"] = True
                 parent["items_complete"] = False
-            if is_events:
-                parent["next_cursor"] = _event_cursor(values)
-        if counter_key in parent:
-            parent[counter_key] = len(values)
-        if list_key == "items" and not is_events:
-            parent["items_truncated"] = True
-            parent["items_complete"] = False
-        if is_events:
-            parent["next_cursor"] = None
-        if size() <= max_bytes:
-            return result
+            if section_key == "events":
+                parent["next_cursor"] = _event_cursor(parent, values)
+
+    truncate_sections(measured_bytes)
+    measured_bytes = _compact_json_bytes(result)
+    if measured_bytes > max_bytes:
+        # The per-item estimate can under-cut an inhomogeneous item table. Repair
+        # once against the measured remainder, then verify that result once more.
+        truncate_sections(measured_bytes)
+        measured_bytes = _compact_json_bytes(result)
+    if measured_bytes <= max_bytes:
+        return result
+
     window = result.get("window")
     if isinstance(window, dict) and isinstance(window.get("codes"), list):
         codes = window["codes"]
         volts = window.get("volts")
-        while codes:
+
+        def update_window_counts() -> None:
             window["returned_count"] = len(codes)
             window["end_sample_exclusive"] = window.get("start_sample", 0) + len(codes)
             window["truncated"] = len(codes) < window.get("count", len(codes))
-            if size() <= max_bytes:
-                return result
-            codes.pop()
+
+        update_window_counts()
+        if measured_bytes > max_bytes and codes:
+            # ``codes`` and ``volts`` are parallel sample arrays; one prefix cut
+            # keeps them aligned at the same length.
+            item_cost = (_compact_json_bytes(codes) - 2) / len(codes)
+            if isinstance(volts, list) and volts:
+                item_cost += (_compact_json_bytes(volts) - 2) / len(volts)
+            keep = 0 if item_cost <= 0 else max(
+                0, len(codes) - int(math.ceil((measured_bytes - max_bytes) / item_cost))
+            )
+            del codes[keep:]
             if isinstance(volts, list):
-                volts.pop()
-        window["returned_count"] = len(codes)
-        window["end_sample_exclusive"] = window.get("start_sample", 0) + len(codes)
-        window["truncated"] = len(codes) < window.get("count", len(codes))
-        if size() <= max_bytes:
+                del volts[keep:]
+            update_window_counts()
+            measured_bytes = _compact_json_bytes(result)
+        if measured_bytes <= max_bytes:
             return result
 
     # Preserve compact regime summaries by pruning verbose candidate diagnostics
@@ -4170,11 +4238,16 @@ def bound_json(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
         for section_name in ("cycles", "anomalies"):
             parent = result.get(section_name)
             values = parent.get("items") if isinstance(parent, dict) else None
-            while isinstance(values, list) and values and size() > max_bytes:
-                values.pop()
-                parent["returned"] = len(values)
-                parent["items_truncated"] = True
-                parent["items_complete"] = False
+            if not isinstance(values, list) or not values:
+                continue
+            current_bytes = size()
+            if current_bytes <= max_bytes:
+                continue
+            keep = _trim_to_budget(values, current_bytes - max_bytes)
+            del values[keep:]
+            parent["returned"] = len(values)
+            parent["items_truncated"] = True
+            parent["items_complete"] = False
         if size() > max_bytes:
             for section_name in ("cycles", "anomalies"):
                 parent = result.get(section_name)

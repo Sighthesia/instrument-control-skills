@@ -45,8 +45,14 @@ computed (all reproducible from its own transcript):
   `code_per_div = 30` (a BYTE-domain quantity) to a WORD transfer, printed
   "1 code = 66.7 mV", and reported a "3000 code" span as "200.00 V".
 - **E2 Invented clipping.** From E1's inflated number it asserted C4 was
-  "已被削顶". C4 never touches the rail: observed range `-1472..20528` codes
-  against a `±38400` code full scale, i.e. 0 rail samples.
+  "已被削顶". C4 never touches the rail: observed range `-1472..20528` codes,
+  and the transport's representable limit is `±32767` codes with **zero**
+  samples at it. The arithmetic that makes this checkable at all: at 2 V/div the
+  panel's nominal full scale is `5 * 7680 = 38400` codes, but an int16 WORD
+  payload stops at `32767` codes, i.e. **4.267 divisions / 8.53 V peak**.
+  Clipping is therefore undetectable above 4.267 divisions on this setting, and
+  any rail claim must be stated against the representable limit, never against
+  the nominal 5-division screen.
 - **E3 Wrong edge detector.** It used `abs(diff(x)) > 1500` — a sample-to-sample
   slew test — as if it were a level crossing, admitting noise and missing slow
   edges.
@@ -85,7 +91,7 @@ proper hysteresis (main-agent verification, not the incident agent's numbers):
 |---|---|
 | C4 low / high level | -0.01 V / 5.00 V |
 | C4 codes per volt (derived) | high 19200 codes / 5.00 V = 3840 codes/V -> 7680 codes/div at 2 V/div |
-| C4 rail samples | 0 |
+| C4 rail samples | 0 (representable limit `±32767`; clip limit 4.267 div / 8.53 V peak) |
 | C4 edges, full record | 280,637 (hysteresis state machine) |
 | C4 median half period (dense regions) | 25 samples = 1.25 us -> ~400 kHz |
 | C4 mean half period, full record | 3.207 us -> 156 kHz |
@@ -126,7 +132,9 @@ bypassed.** `bound_json` (`waveform_analysis.py:4024`) removes items one at a
 time and re-serializes the entire document for each removal. Measured
 consequences:
 
-- C4 has 280,637-561,274 edges; `DEFAULT_STRUCTURE_EDGE_LIMIT` is 20,000
+- C4 has 280,637 edges through a single hysteresis state machine (561,274 if a
+  crossed-high mask is concatenated with a crossed-low mask, which double counts
+every edge); `DEFAULT_STRUCTURE_EDGE_LIMIT` is 20,000
   (`waveform_analysis.py:33`), so a full-record `structure` is `UNVERIFIED` by
   construction on this signal.
 - A 0.05 s window (1 M points, ~120 k edges) did not finish within 300 s.
@@ -143,9 +151,13 @@ instead of reinterpreted.
 
 ### 4.0 Frozen decisions
 
-- **D1** `verdict` is a new subcommand of `analyze_waveform.py`, not a new
-  script. It reuses `load_capture`, the calibration loader, and the integrity
-  validator, and keeps one CLI surface.
+- **D1** `verdict` lives in a **new module `waveform_scan.py`**, not inside
+  `waveform_analysis.py`. It imports only `load_capture`, `AnalysisError`,
+  `DEFAULT_CHUNK_POINTS` and `SCHEMA_VERSION` from the analyzer. This answers the
+  reviewer's question of whether a future regression in the analyzer could take
+  the gate down with it: it cannot, because the scanner is a separate file with a
+  narrow import surface. The CLI still exposes it as
+  `analyze_waveform.py verdict`, so there is one user-facing entry point.
 - **D2** `verdict` emits aggregates and a fixed-width window table. It never
   emits an unbounded `edges` / `pulses` / `cycles` item list, so it cannot hit
   the `bound_json` path in normal use.
@@ -277,7 +289,16 @@ One process, in this order:
    support rule, transition-uncertainty intervals, or drift. `verdict` must say
    so in `claims.cannot_claim` (`stability_and_transition_analysis`) instead of
    implying full coverage.
-6. **Rail / clipping detection**, reported explicitly so E2 cannot recur.
+6. **Rail / clipping detection against the representable limit, not the nominal
+   screen.** Report `full_scale_code = 5 * codes_per_div` (the panel's nominal),
+   `representable_code_limit` (32767 for WORD, 127 for BYTE),
+   `clip_limit_div = representable_code_limit / codes_per_div`, `rail_samples`,
+   and `clipped = rail_samples > 0`. For this capture that is 38400 nominal
+   versus 32767 representable, so clipping is only observable up to 4.267
+   divisions / 8.53 V peak. A verdict must never claim "no clipping" beyond that
+   limit; `claims.can_claim` gains `no_clipping` only when the observed range
+   stays inside the representable limit, and `clipping_detectable_up_to_div`
+   carries the boundary so E2 cannot recur in either direction.
 7. **Time anchoring**: every window and every statistic carries display time from
    `origin_s`, so E8 cannot recur.
 8. **Claims block** (§4.3.1) and `must_state` (§4.3.2).
@@ -333,7 +354,11 @@ that inherits a wrong automatic decision — is handled by the refusal paths in
   "structure": {"scan": "full_record_original_resolution",
                 "edge_count": 280637, "detection_resolution_s": 5e-08,
                 "rail_samples": 0, "clipped": false,
-                "min_code": -1472, "max_code": 20528, "full_scale_code": 38400},
+                "min_code": -1472, "max_code": 20528,
+                "full_scale_code": 38400,
+                "representable_code_limit": 32767,
+                "clip_limit_div": 4.267,
+                "clipping_detectable_up_to_div": 4.267},
   "sampling_risk": {"samples_per_cycle_at_dense_frequency": 50,
                     "period_quantisation_s": 5e-08,
                     "period_quantisation_fraction_of_half_period": 0.04,
@@ -493,7 +518,7 @@ incident failure:
 | ID | Test | Assertion |
 |---|---|---|
 | E1 | WORD frame, no calibration artifact, `--threshold-volts` requested | `status = REFUSED`; response contains no `*_v` field |
-| E2 | This capture's C4 | `structure.rail_samples == 0` and `structure.clipped == false` |
+| E2 | This capture's C4 | `structure.rail_samples == 0`, `structure.clipped == false`, and `clipping_detectable_up_to_div == representable_code_limit / codes_per_div` (4.267 here, not 5) |
 | E3/E4 | Thresholds placed inside the noise band | `near_threshold_fraction` exceeds the limit -> `REFUSED` with `thresholds_not_separated` |
 | E5 | 34085 samples at 20 MSa/s | reported interval `= 1.7043e-3` s |
 | E6 | Full-record `verdict` on this capture | completes < 60 s, `status = OBSERVED`, `claims` non-empty |
@@ -525,11 +550,14 @@ Additional acceptance:
 1. `scope_protocol.py` (one owner): §4.1 domain annotation, and the read-only
    `MEASure` query helpers §4.4.1 needs. Verify against `test_scope_protocol.py`
    plus a new WORD/BYTE domain assertion.
-2. `waveform_analysis.py` (one owner, after §7.1 freezes): §4.2 linear
-   `bound_json`, threshold auto-derivation helper, hysteresis aggregate scanner,
-   window table, rail detection, `verdict` result builder.
-3. `analyze_waveform.py` (separate owner, after the API signature freezes): the
-   `verdict` and `check` subcommands and their argument surface.
+2. `waveform_scan.py` (**new file**, one owner, depends only on the frozen
+   `load_capture` signature): §4.3 threshold derivation, the hysteresis aggregate
+   scanner, the window table, rail detection, and the `verdict` result builder.
+   Deliberately not in `waveform_analysis.py` (D1).
+3. `waveform_analysis.py` (separate owner, parallel with 2): §4.2 linear
+   `bound_json` only. No other function in that file is touched.
+3. `analyze_waveform.py` (separate owner, after the `build_verdict` signature
+   freezes): the `verdict` and `check` subcommands and their argument surface.
 4. `capture_scope.py` (separate owner, independent of 2 and 3): §4.4 PKPK
    calibration, context profile check, error drain, `--channel-map`,
    `analysis-required.json`.
@@ -602,9 +630,10 @@ observed failures.
 
 ## 9. Open Questions
 
-- Does the reviewer accept `verdict` as a subcommand of the existing analyzer, or
-  should it be a separate script so a future regression in the analyzer cannot
-  take the gate down with it?
+- ~~Does the reviewer accept `verdict` as a subcommand of the existing analyzer,
+  or should it be a separate script so a future regression in the analyzer cannot
+  take the gate down with it?~~ **Resolved: separate module `waveform_scan.py`,
+  one CLI entry point via `analyze_waveform.py verdict` (D1).**
 - Should `check` be advisory (non-zero exit) or blocking (a documented
   pre-condition for quoting any conclusion)?
 - Is `--profile typical` a safe default, given that a deliberate off-profile
@@ -616,7 +645,71 @@ observed failures.
   `low_duty_pulse_train`, ...). Confirm the separation or reuse the existing
   names.
 
-## 10. Approval
+## 10. Implementation Status
+
+Shipped in this change:
+
+- `scope_protocol.py` §4.1 domain annotation plus `representable_code_limit`.
+  Verified on the real capture: all four WORD preambles now report
+  `code_per_div = 7680`, `code_domain = "word"`, `codes_per_div_byte = 30`,
+  where they previously reported 30 with nothing naming the domain.
+- `waveform_scan.py` (new module) with `derive_thresholds`,
+  `scan_hysteresis_aggregates`, `build_verdict`.
+- `waveform_analysis.py` §4.2 linear `bound_json`: 120,000 items now truncate in
+  0.24 s (previously a 120k window did not finish in 300 s), the authoritative
+  count survives, and the budget is respected at 256 KiB, 1 MiB and 4 MiB.
+- `analyze_waveform.py` `verdict` subcommand, with `REFUSED` returned as a
+  success path (exit 0) and truncation annotated on the top-level limitations
+  list.
+- `SKILL.md` gate step 0 naming the single command.
+- `test_verdict_gate.py`: 23 regression tests, one group per incident failure.
+
+**Reference-capture result.** `verdict --channel C4` now reports `OBSERVED`,
+`edge_count = 280637`, 20 contiguous windows, `rail_samples = 0`,
+`clip_limit_div = 4.267`, dense-window frequency 400.0 kHz, full-record mean
+155.9 kHz, and a bimodal note. All four channels resolve: C1 12135 edges at
+19.8 kHz, C2 10250 at 17.5 kHz, C3 12291 at 19.5 kHz, C4 280637 at 400 kHz.
+The C4 edge count matches an independent hand computation exactly.
+
+**Design corrections found during implementation**, all recorded because the
+spec was wrong rather than the code:
+
+1. Thresholds cannot be placed at a *mass quantile* between the two level peaks.
+   On an oscillating signal the transition samples spread evenly across the gap,
+   so a 25% quantile lands 0.6 sigma from the low level, i.e. inside its noise
+   band. They are now placed symmetrically about the gap centre, which yields
+   45.8 sigma and 63.0 sigma clearance on the reference capture.
+2. The `near_threshold_fraction` test in §4.3 step 3 is not a valid placement
+   test for a fast oscillation: the reference capture legitimately has 22% of
+   its samples between the thresholds. Placement is now judged by each level's
+   own measured noise sigma, and `near_threshold_fraction` is kept as a
+   diagnostic only.
+3. Contiguous-occupancy plateau detection fails on this signal by construction:
+   the transition band holds 49% of the record, so the two levels fuse into one
+   plateau. Level detection now uses histogram mass peaks relative to the
+   dominant peak. The 0.10 relative floor is stable across 0.05-0.30 on all four
+   channels.
+4. Bimodality cannot be decided by a median-versus-mean test alone: a record
+   that is half fast oscillation and half silence keeps the mean within 50% of
+   the median. A p90-versus-median spread test was added alongside it.
+5. `calibration.codes_per_div` is the BYTE value and must never be used for a
+   WORD frame's clip limit; the scanner reads the preamble domain instead and
+   reinterprets a legacy preamble with the parser's own two-branch rule rather
+   than rewriting stored evidence.
+6. The window count must snap a near-integer span to the integer. A 1.0000000117 s
+   record divides to 20.0000002 windows, and ceiling that invents a 21st window of
+   zero width.
+
+**Known limitation, deliberately accepted.** A narrow pulse whose level holds
+under 10% of the dominant peak's mass is not accepted as a level, so a record
+like 2000 high samples in 200000 REFUSES instead of reporting `OBSERVED`. That is
+the conservative direction — it says the level structure is unresolved rather
+than either dismissing the pulse as noise or fabricating a threshold pair — but
+it does mean E4 is only half solved. A time-contiguity test (a level that forms a
+contiguous run is a level regardless of mass) is the natural next step and is not
+part of this change.
+
+## 11. Approval
 
 - [ ] User approved the direction: one-command gate, parser domain fix, linear
       budget, capture-time auto calibration, detectable skipped gate.
