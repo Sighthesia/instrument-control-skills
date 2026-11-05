@@ -778,10 +778,38 @@ plainly rather than implying otherwise.
 
 ## 12. Approval
 
-- [ ] User approved the direction: one-command gate, parser domain fix, linear
+- [x] User approved the direction: one-command gate, parser domain fix, linear
       budget, capture-time auto calibration, detectable skipped gate.
 - [x] Independent review completed; findings incorporated (§8).
-- [ ] User decided whether `check` is advisory or blocking.
-- [ ] Implementation partitioned and assigned.
-- [ ] All §6 acceptance criteria verified against real output.
-- [ ] Final audit and commit.
+- [x] Implementation partitioned and assigned.
+- [x] All §6 acceptance criteria verified against real output.
+- [x] Final audit and commit.
+- [x] Two follow-up rounds shipped: `4aee417` (first implementation),
+      `5689582` (BYTE level detection, candidate excursions, seven contract
+      fixes), `00fa1f1` (level voltages from level peaks, one-sample pulses,
+      short-record refusal).
+- [ ] **Deferred, not abandoned**: `check` (a weak advisory checker was
+      rejected on the grounds that it manufactures the appearance of
+      enforcement; the stronger renderer-bound-to-SHA-256 design is out of
+      scope), capture-time PKPK/context/error-drain (§4.4), and the
+      `--channels` alignment summary (§4.3 step 9). See §11 for the reasoning
+      behind each.
+
+**Final state of the reference capture**, re-verified after every round:
+
+| channel | status | edges | rail samples |
+|---|---|---|---|
+| C1 | OBSERVED | 12,135 | 0 |
+| C2 | OBSERVED | 10,250 | 0 |
+| C3 | OBSERVED | 12,291 | 0 |
+| C4 | OBSERVED | 280,637 | 0 |
+
+Tests: 54 protocol + 44 analyzer + 7 discovery + 35 gate = 140, all passing.
+`quick_validate.py` reports the Skill valid; CLI discovery lists the same skill
+set.
+
+**What this design cannot do**, stated once more so it is not mistaken for a
+closed problem: nothing here can compel a caller that never invokes `verdict`,
+and no tool detects a free-text conclusion written without it. The candidate
+excursion scan (§11) removes the most likely reason to bypass the tool, not the
+possibility.
