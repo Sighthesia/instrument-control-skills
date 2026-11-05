@@ -469,6 +469,11 @@ def derive_thresholds(capture: dict[str, Any], *, chunk_points: int = DEFAULT_CH
         {"start_code": code, "end_code": code, "fraction": round(mass / count, 6)}
         for code, mass in peaks
     ]
+    # A record shorter than the smallest accepted level cannot support a level
+    # split at all. Saying "thresholds_not_separated" for that case points the
+    # caller at the wrong remedy, so it is reported as its own refusal and the
+    # reason travels with it.
+    record_too_short = count < 2 * PEAK_MIN_ABSOLUTE_SAMPLES
 
     percentiles = {
         f"p{int(percentile * 100):02d}": _percentile_code(histogram, count, percentile, code_min)
@@ -505,7 +510,7 @@ def derive_thresholds(capture: dict[str, Any], *, chunk_points: int = DEFAULT_CH
         else:
             near_threshold = _band_fraction(histogram, code_min, low_code, high_code, count)
     elif len(peaks) == 1:
-        status = "thresholds_not_separated"
+        status = "record_too_short" if record_too_short else "thresholds_not_separated"
     elif len(peaks) >= 3:
         status = "multi_level_unresolved"
         widest = max(
@@ -859,7 +864,7 @@ def scan_candidate_excursions(
     *,
     reference_code: int,
     noise_sigma: Optional[float],
-    minimum_duration_samples: int = 2,
+    minimum_duration_samples: int = 1,
     max_candidates: int = 200,
     chunk_points: int = DEFAULT_CHUNK_POINTS,
 ) -> dict[str, Any]:
@@ -1116,6 +1121,12 @@ def _refusal_detail(
         f"a peak counts as a level only when it is a local maximum holding at least "
         f"{PEAK_MIN_RELATIVE_MASS:.0%} of the dominant peak's mass"
     )
+    if code == "record_too_short":
+        return (
+            "the record holds fewer samples than two levels can be resolved from "
+            f"(a level needs at least {PEAK_MIN_ABSOLUTE_SAMPLES} samples), so no level "
+            "structure exists to analyse; this is a record-length limit, not a signal finding"
+        )
     if code == "multi_level_unresolved":
         return (
             f"{plateau_count} level peaks were found, more than the two a two-level split requires; "
@@ -1340,11 +1351,30 @@ def build_verdict(
         scale = _finite(calibration.get("code_scale_v"))
         offset = _finite(calibration.get("effective_offset_v"))
         if scale is not None and offset is not None:
-            low_v = float(low_code) * scale - offset
-            high_v = float(high_code) * scale - offset
+            # `low_v` / `high_v` name the LEVEL voltages, so they must come from
+            # the level peaks, not from the thresholds. The thresholds are placed
+            # symmetrically in the gap between the levels (25% / 75%), so using
+            # them here reported a 0/5 V square wave as 1.25/3.75 V. The threshold
+            # voltages are published separately when a caller needs them.
+            plateau_codes = [entry["start_code"] for entry in thresholds["plateaus"]]
+            if len(plateau_codes) >= 2:
+                low_v = float(plateau_codes[0]) * scale - offset
+                high_v = float(plateau_codes[-1]) * scale - offset
+    threshold_v: Optional[list[float]] = None
+    if scale_status == "VALID" and separated and reported_codes is not None:
+        scale = _finite(calibration.get("code_scale_v"))
+        offset = _finite(calibration.get("effective_offset_v"))
+        if scale is not None and offset is not None:
+            threshold_v = [
+                float(reported_codes[0]) * scale - offset,
+                float(reported_codes[1]) * scale - offset,
+            ]
     levels_block = {
         "low_v": low_v,
         "high_v": high_v,
+        "level_v_basis": "plateau_peak_code",
+        "threshold_v": threshold_v,
+        "threshold_v_basis": "hysteresis_threshold_code",
         "threshold_codes": reported_codes,
         "threshold_evidence": {
             "p01": thresholds["percentile_cross_check"]["p01"],

@@ -304,6 +304,43 @@ class DomainTests(unittest.TestCase):
         expected_codes_per_v = WORD_CODES_PER_DIV / verdict["domain"]["v_per_div"]
         self.assertAlmostEqual(verdict["domain"]["codes_per_v"], expected_codes_per_v, places=3)
 
+    def test_level_voltages_come_from_the_levels_not_the_thresholds(self):
+        # The thresholds are placed symmetrically in the gap (25% / 75%), so
+        # reporting low_v/high_v from them scaled a 0/5 V square wave to
+        # 1.25/3.75 V. The names mean LEVEL voltages and must come from the
+        # plateau peaks; threshold voltages are published separately.
+        values = _square_wave(40000, 200, low=0, high=19200)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_capture(root, values, width=2, sample_interval=REFERENCE_INTERVAL_S)
+            manifest_path = root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            preamble = manifest["results"][0]["preamble"]
+            preamble["vertical_code_field"] = WORD_CODES_PER_DIV
+            preamble["code_per_div"] = WORD_CODES_PER_DIV
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            capture = load_capture(root, "C1")
+            # A verified scale of 2 V/div over 7680 codes/div is 2/7680 V per code.
+            capture["calibration"] = dict(capture["calibration"])
+            capture["calibration"].update(
+                status="VALID",
+                code_scale_v=2.0 / WORD_CODES_PER_DIV,
+                effective_offset_v=0.0,
+                effective_vdiv_v_per_div=2.0,
+            )
+            verdict = build_verdict(capture)
+
+        self.assertEqual(verdict["status"], "OBSERVED")
+        self.assertAlmostEqual(verdict["levels"]["low_v"], 0.0, places=3)
+        self.assertAlmostEqual(verdict["levels"]["high_v"], 5.0, places=3)
+        self.assertEqual(verdict["levels"]["level_v_basis"], "plateau_peak_code")
+        # Thresholds sit inside the gap, so their voltages must differ from the
+        # level voltages. Equality here would mean the old defect is back.
+        threshold_v = verdict["levels"]["threshold_v"]
+        self.assertIsNotNone(threshold_v)
+        self.assertGreater(threshold_v[0], verdict["levels"]["low_v"])
+        self.assertLess(threshold_v[1], verdict["levels"]["high_v"])
+
 
 class TimingAndWindowTests(unittest.TestCase):
     def test_window_table_is_contiguous_and_time_anchored(self):
@@ -438,7 +475,27 @@ class ProvenanceTests(unittest.TestCase):
 
 
 class AggregateScannerTests(unittest.TestCase):
-    def test_scan_returns_aggregates_without_an_item_table(self):
+    def test_single_sample_pulses_are_not_silently_dropped(self):
+        # A one-sample excursion is real evidence. A minimum duration of 2
+        # samples discarded every pulse in a 1% duty train and reported zero
+        # candidates, which reads exactly like "nothing was there".
+        values = [0] * 200000
+        for index in range(0, len(values), 100):
+            values[index] = 19200
+        verdict = _verdict(values)
+        self.assertEqual(verdict["status"], "REFUSED")
+        self.assertEqual(verdict["structure"]["candidate_excursion_count"], 2000)
+        self.assertIn("candidate_excursions", verdict["claims"]["can_claim"])
+
+    def test_short_record_refusal_names_the_record_length(self):
+        # Five samples cannot support two levels. Reporting
+        # "thresholds_not_separated" points the caller at the wrong remedy.
+        verdict = _verdict([0, 19200, 0, 19200, 0])
+        self.assertEqual(verdict["status"], "REFUSED")
+        self.assertEqual(verdict["refusal"]["code"], "record_too_short")
+        self.assertIn("record-length limit", verdict["refusal"]["detail"])
+
+    def test_scanner_does_not_report_an_item_table(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _write_capture(root, _square_wave(40000, 200), width=2, sample_interval=REFERENCE_INTERVAL_S)
