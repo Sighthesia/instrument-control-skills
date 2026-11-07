@@ -84,6 +84,34 @@ History is a buffer of past acquisitions, not a timestamp log. Enable it, then s
 
 Frame count depends on memory depth: more points per frame means fewer stored frames. `:HISTORy:TIME?` returns `HH:MM:SS.ffffff` with no calendar date, so pair it with `:SYSTem:DATE?` and `:SYSTem:TIME?` (printed pp. 232, 238) when a wall-clock timestamp matters. Selecting or playing a frame changes the instrument view, so it is forbidden during an immutable read.
 
+### 通过引擎写入历史配置
+
+`:HISTORy` 的 6 条命令（pp. 161-163）都在 `scope_command_catalog.py` 里，风险类全部是 `display`，而且每条都有手册查询，所以 `apply --write` 能把它们判到 `verified`：
+
+| 命令 | 文档参数域 | 语义 | 手册印刷页 |
+|---|---|---|---|
+| `:HISTORy` | `ON`、`OFF` | 历史存储总开关 | p. 161 |
+| `:HISTORy:FRAMe` | 整型帧号 | 选中哪一帧 | p. 161 |
+| `:HISTORy:INTERval` | `[1.00E-06, 1]` | **回放**间隔，不是采样间隔 | p. 162 |
+| `:HISTORy:LIST` | `OFF`、`ON[,TIME\|DELTa]` | 列表开关；`TIME` 按采样时间、`DELTa` 按采样间隔显示 | p. 162 |
+| `:HISTORy:PLAY` | `BACKWards`、`PAUSe`、`FORWards` | 回放方向 / 暂停 | p. 163 |
+| `:HISTORy:TIME?` | 只读 | 当前帧时间戳 | p. 163 |
+
+顺序和前提：先 `:HISTORy ON`，然后**让仪器继续采集**才会产生帧；只使能不采集，`FRAMe?`/`TIME?` 读到的仍是旧状态或空状态，这类“0 帧/超时”说明没有可用的历史数据，不是命令不支持。可存帧数与存储深度相关，深存储下帧数会显著减少。
+
+```text
+# 只读：当前帧号、时间戳、列表状态
+python3 scripts/configure_scope.py show :HISTORy:FRAMe? :HISTORy:TIME? :HISTORy:LIST?
+
+# 开启历史存储（要产生帧仍需继续采集）
+python3 scripts/configure_scope.py apply --write --allow display --set ":HISTORy ON"
+
+# 已停采且有帧时浏览：先暂停回放，再选帧、切列表显示方式
+python3 scripts/configure_scope.py apply --write --allow display --allow-after-stop --set ":HISTORy:PLAY PAUSe" --set ":HISTORy:FRAMe 10" --set ":HISTORy:LIST ON,DELTa"
+```
+
+注意两点：`:HISTORy:LIST ON,DELTa` 的尾参数不做预校验（枚举前缀命令），只有回读能确认实际模式；选帧与回放会改变仪器视图，**不可变读取期间禁止执行**，需要浏览时应在证据已归档的独立会话里做。真实写入遇到 Stop 态默认被拒，`--allow-after-stop` 只加在 `apply` 上，`plan` 不接受该参数。
+
 ## Evidence and Manual Pages
 
 Source: `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`.
