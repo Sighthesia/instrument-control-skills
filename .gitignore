@@ -8,3 +8,4 @@ __pycache__/
 
 # Vendor manuals (must never be committed)
 ref/
+.pytest_cache/
