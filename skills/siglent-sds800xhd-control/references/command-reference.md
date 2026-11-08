@@ -262,6 +262,8 @@ Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCP
 | `:DECode:LIST<n>:RESult?` | query | `n` = 1、2 | 列表/总线 1 或 2 的完整 ASCII 解码表（逗号分隔字段、换行分隔记录、含表头）；事件分析首选；**必须用保留全部行的 reader**（禁止只读首行的 `readline()`，否则只得表头且缓冲区残留导致后续响应错位）；先解析表头，不假设固定列。`scripts/read_decode_list.py` 已实现只读抓取。手册印刷 pp. 68-70。 | protocol-decode.md (manual pp. 68-70) |
 | `:DECode:BUS<n>:RESult?` | query | `n` = 1、2 | 可见总线摘要（逗号分隔字段、分号分隔帧），事件多时可能不完整；**多行 ASCII**，同样必须保留全部行；仅作屏幕摘要核对。手册印刷 pp. 71-72。 | protocol-decode.md (manual pp. 71-72) |
 
+**常见错误（`firmware-scoped`，SDS824X HD 4.8.12.1.1.6.5，SCPI TCP 5025）**：不要猜测 `DEC1?`、`DEC1:STAT/TYPE/SPI?`、`DEC:SPI?`、`DEC:A:*`、`D1:*` 等发明节点——这些不是本机合法查询；未定义查询 **0 字节返回并入队 `-113,"Undefined header;..."`**，`readline()` 会超时，复用同一连接还会造成响应错位。手册给出的短形式（如 `DEC:LIST1:RES?`）仍属合法命令树；规则是“不发明 header/node”。`DEC?`/`DECODE?` 可能返回全局 `ON/OFF`（本机观察值），但**不**返回总线/列表/解码明细。查询无返回时在**新连接**上 `SYST:ERR?` 排空直到 `0,"No error"`；`RESult?` 多行读取首字节用正常超时、首字节后用 idle 超时（启发式），并显式报告 `complete/truncated` 风险，勿静默截断。`scripts/read_decode_list.py` 仅发送文档化只读查询集（含 `*IDN?` 识别），不接受任意写命令。
+
 **解码查询指导（通用）**：只使用手册/已验证读回确认的解码命令；不要发明 header/node。未定义查询在部分固件上可能 0 字节返回并入队错误，单行 `readline()` 会挂起并造成响应错位——无返回时在**新连接**上 `SYST:ERR?` 排空直到 `0,"No error"`。全局解码开关不能替代总线/协议选择或 `LIST/BUS RESult?`。若已配置解码器，**先读 `:DECode:LIST<n>:RESult?` 再做 host 侧重建**；host 侧重建无法证明仪器的帧边界、采样点、阈值/源、时钟/边沿、位序与帧格式。`RESult?` 为多行 ASCII：首字节用正常超时、首字节后用 idle 超时（启发式），保留全部行并显式报告完整性/截断风险。`scripts/read_decode_list.py` 仅发送固定只读查询集（含 `*IDN?`）。
 
 **解码器配置读回（通用）**：本 Skill 记录 `LIST/RES`、`BUS/RES`、协议/列表选择等结果/状态查询，但**未**完整映射协议专用配置读回（源、阈值、速率、时钟/边沿、位序、帧格式等，手册印刷 pp. 73-148）。未确认的配置一律标 `UNVERIFIED`：以编程手册为准逐项验证候选查询的读回与 `SYST:ERR?`；不得仅凭解码字节或 host 侧波形重建反推配置。
