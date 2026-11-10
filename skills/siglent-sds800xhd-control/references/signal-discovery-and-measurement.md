@@ -219,6 +219,20 @@ Manual-supported, target response not individually checked for each parameter:
 
 The item must be enabled with `:MEASure:SIMPle:ITEM <parameter>,ON` before `VALue?` returns it; a reading that depends on an item nobody enabled is not a measurement result. The manual lists 52 parameters (printed pp. 181-182), including `PKPK`, `MAX`, `MIN`, `AMPL`, `TOP`, `BASE`, `LEVELX`, `CMEAN`, `MEAN`, `STDEV`, `VSTD`, `RMS`, `CRMS`, `MEDIAN`, `CMEDIAN`, `OVSN`, `OVSP`, `FPRE`, `RPRE`, `ULOWer`, `PER`, `FREQ`, `TMAX`, `TMIN`, `PWID`, `NWID`, `DUTY`, `NDUTY`, `WID`, `NBWID`, `DELAY`, `TIMEL`, `RISE`, `FALL`, `RISE20T80`, `FALL80T20`, `CCJ`, `PAREA`, `NAREA`, `AREA`, `ABSAREA`, `CYCLES`, `REDGES`, `FEDGES`, `EDGES`, `PPULSES`, `NPULSES`, `PACArea`, `NACArea`, `ACArea`, `ABSACArea`. `ALL` is documented as querying every basic measurement item; its result is not guaranteed to be a single scalar.
 
+### Measurement threshold context
+
+`documented` (programming guide printed pp. 182-185): the measurement source and the threshold source are separate settings, so query both instead of assuming a readout and its threshold levels share a channel.
+
+```text
+:MEASure:SIMPle:SOURce?              # channel whose value a readout reports
+:MEASure:THReshold:SOURce?           # channel whose threshold context is addressed
+:MEASure:THReshold:TYPE?             # PERCent or ABSolute
+:MEASure:THReshold:PERCent?          # high,mid,low percentages when TYPE is PERCent
+:MEASure:THReshold:ABSolute?         # high,mid,low volts when TYPE is ABSolute
+```
+
+`:MEASure:THReshold:SOURce` accepts `C<n>`, `Z<n>`, `F<x>`, `ZF<x>`, `M<m>`, `ZM<m>`, or `REF<r>`; zoom sources are valid only while zoom is on. Record the measurement source and the queried threshold source as two separate facts. When they differ, the measurement channel's own threshold levels were not read. That is missing evidence about the measurement's thresholds, not evidence that the measurement uses the queried channel's levels: the documented pages record the queries and their accepted source values, but not how a threshold source relates to an active measurement's thresholding. Leave the measurement channel's threshold levels `unknown` and the comparison `UNVERIFIED`, and never rewrite `:MEASure:THReshold:SOURce` to read another channel's levels, because that is a write to instrument state. Never infer either source from the analyzer's thresholds; record the replies verbatim beside any readout.
+
 ### Advanced measurements
 
 Manual-supported. Measurement slots are `P1` through `P12`; first query slot type/source before interpreting the value. The type is a write-only setting: a slot with no type returns nothing useful.

@@ -52,6 +52,47 @@ def configure_default_capture(scope: ScopeSession) -> dict:
     return scope_prepare_capture(scope)
 
 
+def parse_channel_mapping(text: Optional[str]) -> dict[str, str]:
+    """Parse a caller declaration such as ``C1=ENABLE,C4=P4.1/CMP``.
+
+    The scope has no channel-name readback this Skill can query, so a channel
+    mapping is never captured from the instrument; it exists only when the
+    caller states it.
+    """
+
+    if text is None:
+        return {}
+    mapping: dict[str, str] = {}
+    for item in text.split(","):
+        entry = item.strip()
+        if not entry:
+            continue
+        channel, separator, label = entry.partition("=")
+        channel = channel.strip().upper()
+        label = label.strip()
+        if not separator or channel not in CHANNELS or not label:
+            raise SystemExit(
+                "--channel-mapping entries must be Cn=label with Cn in "
+                f"{', '.join(CHANNELS)}; got {entry!r}"
+            )
+        if channel in mapping:
+            raise SystemExit(f"--channel-mapping declares {channel} twice")
+        mapping[channel] = label
+    if not mapping:
+        raise SystemExit("--channel-mapping needs at least one Cn=label entry")
+    return mapping
+
+
+def channel_mapping_declaration(text: Optional[str]) -> dict:
+    """Return the manifest fields that record a channel-mapping declaration."""
+
+    mapping = parse_channel_mapping(text)
+    return {
+        "channel_mapping": mapping or None,
+        "channel_mapping_source": "user-supplied" if mapping else "unknown",
+    }
+
+
 def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float) -> dict:
     """Poll ``SAST?`` until the canonical state matches ``wanted``.
 
@@ -392,6 +433,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--channels", nargs="+", choices=CHANNELS, default=list(CHANNELS))
+    parser.add_argument("--channel-mapping", default=None, help="caller-declared signal names, e.g. C1=ENABLE,C2=nFAULT; recorded as a declaration, never read back from the scope")
     parser.add_argument("--mode", choices=("modern", "legacy"), default="modern")
     parser.add_argument("--capture-mode", choices=("immutable_capture", "configured_capture"), default=None)
     parser.add_argument("--wfsu", default=None, help="explicit WFSU command; only valid with --capture-mode configured_capture")
@@ -451,6 +493,7 @@ def main() -> int:
         raise SystemExit("--trigger-margin-div must be in the range (0, 5]")
     if args.reference_position is not None and not 0 <= args.reference_position <= 100:
         raise SystemExit("--reference-position must be in the range 0..100")
+    channel_mapping = channel_mapping_declaration(args.channel_mapping)
     args.out.mkdir(parents=True, exist_ok=True)
     scope = ScopeSession(args.host, args.port, args.timeout)
     scope.capture_mode = args.capture_mode
@@ -460,7 +503,7 @@ def main() -> int:
         "port": args.port,
         "model": "SIGLENT SDS824X HD",
         "mode": args.capture_mode,
-        "channel_mapping": {"C1": "ENABLE", "C2": "nFAULT", "C3": "HOC", "C4": "P4.1/CMP"},
+        **channel_mapping,
         "channels": args.channels,
         "command_log": [],
         "results": [],

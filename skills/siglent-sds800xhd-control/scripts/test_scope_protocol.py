@@ -605,6 +605,36 @@ class ProtocolTests(unittest.TestCase):
             args = parse_args()
         self.assertTrue(args.left_aligned_trigger)
 
+    def test_capture_channel_mapping_defaults_to_unknown(self):
+        from capture_scope import channel_mapping_declaration
+
+        declaration = channel_mapping_declaration(None)
+        self.assertIsNone(declaration["channel_mapping"])
+        self.assertEqual(declaration["channel_mapping_source"], "unknown")
+
+    def test_capture_channel_mapping_records_caller_declaration(self):
+        from capture_scope import channel_mapping_declaration
+
+        declaration = channel_mapping_declaration("C1=ENABLE, c4=P4.1/CMP")
+        self.assertEqual(declaration["channel_mapping"], {"C1": "ENABLE", "C4": "P4.1/CMP"})
+        self.assertEqual(declaration["channel_mapping_source"], "user-supplied")
+
+    def test_capture_channel_mapping_rejects_unusable_entries(self):
+        from capture_scope import channel_mapping_declaration
+
+        for text in ("C1", "C5=SIGNAL", "C1=", "C1=A,C1=B", " , "):
+            with self.subTest(text=text), self.assertRaises(SystemExit):
+                channel_mapping_declaration(text)
+
+    def test_capture_cli_accepts_channel_mapping(self):
+        from capture_scope import parse_args
+        import sys
+        from unittest.mock import patch
+
+        with patch.object(sys, "argv", ["capture_scope.py", "--out", "/tmp/capture", "--existing-stopped", "--channel-mapping", "C2=nFAULT"]):
+            args = parse_args()
+        self.assertEqual(args.channel_mapping, "C2=nFAULT")
+
     def test_merge_segment_payloads_preserves_order(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -302,7 +302,7 @@ Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCP
 - **时基/采集写入**：已记录 `ACQ:MDEP`、`ACQ:SRAT`、`ACQ:MMAN`、`ACQ:MODE`、`ACQ:TYPE`、`ACQ:SEQuence`、`TIM:DEL`、`TIM:REF:POS`、`TDIV`；`ACQ:AMODe`、`ACQ:INTerpolation`、`ACQ:CSWeep` 已列但未实现为脚本参数；数字通道、平均/ERES 与记录深度的交互只按手册记录，未实测。
 - **采样率可取值集合**：两份手册都没有离散档位表，只有“超过可设定值自动匹配”的说明。Roll 模式下的采样率由 50 ms/div 下限与（未公开的）深度限制共同约束，只能现场读 `:ACQuire:MDEPth?`/`:ACQuire:POINts?`/`:ACQuire:SRATe?` 获取，不得用公式代替实测。
 - **触发系统**：已记录 `TRIGger:MODE`（含 `FTRIG`）、`TRIGger:TYPE` 的 24 种类型、`TRIGger:STATus?`、`TRIGger:RUN/STOP` 与边沿触发序列；各类型的具体参数（脉宽、欠幅上下限、释抑、耦合、噪声抑制、串行协议阈值/速率）未逐条记录，手册印刷 pp. 245-410。
-- **测量**：简单测量已记录 `MEASure` 总开关、`MEASure:MODE`、`SIMPle:ITEM` 的 52 项参数与 `VALue?`；高级测量已记录槽位使能、`TYPE` 写入、双源、值、统计、历史；门限/参考电平设置（`THReshold`）、统计复位与 `MAXCount`、`ASTRategy`、门控（`GATE`）未记录。
+- **测量**：简单测量已记录 `MEASure` 总开关、`MEASure:MODE`、`SIMPle:ITEM` 的 52 项参数与 `VALue?`；高级测量已记录槽位使能、`TYPE` 写入、双源、值、统计、历史；阈值上下文 `THReshold:SOURce/TYPE/PERCent/ABSolute` 已记录（手册印刷 pp. 183-185）；统计复位与 `MAXCount`、`ASTRategy`、门控（`GATE`）未记录。
 - **波形传输**：只记录了现代 WAV 与旧式 `C<n>:WF? DAT2/DESC`；`WAV:SOURce` 的数字通道/数学等扩展源、历史帧/存储媒介选择（`MEMory`/`SAVE` 类）未记录。
 - **文件与保存**：已记录 `SAVe:IMAGe`（含菜单开关）；`:SAVe:WAVEform`、`:SAVe:SETup`、`:RECall:*`、`:MEMory:*`、`:REF:*` 未记录，属写文件操作，需按需授权。
 - **协议解码**：只记录 5 条总线/列表查询；`DECode`/`DECode:BUS<n>` 使能、`BUS<n>:PROTocol` 写入，以及手册印刷 pp. 73-148 的协议专用设置（I2C/SPI/UART/CAN/LIN 等的源、阈值、位速、帧格式）未记录。
