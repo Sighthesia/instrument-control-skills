@@ -19,7 +19,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_waveform_analysis import _write_capture
+from test_waveform_analysis import _write_capture, _write_modern_capture
 from waveform_analysis import load_capture
 from waveform_scan import (
     _no_clipping_claim,
@@ -85,6 +85,34 @@ def _verdict(values, **kwargs):
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         capture = load_capture(root, "C1")
         return build_verdict(capture, **kwargs)
+
+
+class ScreenRangeProvenanceTests(unittest.TestCase):
+    def test_revalidated_verdict_and_cli_keep_original_failure_and_time_limits(self):
+        from analyze_waveform import _run, build_parser
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            values = _square_wave(400, 20, high=100)
+            manifest_path = _write_modern_capture(
+                root, values, scope_points=200, scope_duration_s=400e-6,
+                frame_status="INCOMPLETE", screen_semantics=False,
+                reasons=["screen record 200 differs from WAVEDESC 400"],
+            )
+            original = manifest_path.read_bytes()
+            capture = load_capture(root, "C1", revalidate_screen_range=True)
+            verdict = build_verdict(capture)
+            self.assertIn("screen_range_revalidated_original_frame_incomplete", verdict["claims"]["must_state"])
+            self.assertIn("screen_range_and_trigger_time_alignment_unverified", verdict["claims"]["must_state"])
+            for command in ("inspect", "summarize", "verdict"):
+                with self.subTest(command=command):
+                    args = build_parser().parse_args([
+                        command, "--capture", str(root), "--channel", "C1", "--revalidate-screen-range",
+                    ])
+                    report = _run(args)
+                    self.assertEqual(report["screen_range_revalidation"]["original_frame_status"], "INCOMPLETE")
+                    self.assertEqual(report["time_correspondence"]["status"], "UNVERIFIED")
+                    self.assertTrue(report["source_manifest_sha256"])
+            self.assertEqual(manifest_path.read_bytes(), original)
 
 
 class ThresholdDerivationTests(unittest.TestCase):
@@ -445,6 +473,8 @@ class ProvenanceTests(unittest.TestCase):
             "scale_observed_unverified_no_calibration_available",
             "frequency_basis_is_window_local_not_record_wide",
             "single_channel_analysis_only",
+            "screen_range_and_trigger_time_alignment_unverified",
+            "screen_range_revalidated_original_frame_incomplete",
         }
         verdict = _verdict(_square_wave(40000, 200))
         for entry in verdict["claims"]["must_state"]:

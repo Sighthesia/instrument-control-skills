@@ -20,7 +20,7 @@ The following scalar forms are **Target-tested** on TCP 5025:
 | `:TRIGger:STATus?` | `Arm`, `Ready`, `Auto`, `Trig'd`, `Stop`, or `Roll`. |
 | `:TRIGger:FREQuency?` | Hardware frequency counter in Hz. `0` means no valid counter result, not necessarily no signal. |
 | `:ACQuire:NUMACq?` | Acquired frame count; resets after operations affecting acquisition, including horizontal/vertical changes. Not a generic averaging-complete flag. |
-| `:ACQuire:POINts?` | Current record point count. |
+| `:ACQuire:POINts?` | Sample count of the waveform currently on screen (manual printed p. 21); separate from the WAVEDESC record and transfer count. |
 | `:ACQuire:SRATe?` | Current sample rate in Sa/s. |
 | `:ACQuire:MMANagement?` | Current memory-management mode: `AUTO`, `FSRate`, or `FMDepth`. Determines whether the sample rate or the memory depth is the setting you control. |
 | `:TIMebase:SCALe?`, `:TIMebase:DELay?` | Main timebase in s/div and horizontal delay in s. |
@@ -108,7 +108,7 @@ A third trap is purely lexical: **`SARA` is a query-only short form.** `SARA 2.0
 
 ### Timebase is clamped by the record length, not locked
 
-`TDIV` is not an independent setting. The scope holds a fixed `ACQ:POIN?` record and derives the visible window from it:
+The following relation describes the previously verified acquisition-setting clamp. `ACQ:POIN?` is the on-screen waveform count; this relation does not establish the extent of a downloaded descriptor record or its time mapping:
 
 ```text
 total_window = 10 * TDIV
@@ -185,7 +185,7 @@ Query the live values instead of predicting them:
 ```text
 :ACQuire:MODE?      # confirm ROLL, YT, or XY
 :ACQuire:MDEPth?    # depth actually applied
-:ACQuire:POINts?    # points actually captured
+:ACQuire:POINts?    # points in the current on-screen waveform
 :ACQuire:SRATe?     # rate actually in force
 ```
 

@@ -356,6 +356,13 @@ def read_modern_channel(
         downloaded_payload_bytes=segment_report["downloaded_payload_bytes"],
         byte_order=preamble["byte_order"],
         nominal_bits=preamble["nominal_bits"],
+        # ``scope_record_points`` is the ``ACQ:POINts?`` reply: the programming
+        # guide (printed p. 21) defines it as the on-screen waveform sample
+        # count, not the WAVEDESC waveform record. Passing it as ``screen``
+        # keeps it as reported evidence instead of treating a screen/download
+        # difference as a transfer failure; descriptor points and payload bytes
+        # remain the integrity authority.
+        scope_points_semantics="screen",
     )
     preamble_path = root / channel / "preamble.payload.bin"
     preamble_path.write_bytes(preamble_block.payload)

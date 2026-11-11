@@ -31,7 +31,7 @@ The path has now been verified on firmware `4.8.12.1.1.6.5` with the current sto
 | 60 | `wave_array_1` data bytes | int32 |
 | 116 | `wave_array_count` points | int32 |
 | 132 | `start` | int32 |
-| 136 | `interval` | int32 |
+| 136 | transfer stride (`sparsing_factor`, `WAV:INTerval`) | int32 |
 | 156 | raw VDIV | float32 |
 | 160 | raw offset | float32 |
 | 164 | codes/div | float32 |
@@ -43,6 +43,16 @@ The path has now been verified on firmware `4.8.12.1.1.6.5` with the current sto
 | 344 | source enum | int16 |
 
 The guide's voltage formula is `sample_code * (vdiv / codes_per_div) - offset`, with the probe coefficient applied to the raw VDIV and offset. The exact artifact must keep the raw preamble so a later decoder can audit this interpretation.
+
+## Record ranges and time coordinates
+
+`documented`, CN11G printed p. 21: `:ACQuire:POINts?` queries the sample count of the waveform currently on screen. Printed p. 388 defines WAVEDESC offset 116 as waveform points, offset 132 as the transfer start (`WAV:STARt`), offset 136 as the transfer stride (`WAV:INTerval`), and offset 176 as the sampling interval in seconds. Screen points, descriptor waveform points, and downloaded points are separate quantities; equal counts alone establish no sample/time correspondence.
+
+For modern transfers, `validate_frame(..., scope_points_semantics="screen")` validates payload coverage against the descriptor. It retains `scope_record` for compatibility, marks its screen semantics, and reports `screen_record` and `range_correspondence` separately. `COMPLETE` means descriptor/download payload integrity only. Missing samples, inconsistent widths/bytes, gaps, overlaps and failed hashes remain failures; full acquisition-memory extent and screen mapping are not inferred.
+
+Old modern manifests whose only recorded failure was the screen-count/duration comparison require the explicit analyzer option `--revalidate-screen-range`. Revalidation checks the original reasons against the original fields, recomputes the report in memory, and runs the existing payload checks. Output preserves the original status/reasons and the SHA-256 of the source manifest. Write derived JSON outside the raw capture directory; never edit the raw manifest to make it pass. Unknown reasons and other acquisition modes are refused.
+
+Printed pp. 391-392 and the modern Python example on p. 454 give `t = delay - timebase * 10 / 2 + index * sample_interval`, with the first index zero, delay at offset 180, and timebase at offset 324. The analyzer also accounts for the descriptor's starting sample. These are reported descriptor coordinates, not independently established trigger or decoder alignment. The C# structure comment on p. 438 uses a different description of `horizontal_offset`; it is not grounds to substitute that interpretation for the explicit modern reconstruction formula. Compare identified events under both interfaces before asserting time alignment; never add a fixed correction merely to match one recording.
 
 ## Legacy path
 

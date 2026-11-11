@@ -8,6 +8,7 @@ import binascii
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -17,7 +18,7 @@ from typing import Any, Optional
 # them with ``float()`` returns None and a left-to-right digit scan returns 1.0
 # from the ``C1`` prefix. Both failure modes let the panel-snapshot cross-check
 # silently skip while calibration still reported VALID.
-from scope_protocol import parse_scpi_number
+from scope_protocol import parse_scpi_number, validate_frame
 
 try:
     import numpy as np
@@ -151,7 +152,199 @@ def _resolve_artifact(stored_path: Any, manifest_dir: Path, fallback: Path) -> P
     )
 
 
-def _select_result(manifest: dict[str, Any], channel: str) -> dict[str, Any]:
+SCREEN_FRAME_REASON_PATTERNS = (
+    re.compile(r"^screen record \d+ differs from WAVEDESC \d+$"),
+    re.compile(r"^scope duration [-+0-9.eE]+ s differs from WAVEDESC duration [-+0-9.eE]+ s$"),
+)
+
+# Reasons emitted only because a screen readback (`:ACQuire:POINts?`) was compared
+# to the waveform record. They are the sole legacy frame failures the explicit
+# revalidation flag may re-classify; every other reason stays a hard refusal.
+SCREEN_RANGE_REVALIDATION_NOTE = (
+    "in-memory derived frame report only; the raw manifest and its recorded status/reasons are unchanged"
+)
+
+
+def _frame_uses_screen_semantics(frame_report: dict[str, Any]) -> bool:
+    scope_record = frame_report.get("scope_record") or {}
+    return scope_record.get("semantics") == "screen"
+
+
+def _is_known_screen_frame_reason(reason: Any) -> bool:
+    text = str(reason or "").strip()
+    return any(pattern.match(text) for pattern in SCREEN_FRAME_REASON_PATTERNS)
+
+
+def _range_correspondence(frame_report: dict[str, Any]) -> dict[str, Any]:
+    """Report screen-vs-waveform range correspondence; never more than UNVERIFIED."""
+
+    recorded = frame_report.get("range_correspondence")
+    scope_record = frame_report.get("scope_record") or {}
+    wavedesc_record = frame_report.get("wavedesc_record") or {}
+    screen_points = scope_record.get("points")
+    wavedesc_points = wavedesc_record.get("points")
+    if screen_points is None and isinstance(recorded, dict):
+        screen_points = recorded.get("screen_points")
+    if wavedesc_points is None and isinstance(recorded, dict):
+        wavedesc_points = recorded.get("wavedesc_points")
+    point_counts_equal = (
+        None if screen_points is None or wavedesc_points is None else screen_points == wavedesc_points
+    )
+    reasons: list[str] = []
+    if screen_points is None:
+        reasons.append("no screen record count was recorded for this capture")
+    if point_counts_equal is False:
+        reasons.append(f"screen record {screen_points} differs from WAVEDESC record {wavedesc_points}")
+    elif point_counts_equal is True:
+        reasons.append("equal point counts do not prove identical samples or the same time range")
+    reasons.append("screen-to-waveform sample and time correspondence is UNVERIFIED")
+    return {
+        "status": "UNVERIFIED",
+        "screen_points": screen_points,
+        "wavedesc_points": wavedesc_points,
+        "point_counts_equal": point_counts_equal,
+        "reasons": reasons,
+    }
+
+
+def _revalidate_screen_range_result(
+    result: dict[str, Any],
+    manifest: dict[str, Any],
+    manifest_sha256: str,
+    channel: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Re-derive one legacy INCOMPLETE frame with explicit screen semantics.
+
+    This is opt-in and offline. It accepts only a modern ``configured_capture``
+    result whose recorded frame failure is one of the known screen/duration
+    comparisons; everything else (hash, length, segment, descriptor, unknown
+    reason) still fails through the normal load path.
+    """
+
+    frame_report = result.get("frame_report") or {}
+    original_status = frame_report.get("status")
+    original_reasons = list(frame_report.get("reasons") or [])
+
+    def refuse(message: str, reasons: list[str]) -> None:
+        raise AnalysisError("CAPTURE_NOT_COMPLETE", message, reasons)
+
+    if manifest.get("mode") != "configured_capture" or result.get("mode") != "configured_capture":
+        refuse(
+            f"Channel {channel}: screen-range revalidation is limited to modern configured_capture manifests",
+            [f"required configured_capture; manifest mode={manifest.get('mode')!r}, result mode={result.get('mode')!r}"],
+        )
+    if result.get("error"):
+        refuse(f"Channel {channel}: result records a failure", [str(result["error"])])
+    preamble = result.get("preamble") or {}
+    if preamble.get("description") != "WAVEDESC" or not result.get("segments"):
+        refuse(
+            f"Channel {channel}: screen-range revalidation requires a modern WAVEDESC capture with segments",
+            ["no WAVEDESC preamble or no segment metadata"],
+        )
+    if "screen_record" in frame_report or (frame_report.get("scope_record") or {}).get("semantics") is not None:
+        refuse(
+            f"Channel {channel}: revalidation requires an unambiguous legacy same-record report",
+            ["screen_record or explicit semantics already present in the original frame"],
+        )
+    if original_status != "INCOMPLETE":
+        refuse(
+            f"Channel {channel}: screen-range revalidation only applies to a legacy INCOMPLETE frame",
+            [f"recorded frame status is {original_status!r}"],
+        )
+    if not original_reasons:
+        refuse(f"Channel {channel}: recorded INCOMPLETE frame carries no reasons", ["frame reasons are empty"])
+    unknown_reasons = [reason for reason in original_reasons if not _is_known_screen_frame_reason(reason)]
+    if unknown_reasons:
+        refuse(
+            f"Channel {channel}: recorded frame failure includes reasons beyond the known screen/duration comparisons",
+            [f"unknown frame reason: {reason}" for reason in unknown_reasons] + original_reasons,
+        )
+
+    scope_record = frame_report.get("scope_record") or {}
+    wavedesc_record = frame_report.get("wavedesc_record") or {}
+    downloaded = frame_report.get("downloaded") or {}
+    waveform_format = frame_report.get("waveform_format") or {}
+    segment_report = result.get("segment_report") or {}
+    # Recorded descriptor fields must agree with the stored WAVEDESC and with
+    # the stored segment report before the frame is re-derived; the relaxed
+    # comparison is screen-vs-descriptor only.
+    descriptor_points = preamble.get("wave_array_count")
+    if wavedesc_record.get("points") is not None and descriptor_points is not None:
+        if _int_field(wavedesc_record.get("points"), "frame_report.wavedesc_record.points") != _int_field(descriptor_points, "preamble.wave_array_count"):
+            refuse(
+                f"Channel {channel}: recorded WAVEDESC frame count disagrees with the stored descriptor",
+                [f"frame WAVEDESC points {wavedesc_record.get('points')} vs preamble {descriptor_points}"],
+            )
+    if segment_report.get("status") != "COMPLETE":
+        refuse(
+            f"Channel {channel}: segment report is not COMPLETE; screen-range revalidation cannot relax it",
+            list(segment_report.get("reasons") or ["segment report status is not COMPLETE"]),
+        )
+
+    for key, recorded, descriptor in (
+        ("sample_interval_s", wavedesc_record.get("sample_interval_s"), preamble.get("sample_interval")),
+        ("bytes_per_point", waveform_format.get("bytes_per_point"), preamble.get("data_width_bytes")),
+        ("expected_payload_bytes", waveform_format.get("expected_payload_bytes"), preamble.get("wave_array_1_bytes")),
+    ):
+        if recorded is None or descriptor is None or recorded != descriptor:
+            refuse(f"Channel {channel}: {key} disagrees with descriptor", [f"{recorded!r} vs {descriptor!r}"])
+    frame_args = dict(
+        scope_points=scope_record.get("points"),
+        scope_duration_s=scope_record.get("duration_s"),
+        wavedesc_points=wavedesc_record.get("points"),
+        sample_interval_s=wavedesc_record.get("sample_interval_s"),
+        downloaded_points=downloaded.get("points"),
+        downloaded_duration_s=downloaded.get("duration_s"),
+        trigger_relative_s=frame_report.get("trigger_relative_s"),
+        segment_report=segment_report,
+        bytes_per_point=waveform_format.get("bytes_per_point"),
+        expected_payload_bytes=waveform_format.get("expected_payload_bytes"),
+        downloaded_payload_bytes=waveform_format.get("downloaded_payload_bytes"),
+        byte_order=waveform_format.get("byte_order"),
+        nominal_bits=waveform_format.get("nominal_bits"),
+    )
+    historical = validate_frame(**frame_args, scope_points_semantics="same_record")
+    if historical["status"] != original_status or sorted(historical["reasons"]) != sorted(original_reasons):
+        refuse(
+            f"Channel {channel}: original frame reasons do not match the recorded fields",
+            historical["reasons"] + original_reasons,
+        )
+    derived_frame = validate_frame(**frame_args, scope_points_semantics="screen")
+    if derived_frame.get("status") != "COMPLETE":
+        refuse(
+            f"Channel {channel}: re-derived screen frame is still not COMPLETE",
+            list(derived_frame.get("reasons") or ["re-derived frame status is not COMPLETE"]),
+        )
+    record = {
+        "applied": True,
+        "scope": "in_memory_derived_report_only",
+        "reason": "opt_in_screen_range_revalidation",
+        "source_manifest_sha256": manifest_sha256,
+        "original_frame_status": original_status,
+        "original_frame_reasons": original_reasons,
+        "original_frame_semantics": "same_record",
+        "revalidated_frame_status": derived_frame.get("status"),
+        "revalidated_frame_semantics": "screen",
+        "note": SCREEN_RANGE_REVALIDATION_NOTE,
+        "status_meaning": derived_frame.get("status_meaning"),
+    }
+    derived_result = dict(result)
+    derived_result["frame_report"] = derived_frame
+    derived_result["original_frame_report"] = {
+        "status": original_status,
+        "reasons": original_reasons,
+    }
+    derived_result["screen_range_revalidation"] = record
+    return derived_result, record
+
+
+def _select_result(
+    manifest: dict[str, Any],
+    channel: str,
+    *,
+    revalidate_screen_range: bool = False,
+    manifest_sha256: str = "",
+) -> tuple[dict[str, Any], dict[str, Any]]:
     matching = [item for item in manifest.get("results", []) if item.get("channel") == channel]
     declared_channels = set(manifest.get("channels", []))
     if not matching and channel not in declared_channels:
@@ -165,15 +358,32 @@ def _select_result(manifest: dict[str, Any], channel: str) -> dict[str, Any]:
     ]
     if len(complete) > 1:
         raise AnalysisError("AMBIGUOUS_CAPTURE", f"Multiple complete results exist for {channel}")
-    if not complete:
-        reasons = [
-            f"result {index}: frame={item.get('frame_report', {}).get('status')}, "
-            f"segments={item.get('segment_report', {}).get('status')}, "
-            f"merged_waveform={'present' if item.get('merged_waveform') else 'missing'}"
-            for index, item in enumerate(matching)
-        ] or [f"No result exists for {channel}"]
-        raise AnalysisError("CAPTURE_NOT_COMPLETE", f"No unique complete capture exists for {channel}", reasons)
-    return complete[0]
+    if complete:
+        return complete[0], {}
+    if revalidate_screen_range:
+        # Opt-in offline path for manifests written before screen semantics were
+        # recorded. Only the approved modern/screen case is re-derived; any
+        # unrecognized failure still raises through this same function.
+        candidates = [
+            item
+            for item in matching
+            if (item.get("frame_report") or {}).get("status") == "INCOMPLETE"
+            and (item.get("segment_report") or {}).get("status") == "COMPLETE"
+            and item.get("merged_waveform")
+        ]
+        if len(candidates) > 1:
+            raise AnalysisError("AMBIGUOUS_CAPTURE", f"Multiple INCOMPLETE results exist for {channel}")
+        if candidates:
+            return _revalidate_screen_range_result(
+                candidates[0], manifest, manifest_sha256, channel
+            )
+    reasons = [
+        f"result {index}: frame={item.get('frame_report', {}).get('status')}, "
+        f"segments={item.get('segment_report', {}).get('status')}, "
+        f"merged_waveform={'present' if item.get('merged_waveform') else 'missing'}"
+        for index, item in enumerate(matching)
+    ] or [f"No result exists for {channel}"]
+    raise AnalysisError("CAPTURE_NOT_COMPLETE", f"No unique complete capture exists for {channel}", reasons)
 
 
 def _channel_snapshot(manifest: dict[str, Any], channel: str) -> dict[str, Any]:
@@ -344,6 +554,7 @@ def load_capture(
     calibration_file: Optional[Path] = None,
     vdiv_override: Optional[float] = None,
     offset_override: Optional[float] = None,
+    revalidate_screen_range: bool = False,
 ) -> dict[str, Any]:
     _require_numpy()
     capture = capture.expanduser().resolve()
@@ -358,12 +569,19 @@ def load_capture(
             raise AnalysisError("CAPTURE_NOT_COMPLETE", f"Only failed capture manifest exists: {failed_path}")
         raise AnalysisError("MANIFEST_MISSING", f"Capture manifest not found: {manifest_path}")
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes)
     except (OSError, json.JSONDecodeError) as exc:
         raise AnalysisError("MANIFEST_MISSING", f"Cannot read capture manifest: {exc}") from exc
     if manifest.get("error"):
         raise AnalysisError("CAPTURE_NOT_COMPLETE", f"Capture manifest records failure: {manifest['error']}")
-    result = _select_result(manifest, channel)
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    result, screen_revalidation = _select_result(
+        manifest,
+        channel,
+        revalidate_screen_range=revalidate_screen_range,
+        manifest_sha256=manifest_sha256,
+    )
     manifest_dir = manifest_path.parent
     preamble = result.get("preamble") or {}
     width = _int_field(preamble.get("data_width_bytes") or result.get("waveform_format", {}).get("bytes_per_point"), "data_width_bytes", 0)
@@ -399,8 +617,12 @@ def load_capture(
     if _int_field(segment_report.get("downloaded_points"), "segment_report.downloaded_points", -1) != points or _int_field(report_bytes, "segment_report.downloaded_payload_bytes", -1) != expected_bytes:
         raise AnalysisError("DESCRIPTOR_MISMATCH", "Segment report does not cover the WAVEDESC point and byte counts")
     frame_report = result.get("frame_report", {})
+    screen_frame = _frame_uses_screen_semantics(frame_report)
+    if screen_frame:
+        screen_declaration = (frame_report.get("screen_record") or {}).get("semantics")
+        if screen_declaration not in (None, "screen_display_record", "screen"):
+            raise AnalysisError("DESCRIPTOR_MISMATCH", "Conflicting screen record semantics")
     for field_name, observed in (
-        ("frame_report.scope_record.points", frame_report.get("scope_record", {}).get("points")),
         ("frame_report.wavedesc_record.points", frame_report.get("wavedesc_record", {}).get("points")),
         ("frame_report.downloaded.points", frame_report.get("downloaded", {}).get("points")),
         ("frame_report.segments.downloaded_points", frame_report.get("segments", {}).get("downloaded_points")),
@@ -408,6 +630,13 @@ def load_capture(
     ):
         if observed is not None and _int_field(observed, field_name) != points:
             raise AnalysisError("DESCRIPTOR_MISMATCH", f"{field_name} disagrees with WAVEDESC point count")
+    # The screen readback (`ACQ:POINts?`) is a different quantity, so it is
+    # reported and never allowed to veto the descriptor record it cannot speak
+    # for. A same-record frame keeps the strict equality check.
+    if not screen_frame:
+        scope_points = frame_report.get("scope_record", {}).get("points")
+        if scope_points is not None and _int_field(scope_points, "frame_report.scope_record.points") != points:
+            raise AnalysisError("DESCRIPTOR_MISMATCH", "frame_report.scope_record.points disagrees with WAVEDESC point count")
 
     waveform_path = _resolve_artifact(
         result.get("merged_waveform"), manifest_dir, Path(channel) / "waveform.bin"
@@ -498,7 +727,17 @@ def load_capture(
             "status": "COMPLETE",
             "checks": ["capture_reports_complete", "descriptor_point_byte_width_agree", "merged_file_size", "merged_sha256", "segment_ranges_and_sizes", "segment_sha256"],
             "segments_verified": segment_checks,
+            "status_meaning": "descriptor/download payload integrity only",
         },
+        "screen_range": _range_correspondence(frame_report),
+        "time_correspondence": {
+            "status": "UNVERIFIED",
+            "time_reference": "descriptor-reported coordinates, not wall-clock or trigger-locked absolute time",
+            "origin_formula": "horizontal_offset - timebase_s * 5 + start * sample_interval",
+            "note": "sample index and relative descriptor time are analyzable; absolute and trigger time are UNVERIFIED",
+        },
+        "screen_range_revalidation": screen_revalidation or {"applied": False},
+        "manifest_sha256": manifest_sha256,
     }
 
 
@@ -630,6 +869,10 @@ def _capture_envelope(capture: dict[str, Any]) -> dict[str, Any]:
         "bytes": capture["bytes"],
         "bytes_per_point": capture["width"],
         "path": str(capture["path"]),
+        "payload_integrity": capture["integrity"]["status"],
+        "screen_range": capture["screen_range"],
+        "screen_range_revalidation": capture["screen_range_revalidation"],
+        "source_manifest_sha256": capture["manifest_sha256"],
     }
 
 
@@ -642,7 +885,9 @@ def _sampling_envelope(capture: dict[str, Any]) -> dict[str, Any]:
         "delay_s": preamble.get("horizontal_offset"),
         "timebase_s": preamble.get("timebase_s"),
         "origin_formula": "horizontal_offset - timebase_s * 5 (10-division display) + start * sample_interval",
-        "time_reference": "relative waveform/display time, not wall-clock time",
+        "time_reference": "descriptor-reported coordinates; screen, trigger and wall-clock alignment UNVERIFIED",
+        "descriptor_origin": "reported_descriptor_coordinates",
+        "time_correspondence": capture["time_correspondence"],
     }
 
 

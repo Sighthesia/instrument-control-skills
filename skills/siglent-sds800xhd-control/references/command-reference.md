@@ -78,7 +78,7 @@ Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCP
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
 | `:ACQuire:NUMACq?` | query | — | 已采集帧数；水平/垂直变更等影响采集的操作会使其复位；不是通用平均完成标志。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23) |
-| `:ACQuire:POINts?` / `ACQ:POIN?` | query | — | 当前记录点数（`scope_record_points`）；用于与描述符点数比对判断 `COMPLETE`/`INCOMPLETE`。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py |
+| `:ACQuire:POINts?` / `ACQ:POIN?` | query | — | 屏幕上当前波形的采样点数（手册印刷 p. 21）。现代传输中与 WAVEDESC 波形点数分别报告；载荷完整性按描述符校验，屏幕／波形范围对应关系单独记录，不能仅因二者不同就断言短读。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py |
 | `:ACQuire:SRATe?` / `SARA?` | query | — | 当前采样率（Sa/s）。**没有离散档位表**：手册只说“超过可设定值会自动匹配”，因此不能预先枚举，必须在设备上读取。手册印刷 pp. 21-23。 | signal-discovery-and-measurement.md (manual pp. 21-23)<br>scripts/scope_protocol.py<br>scripts/capture_scope.py |
 | `:ACQuire:SRATe` / `ACQ:SRAT` / `ACQ:SRATe` | set | `<rate>`，浮点 NR3，**不带单位后缀**（如 `2.00E+07`）；手册示例为 `5.00E9` | **两个条件同时成立才生效**：`MMANagement FSRate`、`SAST?` 不在 `Stop`。写入后必须回读，实测值可能与请求值不同；改变采集上下文，只能在 `TRMD SINGLE` 之前写。**写入短形式 `SARA <值>` 被拒 `-113 Undefined header`**（`SARA` 只能查询）；**带单位后缀的值也被拒**，`ACQuire:SRATe 20MSa/s` 返回 `-131,"Invalid suffix"`，只能用裸 NR3。手册印刷 p. 22。`firmware-scoped` 实测（4.8.12.1.1.6.5）。 | signal-discovery-and-measurement.md (manual pp. 22-23)<br>scripts/scope_protocol.py |
 | `MMAN?` | — | — | **不存在**。`MMAN?`（无论 `ACQ:MMAN?`、`ACQuire:MMAN?`）都会回 `-113 Undefined header`，而且**不回包**，详见“写入失败模式”一节的查询型误用。 | 固件实测 `firmware-scoped` |

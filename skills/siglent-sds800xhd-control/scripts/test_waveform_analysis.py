@@ -98,6 +98,56 @@ def _write_capture(root: Path, values, *, width: int = 1, stored_root: Path | No
     return root / "manifest.json"
 
 
+def _write_modern_capture(
+    root: Path,
+    values,
+    *,
+    scope_points: int,
+    scope_duration_s: float,
+    sample_interval: float = 1e-6,
+    preamble_start: int = 0,
+    frame_status: str = "COMPLETE",
+    reasons=(),
+    screen_semantics: bool = True,
+    mode: str = "configured_capture",
+) -> Path:
+    """Modern WAVEDESC manifest whose frame report may predate screen semantics.
+
+    The transfer itself (preamble, merged bytes, segment metadata, hashes) is the
+    same consistent payload `_write_capture` generates; only the frame report and
+    the configured_capture mode are added, so a re-derived frame must reproduce
+    exactly that record.
+    """
+
+    manifest_path = _write_capture(root, values, sample_interval=sample_interval, preamble_start=preamble_start)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["mode"] = mode
+    result = manifest["results"][0]
+    result["mode"] = mode
+    preamble = result["preamble"]
+    points = preamble["wave_array_count"]
+    payload_bytes = points * preamble["data_width_bytes"]
+    scope_record = {"points": scope_points, "duration_s": scope_duration_s}
+    if screen_semantics:
+        scope_record["semantics"] = "screen"
+    result["frame_report"] = {
+        "status": frame_status,
+        "reasons": list(reasons),
+        "scope_record": scope_record,
+        "wavedesc_record": {"points": points, "sample_interval_s": sample_interval},
+        "downloaded": {"points": points, "duration_s": points * sample_interval},
+        "waveform_format": {
+            "bytes_per_point": preamble["data_width_bytes"],
+            "expected_payload_bytes": payload_bytes,
+            "downloaded_payload_bytes": payload_bytes,
+            "byte_order": "LSB",
+            "nominal_bits": preamble["nominal_bits"],
+        },
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path
+
+
 class WaveformAnalysisTests(unittest.TestCase):
     def test_byte_summary_uses_integer_statistics_and_bounded_m4(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -243,6 +293,190 @@ class WaveformAnalysisTests(unittest.TestCase):
             with self.assertRaises(AnalysisError) as context:
                 load_capture(root, "C1")
             self.assertEqual(context.exception.code, "HASH_MISMATCH")
+
+    def test_screen_semantics_frame_loads_when_scope_points_differ_from_descriptor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_modern_capture(root, [0, 10, -10, 0], scope_points=2, scope_duration_s=1.0)
+            capture = load_capture(root, "C1")
+            result_frame = capture["result"]["frame_report"]
+            self.assertEqual(capture["integrity"]["status"], "COMPLETE")
+            self.assertEqual(capture["integrity"]["segments_verified"], 1)
+            self.assertEqual(result_frame["scope_record"]["semantics"], "screen")
+            self.assertNotEqual(result_frame["scope_record"]["points"], capture["points"])
+            self.assertEqual(capture["screen_range"]["status"], "UNVERIFIED")
+            self.assertIs(capture["screen_range"]["point_counts_equal"], False)
+            self.assertEqual(capture["screen_range_revalidation"], {"applied": False})
+
+    def test_attached_screen_record_without_declared_semantics_is_refused(self):
+        # A `screen_record` block alone must not upgrade the frame: only an
+        # explicit `scope_record.semantics = "screen"` declares the readback.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = _write_modern_capture(root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6, screen_semantics=False)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["results"][0]["frame_report"]["screen_record"] = {
+                "points": 2,
+                "duration_s": 4e-6,
+                "source": "ACQ:POINts? screen waveform sample count",
+                "semantics": "screen_display_record",
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1")
+            self.assertEqual(caught.exception.code, "DESCRIPTOR_MISMATCH")
+
+    def test_legacy_screen_incomplete_needs_the_opt_in_flag(self):
+        reasons = ["screen record 2 differs from WAVEDESC 4", "scope duration 1.0 s differs from WAVEDESC duration 4e-06 s"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=1.0,
+                frame_status="INCOMPLETE", reasons=reasons, screen_semantics=False,
+            )
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1")
+            self.assertEqual(caught.exception.code, "CAPTURE_NOT_COMPLETE")
+            with self.assertRaises(AnalysisError):
+                load_capture(root, "C1", revalidate_screen_range=False)
+
+    def test_revalidation_flag_derives_screen_frame_and_keeps_manifest_recorded(self):
+        reasons = ["screen record 2 differs from WAVEDESC 4", "scope duration 1.0 s differs from WAVEDESC duration 4e-06 s"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=1.0,
+                frame_status="INCOMPLETE", reasons=reasons, screen_semantics=False,
+            )
+            original_bytes = manifest_path.read_bytes()
+            manifest_sha256 = hashlib.sha256(original_bytes).hexdigest()
+            capture = load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(capture["integrity"]["status"], "COMPLETE")
+            derived = capture["result"]["frame_report"]
+            self.assertEqual(derived["status"], "COMPLETE")
+            self.assertEqual(derived["scope_record"]["semantics"], "screen")
+            self.assertEqual(capture["result"]["original_frame_report"], {"status": "INCOMPLETE", "reasons": reasons})
+            record = capture["screen_range_revalidation"]
+            self.assertTrue(record["applied"])
+            self.assertEqual(record["scope"], "in_memory_derived_report_only")
+            self.assertEqual(record["original_frame_status"], "INCOMPLETE")
+            self.assertEqual(record["original_frame_reasons"], reasons)
+            self.assertEqual(record["source_manifest_sha256"], manifest_sha256)
+            self.assertEqual(capture["manifest_sha256"], manifest_sha256)
+            self.assertEqual(manifest_path.read_bytes(), original_bytes)
+            self.assertEqual(json.loads(manifest_path.read_text(encoding="utf-8"))["results"][0]["frame_report"]["status"], "INCOMPLETE")
+
+    def test_revalidation_flag_refuses_unknown_reason_and_wrong_mode(self):
+        known = ["screen record 2 differs from WAVEDESC 4"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE", reasons=known + ["downloaded 3 points, expected 4"],
+                screen_semantics=False,
+            )
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(caught.exception.code, "CAPTURE_NOT_COMPLETE")
+            self.assertTrue(any("unknown frame reason" in reason for reason in caught.exception.reasons))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE", reasons=known, screen_semantics=False,
+                mode="immutable_capture",
+            )
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(caught.exception.code, "CAPTURE_NOT_COMPLETE")
+            self.assertIn("configured_capture", str(caught.exception))
+
+    def test_revalidation_flag_refuses_reasons_that_do_not_match_the_recorded_fields(self):
+        # A forged legacy-looking reason still has to be what the recorded frame
+        # fields actually produce; the frame is re-derived, not trusted.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE",
+                reasons=["screen record 3 differs from WAVEDESC 4"],
+                screen_semantics=False,
+            )
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(caught.exception.code, "CAPTURE_NOT_COMPLETE")
+            self.assertIn("do not match the recorded fields", str(caught.exception))
+            self.assertIn("screen record 2 differs from WAVEDESC 4", caught.exception.reasons)
+
+    def test_revalidation_flag_refuses_attached_screen_record_without_declared_semantics(self):
+        # A `screen_record` block without `scope_record.semantics = "screen"` is
+        # contradictory evidence: the writer that emits one always declares the
+        # other, so the flag must not relabel such a frame either.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE", reasons=["screen record 2 differs from WAVEDESC 4"],
+                screen_semantics=False,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["results"][0]["frame_report"]["screen_record"] = {
+                "points": 2,
+                "duration_s": 4e-6,
+                "semantics": "screen_display_record",
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(caught.exception.code, "CAPTURE_NOT_COMPLETE")
+
+    def test_revalidation_flag_refuses_hash_mismatch_and_missing_segment(self):
+        reasons = ["screen record 2 differs from WAVEDESC 4"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE", reasons=reasons, screen_semantics=False,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["results"][0]["merged_waveform_sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(caught.exception.code, "HASH_MISMATCH")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE", reasons=reasons, screen_semantics=False,
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["results"][0]["segments"] = []
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(AnalysisError) as caught:
+                load_capture(root, "C1", revalidate_screen_range=True)
+            self.assertEqual(caught.exception.code, "CAPTURE_NOT_COMPLETE")
+            self.assertTrue(any("segment metadata" in reason for reason in caught.exception.reasons))
+
+    def test_revalidated_screen_frame_does_not_compensate_a_15_ms_origin(self):
+        reasons = ["screen record 2 differs from WAVEDESC 4"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_modern_capture(
+                root, [0, 1, 2, 3], scope_points=2, scope_duration_s=4e-6,
+                frame_status="INCOMPLETE", reasons=reasons, screen_semantics=False,
+                sample_interval=1e-6, preamble_start=15_000,
+            )
+            capture = load_capture(root, "C1", revalidate_screen_range=True)
+            # Descriptor coordinates only: horizontal_offset - timebase * 5 + start * interval.
+            self.assertEqual(capture["time_origin_s"], -5.0 + 15_000 * 1e-6)
+            window = get_window(capture, 0, 2)
+            self.assertEqual(window["window"]["start_time_s"], capture["time_origin_s"])
+            self.assertAlmostEqual(
+                window["window"]["resolved_end_time_s"] - window["window"]["resolved_start_time_s"], 2e-6, delta=1e-12
+            )
+            # A 15 ms screen-time convention would move the origin; it is never applied.
+            self.assertNotAlmostEqual(capture["time_origin_s"], -5.0 + 15_000 * 1e-6 - 0.015, places=9)
 
     def test_event_crosses_chunk_boundary_and_cursor_is_deterministic(self):
         values = [0] * 5 + [10] * 4 + [0] * 5 + [10] * 5 + [0] * 5

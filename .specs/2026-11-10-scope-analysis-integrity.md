@@ -1,7 +1,7 @@
 # Spec Contract: Scope Analysis Integrity Gate
 
 - **Created**: 2026-11-10
-- **Status**: Completed — revised after independent review and main-agent acceptance
+- **Status**: Completed — screen-range semantics revision verified offline
 - **Target Files/Modules**: `skills/siglent-sds800xhd-control/SKILL.md`; `skills/siglent-sds800xhd-control/scripts/capture_scope.py`; `skills/siglent-sds800xhd-control/scripts/test_scope_protocol.py`; `skills/siglent-sds800xhd-control/references/signal-discovery-and-measurement.md`; `skills/siglent-sds800xhd-control/references/command-reference.md`; `.specs/2026-11-10-scope-analysis-integrity.md`.
 
 ## 1. Core Objective
@@ -24,19 +24,21 @@ channel-name readback this Skill queries, so no script output can confirm wiring
 the gate treats any mapping as a declaration to be cross-checked, and the exact
 legacy constant as an unverified template from older manifests.
 
-`inspect` reports the integrity entry this gate needs: the validated full-record
-point count, `integrity.status`, `integrity.segments_verified`, and the
-descriptor-derived `sampling.interval_s`, `sampling.rate_hz`, and
-`sampling.origin_s`. It does not report the scope-side record length, which stays
-in `results[].frame_report.scope_record.points`; `inspect` skips that comparison
-when the field is absent, so the gate names the field and the fallback statement.
+`inspect` reports descriptor/download payload integrity, the validated descriptor
+point count, segment verification, screen count, and descriptor sampling
+coordinates. CN11G printed p. 21 defines `ACQ:POINts?` as the on-screen waveform
+sample count. It is not an independent declaration of the complete acquisition
+memory. Modern reports mark screen semantics explicitly, preserve screen and
+waveform counts separately, and leave their sample/time correspondence
+`UNVERIFIED`. Printed pp. 388 and 391-392 document the descriptor fields and
+modern time formula; no fixed offset correction is introduced.
 
 ## 2. Hard Constraints
 
 - [x] **C-01**: A missing instrument readout (unsafe or undocumented query, or no readout exists) is recorded as `unavailable` with the unknown metadata; it must not block evidence-based offline analysis, and it blocks only statistical-consistency claims and inferences beyond the offline evidence.
 - [x] **C-02**: An instrument statistic and an analyzer statistic are compared only on the same capture, channel, measurement window, gating, threshold, and count definition. Each condition is classified as matched, `unknown`, `not_exposed`, or `not_applicable`; `not_exposed` records only that the interfaces and documents this Skill records expose no control for the condition, never that the instrument has none, so the behaviour behind it stays `UNVERIFIED`; `not_applicable` describes the quantity. Neither classification supplies a known value or relaxes a differing threshold, window, or count definition into agreement. Any `unknown` or differing condition keeps the comparison `UNVERIFIED`.
 - [x] **C-03**: A manifest `channel_mapping` is a declaration with a recorded source and must be cross-checked against wiring, probe, and the user's channel description before samples are attributed. The fixed constant written by earlier `capture_scope.py` versions is an unverified template, not a per-capture declaration, and no manifest or tool output substitutes for the cross-check.
-- [x] **C-04**: Analysis reads the complete record through the manifest and `inspect` (`COMPLETE`, declared full-record points, segment count) and requires `results[].frame_report.status = COMPLETE` as well: a `COMPLETE` `segment_report` proves only segment continuity and hashes, while an `INCOMPLETE` frame means the scope record, the WAVEDESC record, and the download disagree. When `frame_report.scope_record.points` is absent, the analysis states that the scope-side record length was not independently verified. Globbing `*.bin` and treating one segment payload as the record are forbidden.
+- [x] **C-04**: Descriptor/download completeness requires consistent positive descriptor counts, supported width, actual bytes, contiguous segments and hashes. Explicit screen semantics keep `ACQ:POINts?` separate from that integrity decision. Screen and trigger/decoder time correspondence remain `UNVERIFIED`; matching quantities do not establish matching samples. Unknown semantics preserve the historical same-record check. Raw files are never edited for revalidation.
 - [x] **C-05**: Analysis time comes from `sampling.origin_s` / `sampling.interval_s` and CLI time windows, not filenames, segment offsets, or a guessed rate.
 - [x] **C-06**: A rising edge is not a complete positive pulse; `pulses.count`, `pulses.complete_count`, `pulses.incomplete_count`, and `pulses.status` are reported together, and `PPULSES`/`NPULSES` is compared only after confirming what the instrument counts.
 - [x] **C-07**: Hysteresis thresholds sit outside the noise band; a local minimum or maximum is not crossing evidence.
@@ -53,7 +55,7 @@ when the field is absent, so the gate names the field and the fallback statement
 - [x] **AC-06**: The channel-map rule treats a manifest `channel_mapping` as a sourced declaration, names the legacy fixed constant as an unverified template, requires wiring/user cross-check, and does not depend on `inspect` emitting the mapping. `capture_scope.py` no longer writes a default mapping: `--channel-mapping` records the caller's declaration with `channel_mapping_source: user-supplied`, and an omitted flag records `null`/`unknown`.
 - [x] **AC-07**: An unresolved signal name blocks only functional or protocol attribution; physical-channel analysis (`C2`) and same-channel statistics proceed with the signal name `UNVERIFIED`, and the `UNVERIFIED` stop applies only to a missing or non-`COMPLETE` `inspect` integrity record.
 - [x] **AC-08**: The gate records the display timebase state (`TIMebase:SCALe`, `TIMebase:DELay`, `TIMebase:REFerence:POSition`) as display configuration and records the range a readout evaluates as separate evidence; an unestablished evaluation range stays `unknown` and is never inferred from, or defaulted equal to, the display window. The display state is not proof of measurement gating: the only gating control the Skill records is `:FUNCtion<x>:INTegrate:GATE` (math integrate), so basic-measurement gating is `not_exposed` only in the sense that the recorded interfaces and documents expose none, and the measurement's own gating behaviour stays `UNVERIFIED`. Acceptance verifies that the contract preserves these unknowns; it does not claim a hardware-verified evaluation range or gating rule.
-- [x] **AC-09**: The completeness rule names `results[].frame_report.scope_record.points` as the declared full record, requires `frame_report.status = COMPLETE` in addition to `segment_report` completeness, and requires a statement that the scope length was not independently verified when the field is absent.
+- [x] **AC-09**: Modern capture, loader and CLI distinguish screen count from descriptor/download integrity. Explicit offline `--revalidate-screen-range` accepts only modern records whose original same-record failure reasons are reproducible screen-count/duration comparisons, preserves original status/reasons and source manifest hash, and keeps all payload checks. Unknown failures, missing segments and corrupt payloads are refused. All conclusion outputs retain provenance and unresolved screen/time limits.
 - [x] **AC-10**: The pulse rule names `pulses.complete_count`, `pulses.incomplete_count`, `pulses.count`, and `pulses.status`, and requires confirming the instrument's `PPULSES`/`NPULSES` definition before any comparison.
 - [x] **AC-11**: This specification follows the anchor template (Hard Constraints, Acceptance Criteria, Verification Log), records audited acceptance, and distinguishes offline verification from hardware verification.
 - [x] **AC-12**: `python3 -m pytest -q` over `test_scope_protocol.py`, `test_waveform_analysis.py`, and `test_verdict_gate.py` passes (`137 passed, 5 subtests passed`), and `quick_validate.py` reports `Skill is valid!`. The main agent also re-ran `npx skills@latest add . --list` and confirmed the unchanged five-directory Skill set.
@@ -64,11 +66,21 @@ when the field is absent, so the gate names the field and the fallback statement
 - [x] `python3 -m pytest -q skills/siglent-sds800xhd-control/scripts/test_scope_protocol.py skills/siglent-sds800xhd-control/scripts/test_waveform_analysis.py skills/siglent-sds800xhd-control/scripts/test_verdict_gate.py` → `137 passed, 5 subtests passed` (final pass, all three suites together).
 - [x] `python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/siglent-sds800xhd-control` → `Skill is valid!` (re-run after the review wording fixes).
 - [x] `npx skills@latest add . --list` → `Found 5 skills`, re-run by the main agent after the changes; the discovered set matches the directories under `skills/`.
-- [x] Read-only inspection of `scripts/analyze_waveform.py` confirmed `inspect` emits `capture.points`, `integrity.status`, `integrity.segments_verified`, and `sampling.interval_s`. In `scripts/waveform_analysis.py`, `_select_result` requires `frame_report.status = COMPLETE` and `segment_report.status = COMPLETE` before any capture is used, `load_capture` compares `frame_report.scope_record.points` (plus the WAVEDESC, downloaded and segment point counts) against the WAVEDESC count and skips only fields that are `None`, and `integrity.status = COMPLETE` is reported only on the path after those checks have run.
+- [x] Historical baseline inspection confirmed strict descriptor/file/segment validation. The screen-semantics revision removes only the screen-count equality requirement for explicitly identified modern reports; it preserves the descriptor/download checks. Old incomplete reports remain rejected without explicit revalidation.
 - [x] Read-only inspection of `scripts/waveform_analysis.py` confirmed `pulses.count`, `complete_count`, `incomplete_count`, and `status` (`COMPLETE` / `COMPLETE_WITH_INCOMPLETE_BOUNDARY_PULSES`).
 - [x] Manual evidence checked locally against `ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` (git-ignored, read-only, no instrument session): TOC places `:MEASure:SIMPle:SOURce` at printed p. 182 and `:MEASure:THReshold:SOURce`/`TYPE`/`ABSolute`/`PERCent` at printed pp. 183-185; the `:MEASure:THReshold:SOURce` page documents setting or querying the threshold source with `{C<n>|Z<n>|F<x>|ZF<x>|M<m>|ZM<m>|REF<r>}` and zoom validity, and does not describe how a threshold source relates to an active measurement's thresholding. The Skill therefore records the two sources separately and makes no causal claim about a measurement's thresholds.
 - [x] Main-agent acceptance: reviewed the six-file diff, checked the mapping CLI and its regression coverage, and re-ran the three focused suites (`137 passed, 5 subtests passed`), Skill validation, discovery, and `git diff --check`. Corrected pulse-count comparison so neither `count` nor `complete_count` is assumed equivalent to the instrument's undocumented boundary rule.
 - [x] `git diff --check` → passed.
+
+### Screen-range revision acceptance
+
+- [x] CN11G printed pp. 21, 388, 391-392 and 454 were directly checked: screen count and descriptor record count have distinct documented meanings; the modern descriptor time formula is retained.
+- [x] Core validation tests cover explicit screen semantics, retained same-record checks, descriptor short reads, missing metadata, invalid numeric values and byte-count fallbacks.
+- [x] Loader tests cover opt-in legacy revalidation, unchanged source manifest bytes/hash, original reasons, forged reasons, unknown failures, unsupported modes, implicit screen metadata, hash mismatches, missing segments and uncompensated descriptor time.
+- [x] CLI `inspect`, `summarize`, and `verdict` preserve provenance and unresolved time/screen limits. Verdict claims require stating these limitations.
+- [x] `python3 -m pytest -q skills/siglent-sds800xhd-control/scripts` → `203 passed, 15 subtests passed`.
+- [x] Skill validation → `Skill is valid!`; CLI discovery → exactly the five directories under `skills/`; `git diff --check` → passed.
+- [x] Verification limitations recorded: the prior temporary four-channel capture is no longer available and was not revalidated with this revision. A subsequent identity query did not return usable instrument state; no new acquisition or fixed time correction was performed.
 
 ## 5. Limits
 

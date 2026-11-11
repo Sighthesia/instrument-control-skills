@@ -1463,31 +1463,113 @@ def validate_frame(
     downloaded_payload_bytes: Optional[int] = None,
     byte_order: Optional[str] = None,
     nominal_bits: Optional[int] = None,
+    scope_points_semantics: str = "same_record",
 ) -> dict[str, Any]:
+    """Compare the transfer against the WAVEDESC record it claims to reproduce.
+
+    ``scope_points_semantics`` names what ``scope_points`` measures. The default
+    ``same_record`` keeps the historical interpretation: the caller asserts the
+    value is the same record as the WAVEDESC record, so a difference is a frame
+    failure. ``screen`` marks an ``:ACQuire:POINts?`` readback, which the
+    programming guide (printed p. 21) defines as the sample count of the current
+    on-screen waveform - a different quantity from the WAVEDESC waveform record
+    (printed p. 388, offset 116). In that mode the screen count is reported and
+    never used as the record authority, so descriptor/download integrity can be
+    ``COMPLETE`` while screen/waveform range correspondence stays ``UNVERIFIED``.
+    """
+
+    if scope_points_semantics not in ("same_record", "screen"):
+        raise ValueError(
+            "scope_points_semantics must be 'same_record' or 'screen', "
+            f"got {scope_points_semantics!r}"
+        )
+    screen_mode = scope_points_semantics == "screen"
     reasons: list[str] = []
-    expected = wavedesc_points if wavedesc_points is not None else scope_points
-    if scope_points is not None and wavedesc_points is not None and scope_points != wavedesc_points:
-        reasons.append(f"screen record {scope_points} differs from WAVEDESC {wavedesc_points}")
-    if expected is not None and downloaded_points != expected:
-        reasons.append(f"downloaded {downloaded_points} points, expected {expected}")
     if downloaded_payload_bytes is None and segment_report is not None:
         downloaded_payload_bytes = segment_report.get("downloaded_payload_bytes")
     if expected_payload_bytes is None and segment_report is not None:
         expected_payload_bytes = segment_report.get("expected_payload_bytes")
+
+    def integer(value: Any, name: str, minimum: int) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"{name} must be a finite integer >= {minimum}") from exc
+        if isinstance(value, bool) or not math.isfinite(number) or not number.is_integer() or number < minimum:
+            raise ValueError(f"{name} must be a finite integer >= {minimum}")
+        return int(number)
+
+    def duration(value: Any, name: str, minimum: float = 0.0) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"{name} must be a finite duration") from exc
+        if isinstance(value, bool) or not math.isfinite(number) or number < minimum:
+            raise ValueError(f"{name} must be a finite duration >= {minimum}")
+        return number
+
+    scope_points = integer(scope_points, "screen/scope point count", 1)
+    wavedesc_points = integer(wavedesc_points, "WAVEDESC point count", 1)
+    downloaded_points = integer(downloaded_points, "downloaded point count", 0)
+    if downloaded_points is None:
+        raise ValueError("downloaded point count is required")
+    bytes_per_point = integer(bytes_per_point, "bytes per point", 1)
+    if bytes_per_point is not None and bytes_per_point not in (1, 2):
+        raise ValueError("bytes per point must be 1 or 2")
+    expected_payload_bytes = integer(expected_payload_bytes, "expected payload bytes", 1)
+    downloaded_payload_bytes = integer(downloaded_payload_bytes, "downloaded payload bytes", 0)
+    sample_interval_s = duration(sample_interval_s, "sample interval")
+    if sample_interval_s == 0:
+        raise ValueError("sample interval must be positive")
+    scope_duration_s = duration(scope_duration_s, "screen/scope duration")
+    downloaded_duration_s = duration(downloaded_duration_s, "downloaded duration")
+    if trigger_relative_s is not None:
+        # Trigger coordinates may legitimately be negative.
+        trigger_relative_s = duration(trigger_relative_s, "trigger coordinate", -math.inf)
+    if sample_interval_s is None:
+        reasons.append("sample interval unavailable")
+    if expected_payload_bytes is not None and wavedesc_points is not None and bytes_per_point is not None:
+        if expected_payload_bytes != wavedesc_points * bytes_per_point:
+            reasons.append("expected payload bytes disagree with WAVEDESC point count and width")
+    if downloaded_payload_bytes is not None and bytes_per_point is not None:
+        if downloaded_payload_bytes != downloaded_points * bytes_per_point:
+            reasons.append("downloaded payload bytes disagree with downloaded point count and width")
+    if screen_mode:
+        # The screen record is not a fallback for a missing descriptor: without
+        # WAVEDESC points there is no descriptor payload integrity to claim.
+        expected = wavedesc_points
+        if expected is None:
+            reasons.append(
+                "WAVEDESC point count unavailable; the screen record cannot stand in for descriptor integrity"
+            )
+    else:
+        expected = wavedesc_points if wavedesc_points is not None else scope_points
+        if scope_points is not None and wavedesc_points is not None and scope_points != wavedesc_points:
+            reasons.append(f"screen record {scope_points} differs from WAVEDESC {wavedesc_points}")
+    if expected is not None and downloaded_points != expected:
+        reasons.append(f"downloaded {downloaded_points} points, expected {expected}")
     if expected_payload_bytes is not None and downloaded_payload_bytes != expected_payload_bytes:
         reasons.append(f"downloaded {downloaded_payload_bytes} bytes, expected {expected_payload_bytes}")
-    if scope_duration_s is not None and sample_interval_s is not None and expected is not None:
+    if not screen_mode and scope_duration_s is not None and sample_interval_s is not None and expected is not None:
         expected_duration = expected * sample_interval_s
         if abs(scope_duration_s - expected_duration) > max(1e-12, abs(expected_duration) * 1e-6):
             reasons.append(f"scope duration {scope_duration_s} s differs from WAVEDESC duration {expected_duration} s")
     if segment_report and segment_report.get("status") != "COMPLETE":
         reasons.extend(segment_report.get("reasons", []))
-    if downloaded_duration_s is None and sample_interval_s is not None:
-        downloaded_duration_s = downloaded_points * sample_interval_s
+    if sample_interval_s is not None:
+        actual_duration = downloaded_points * sample_interval_s
+        if downloaded_duration_s is None:
+            downloaded_duration_s = actual_duration
+        elif abs(downloaded_duration_s - actual_duration) > max(1e-12, abs(actual_duration) * 1e-6):
+            reasons.append("downloaded duration disagrees with downloaded point count and sample interval")
     status = "COMPLETE" if not reasons else "INCOMPLETE"
     if segment_report and segment_report.get("status") != "COMPLETE":
         status = "INVALID"
-    return {
+    report: dict[str, Any] = {
         "status": status,
         "scope_record": {"points": scope_points, "duration_s": scope_duration_s},
         "wavedesc_record": {"points": wavedesc_points, "sample_interval_s": sample_interval_s},
@@ -1498,6 +1580,41 @@ def validate_frame(
         "reasons": reasons,
         "segments": segment_report,
     }
+    if screen_mode:
+        report["scope_record"] = {"points": scope_points, "duration_s": scope_duration_s, "semantics": "screen"}
+        report["screen_record"] = {
+            "points": scope_points,
+            "duration_s": scope_duration_s,
+            "source": "ACQ:POINts? screen waveform sample count",
+            "semantics": "screen_display_record",
+        }
+        point_counts_equal = (
+            None if scope_points is None or wavedesc_points is None else scope_points == wavedesc_points
+        )
+        correspondence_reasons = [
+            "screen record (ACQ:POINts?) and WAVEDESC waveform record are different quantities",
+            "screen-to-waveform sample and time correspondence is UNVERIFIED",
+        ]
+        if point_counts_equal is False:
+            correspondence_reasons.insert(
+                0, f"screen record {scope_points} differs from WAVEDESC record {wavedesc_points}"
+            )
+        elif point_counts_equal is True:
+            correspondence_reasons.append(
+                "equal point counts do not prove identical samples or the same time range"
+            )
+        report["range_correspondence"] = {
+            "status": "UNVERIFIED",
+            "screen_points": scope_points,
+            "wavedesc_points": wavedesc_points,
+            "point_counts_equal": point_counts_equal,
+            "reasons": correspondence_reasons,
+        }
+        report["status_meaning"] = (
+            "descriptor/download payload integrity only; not whole screen or memory extent, "
+            "and not screen/waveform time correspondence"
+        )
+    return report
 
 
 def signed_8bit(payload: bytes) -> list[int]:

@@ -44,6 +44,15 @@ def _add_capture_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--calibration", type=Path, help="explicit calibration JSON, including independent WORD evidence")
     parser.add_argument("--vdiv", type=float, help="explicit probe-compensated physical V/div")
     parser.add_argument("--offset", type=float, help="explicit physical offset in volts")
+    parser.add_argument(
+        "--revalidate-screen-range",
+        action="store_true",
+        help=(
+            "offline opt-in for a legacy INCOMPLETE frame whose only recorded failure is the "
+            "screen-record/duration comparison of a modern configured_capture; derives the screen "
+            "frame in memory, keeps the original status/reasons, and leaves the raw manifest untouched"
+        ),
+    )
     parser.add_argument("--max-json-bytes", type=int, default=DEFAULT_JSON_BYTES)
     parser.add_argument("--out", type=Path, help="write JSON outside the capture directory instead of stdout")
 
@@ -175,14 +184,32 @@ def _inspect(capture: dict[str, Any]) -> dict[str, Any]:
             },
         },
         "integrity": capture["integrity"],
+        "screen_range": capture["screen_range"],
+        "time_correspondence": capture["time_correspondence"],
+        "screen_range_revalidation": capture["screen_range_revalidation"],
+        "record_counts": {
+            "descriptor_points": preamble.get("wave_array_count"),
+            "downloaded_points": (capture["result"].get("frame_report", {}).get("downloaded") or {}).get("points"),
+            "screen_points": (capture["result"].get("frame_report", {}).get("scope_record") or {}).get("points"),
+            "record_points": capture["points"],
+        },
         "sampling": {
             "interval_s": capture["sample_interval_s"],
             "rate_hz": capture["sample_rate_hz"],
             "origin_s": capture["time_origin_s"],
-            "time_reference": "relative waveform/display time, not wall-clock time",
+            "time_reference": "descriptor-reported coordinates; screen, trigger and wall-clock alignment UNVERIFIED",
+            "origin_formula": "horizontal_offset - timebase_s * 5 + start * sample_interval (descriptor-reported coordinates)",
+            "time_correspondence": capture["time_correspondence"],
         },
         "calibration": capture["calibration"],
-        "limitations": (["WORD voltage scale is not independently verified"] if capture["width"] == 2 and capture["calibration"]["status"] != "VALID" else []) + capture["calibration"].get("verification_failures", []),
+        "limitations": (["WORD voltage scale is not independently verified"] if capture["width"] == 2 and capture["calibration"]["status"] != "VALID" else [])
+        + capture["calibration"].get("verification_failures", [])
+        + [
+            "payload_integrity_COMPLETE_does_not_verify_whole_screen_or_memory_extent",
+            "sample_index_and_relative_descriptor_time_only",
+            "absolute_and_trigger_time_are_UNVERIFIED",
+        ]
+        + (["screen_range_revalidated_from_recorded_manifest_fields"] if capture["screen_range_revalidation"].get("applied") else []),
     }
 
 
@@ -233,7 +260,21 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
         calibration_file=args.calibration,
         vdiv_override=args.vdiv,
         offset_override=args.offset,
+        revalidate_screen_range=args.revalidate_screen_range,
     )
+    report = _analyze(args, capture)
+    # Also covers verdict, which uses its own compact report schema.
+    report["source_manifest_sha256"] = capture["manifest_sha256"]
+    report["screen_range"] = capture["screen_range"]
+    report["time_correspondence"] = capture["time_correspondence"]
+    report["screen_range_revalidation"] = capture["screen_range_revalidation"]
+    report.setdefault("limitations", []).append(
+        "payload_integrity_does_not_establish_screen_range_or_trigger_time_alignment"
+    )
+    return report
+
+
+def _analyze(args: argparse.Namespace, capture: dict[str, Any]) -> dict[str, Any]:
     if args.command == "inspect":
         return _inspect(capture)
     if args.command == "verdict":

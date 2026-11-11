@@ -1535,6 +1535,11 @@ def build_verdict(
     if dense_local_frequency:
         must_state.append("frequency_basis_is_window_local_not_record_wide")
     must_state.append("single_channel_analysis_only")
+    if capture.get("time_correspondence", {}).get("status") == "UNVERIFIED":
+        must_state.append("screen_range_and_trigger_time_alignment_unverified")
+        cannot_claim.extend(["screen_range_correspondence", "trigger_time_alignment"])
+    if capture.get("screen_range_revalidation", {}).get("applied"):
+        must_state.append("screen_range_revalidated_original_frame_incomplete")
 
     verdict: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -1547,13 +1552,17 @@ def build_verdict(
             "merged_sha256": capture.get("raw_sha256"),
             "interval_s": interval,
             "origin_s": origin,
-            "time_reference": "display",
+            "time_reference": "descriptor-reported coordinates; trigger alignment UNVERIFIED",
         },
         "integrity": {
             "status": capture["integrity"].get("status"),
             "segments_verified": capture["integrity"].get("segments_verified"),
         },
         "provenance": provenance,
+        "source_manifest_sha256": capture.get("manifest_sha256"),
+        "screen_range": capture.get("screen_range", {"status": "UNVERIFIED"}),
+        "time_correspondence": capture.get("time_correspondence", {"status": "UNVERIFIED"}),
+        "screen_range_revalidation": capture.get("screen_range_revalidation", {"applied": False}),
         "domain": domain_block,
         "levels": levels_block,
         "structure": structure_block,

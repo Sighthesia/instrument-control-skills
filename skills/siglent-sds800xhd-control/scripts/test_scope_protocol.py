@@ -275,6 +275,122 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(report["status"], "INCOMPLETE")
         self.assertTrue(any("duration" in reason for reason in report["reasons"]))
 
+    def test_screen_record_is_separate_from_descriptor_integrity(self):
+        # ACQ:POINts? counts the on-screen waveform (manual printed p. 21); the
+        # WAVEDESC wave_array_count is the waveform record (printed p. 388). A
+        # complete 20 M-point descriptor/download is not disproven by a 5 M
+        # screen readback, and the screen range stays unverified.
+        report = validate_frame(
+            scope_points=5_000_000,
+            scope_duration_s=1.0,
+            wavedesc_points=20_000_000,
+            sample_interval_s=2e-7,
+            downloaded_points=20_000_000,
+            downloaded_payload_bytes=20_000_000,
+            expected_payload_bytes=20_000_000,
+            scope_points_semantics="screen",
+        )
+        self.assertEqual(report["status"], "COMPLETE")
+        self.assertEqual(report["reasons"], [])
+        self.assertEqual(report["screen_record"]["points"], 5_000_000)
+        self.assertEqual(report["screen_record"]["semantics"], "screen_display_record")
+        self.assertEqual(report["scope_record"]["semantics"], "screen")
+        self.assertEqual(report["range_correspondence"]["status"], "UNVERIFIED")
+        self.assertFalse(report["range_correspondence"]["point_counts_equal"])
+        self.assertTrue(any("differs" in reason for reason in report["range_correspondence"]["reasons"]))
+        self.assertIn("not whole screen or memory extent", report["status_meaning"])
+
+    def test_screen_record_never_justifies_a_short_descriptor(self):
+        # Descriptor says 20 M, only 5 M arrived: the screen readback must not
+        # become the expected count and turn the transfer complete.
+        report = validate_frame(
+            scope_points=20_000_000,
+            scope_duration_s=5.0,
+            wavedesc_points=20_000_000,
+            sample_interval_s=2e-7,
+            downloaded_points=5_000_000,
+            downloaded_payload_bytes=5_000_000,
+            expected_payload_bytes=20_000_000,
+            scope_points_semantics="screen",
+        )
+        self.assertEqual(report["status"], "INCOMPLETE")
+        self.assertTrue(any("downloaded 5000000 points" in reason for reason in report["reasons"]))
+
+    def test_screen_record_cannot_replace_a_missing_descriptor(self):
+        report = validate_frame(
+            scope_points=5_000_000,
+            scope_duration_s=1.0,
+            wavedesc_points=None,
+            sample_interval_s=2e-7,
+            downloaded_points=5_000_000,
+            scope_points_semantics="screen",
+        )
+        self.assertEqual(report["status"], "INCOMPLETE")
+        self.assertTrue(any("cannot stand in for descriptor integrity" in reason for reason in report["reasons"]))
+        self.assertEqual(report["range_correspondence"]["status"], "UNVERIFIED")
+
+    def test_equal_screen_and_descriptor_counts_still_leave_time_unverified(self):
+        report = validate_frame(
+            scope_points=5_000_000,
+            scope_duration_s=1.0,
+            wavedesc_points=5_000_000,
+            sample_interval_s=2e-7,
+            downloaded_points=5_000_000,
+            scope_points_semantics="screen",
+        )
+        self.assertEqual(report["status"], "COMPLETE")
+        self.assertIs(report["range_correspondence"]["point_counts_equal"], True)
+        self.assertEqual(report["range_correspondence"]["status"], "UNVERIFIED")
+        self.assertTrue(any("do not prove" in reason for reason in report["range_correspondence"]["reasons"]))
+
+    def test_same_record_semantics_keeps_rejecting_a_screen_mismatch(self):
+        report = validate_frame(
+            scope_points=5_000_000,
+            scope_duration_s=1.0,
+            wavedesc_points=25_000_000,
+            sample_interval_s=2e-7,
+            downloaded_points=25_000_000,
+            scope_points_semantics="same_record",
+        )
+        self.assertEqual(report["status"], "INCOMPLETE")
+        self.assertTrue(any("screen record 5000000 differs from WAVEDESC 25000000" in reason for reason in report["reasons"]))
+        self.assertNotIn("range_correspondence", report)
+
+    def test_screen_frame_rejects_invalid_numbers_including_segment_fallback(self):
+        arguments = dict(
+            scope_points=5, scope_duration_s=0.05, wavedesc_points=20,
+            sample_interval_s=0.01, downloaded_points=20,
+            scope_points_semantics="screen", bytes_per_point=2,
+            expected_payload_bytes=40, downloaded_payload_bytes=40,
+        )
+        for changes in (
+            {"wavedesc_points": 0}, {"wavedesc_points": 2.5},
+            {"sample_interval_s": float("nan")}, {"sample_interval_s": 0},
+            {"downloaded_points": -1}, {"bytes_per_point": 3},
+            {"expected_payload_bytes": None, "downloaded_payload_bytes": None,
+             "segment_report": {"status": "COMPLETE", "expected_payload_bytes": -2,
+                                "downloaded_payload_bytes": -2}},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                validate_frame(**(arguments | changes))
+        missing_interval = validate_frame(**(arguments | {"sample_interval_s": None}))
+        self.assertEqual(missing_interval["status"], "INCOMPLETE")
+        mismatched_bytes = validate_frame(**(arguments | {"downloaded_payload_bytes": 38}))
+        self.assertEqual(mismatched_bytes["status"], "INCOMPLETE")
+        mismatched_duration = validate_frame(**(arguments | {"downloaded_duration_s": 0.01}))
+        self.assertEqual(mismatched_duration["status"], "INCOMPLETE")
+
+    def test_unknown_scope_points_semantics_is_rejected(self):
+        with self.assertRaises(ValueError):
+            validate_frame(
+                scope_points=1,
+                scope_duration_s=1.0,
+                wavedesc_points=1,
+                sample_interval_s=1.0,
+                downloaded_points=1,
+                scope_points_semantics="memory_depth",
+            )
+
     def test_signed_8bit(self):
         self.assertEqual(signed_8bit(bytes([0, 127, 128, 255])), [0, 127, -128, -1])
 
