@@ -32,6 +32,12 @@ from scope_protocol import (
     validate_frame,
     validate_segments,
 )
+from screenshot_capture import (
+    DEFAULT_MAX_BYTES as SCREENSHOT_MAX_BYTES,
+    DEFAULT_MAX_SECONDS as SCREENSHOT_MAX_SECONDS,
+    capture_png_on_session,
+    screenshot_failure_record,
+)
 
 
 CHANNELS = ("C1", "C2", "C3", "C4")
@@ -115,6 +121,49 @@ def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float
             return {"wanted": target, "raw": observed.raw, "normalized": state}
         time.sleep(poll_s)
     raise ScopeProtocolError(f"timed out waiting for SAST?={wanted}")
+
+
+def capture_optional_screenshot(
+    scope: ScopeSession,
+    root: Path,
+    *,
+    max_bytes: int = SCREENSHOT_MAX_BYTES,
+    max_seconds: float = SCREENSHOT_MAX_SECONDS,
+) -> dict:
+    """Attempt one screenshot after every waveform payload is already persisted.
+
+    A failed screenshot is recorded and never raised: independently verified
+    payloads stay valid, and the PNG only ever proves container structure.
+    This runs last on the same socket and never reconnects or queries again
+    after a transport failure.
+    """
+
+    raw_path = root / "screenshot.png"
+    metadata_path = root / "screenshot.png.json"
+    try:
+        return capture_png_on_session(
+            scope,
+            raw_path,
+            metadata_path,
+            max_bytes=max_bytes,
+            max_seconds=max_seconds,
+        )
+    except (OSError, ValueError) as exc:
+        # A screenshot artifact problem is reported here instead of failing the
+        # capture: the waveform payloads were verified before this call.
+        collision = isinstance(exc, FileExistsError)
+        return screenshot_failure_record(
+            raw_path=raw_path,
+            metadata_path=metadata_path,
+            error_code="artifact_exists" if collision else "artifact_not_written",
+            error=(
+                f"refusing to overwrite existing artifact: {getattr(exc, 'filename', raw_path)}"
+                if collision
+                else f"{type(exc).__name__}: {exc}"
+            ),
+            max_bytes=max_bytes,
+            max_seconds=max_seconds,
+        )
 
 
 def write_block_artifact(root: Path, channel: str, stem: str, block) -> tuple[Path, Path, Path]:
@@ -457,6 +506,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--memory-depth", choices=("auto", "100M", "50M", "25M"), default=None, help="explicit memory depth for a new capture; auto maps 1/2/3-4 channels to 100M/50M/25M")
     parser.add_argument("--reference-position", type=int, help="optional TIM:REF:POS percentage 0..100 for a new capture")
     parser.add_argument("--existing-stopped", action="store_true", help="read the current stopped frame without claiming a new Ready -> Stop transition")
+    parser.add_argument("--screenshot", action="store_true", help="after all waveform payloads are saved, attempt one :PRINt? PNG on the same socket; a failed screenshot never invalidates the payload")
     parser.add_argument("--read-descriptors", action="store_true", help="after all legacy DAT2 reads, explicitly read DESC")
     parser.add_argument("--ready-timeout", type=float, default=30.0)
     parser.add_argument("--stop-timeout", type=float, default=360.0)
@@ -583,6 +633,8 @@ def main() -> int:
             manifest["results"].extend(results)
             if args.read_descriptors:
                 add_legacy_descriptors(scope, args.out, results)
+        if args.screenshot:
+            manifest["screenshot"] = capture_optional_screenshot(scope, args.out)
         manifest["command_log"] = [event.__dict__ for event in scope.events]
         save_json(args.out / "manifest.json", manifest)
         return 0

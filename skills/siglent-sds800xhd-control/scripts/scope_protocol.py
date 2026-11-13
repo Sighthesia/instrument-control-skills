@@ -294,9 +294,13 @@ class ScopeSession:
         normalized = command.strip().upper()
         if self.stopped and not explicit_release:
             query_only = normalized.endswith("?") and ";" not in normalized
+            # The screenshot query is argument-bearing and therefore does not
+            # end in ``?``. Keep this exact PNG form allowlisted; BMP/JPG or a
+            # second argument could select a different instrument operation.
+            screenshot_query = normalized == ":PRINT? PNG"
             waveform_transfer_write = self.capture_mode == "configured_capture" and normalized.startswith(("WAV:SOUR ", "WAV:WIDT ", "WAV:BYT ", "WAV:INT ", "WAV:STAR ", "WAV:POIN ")) and ";" not in normalized
             legacy_waveform_query = ":WF? DAT2" in normalized or ":WF? DESC" in normalized
-            if not (query_only or waveform_transfer_write or legacy_waveform_query):
+            if not (query_only or screenshot_query or waveform_transfer_write or legacy_waveform_query):
                 raise ScopeProtocolError(f"command forbidden after Stop: {command}")
         if normalized == "ARM" or normalized.startswith("ARM "):
             raise ScopeProtocolError("ARM is forbidden on SDS824X HD firmware")
