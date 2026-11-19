@@ -1,0 +1,77 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "gdm8352-protocol",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "GW Instek",
+    "model": "GDM-8352",
+    "firmware": "1.00",
+    "serial": "GEP848232"
+  },
+  "source": {
+    "operation": "offline response parsing and read-only query construction",
+    "transport": "USB CDC-ACM (VID:PID 2184:003b), /dev/ttyACM0, CR+LF; host baud-rate setting ignored",
+    "captured_at": "2026-11-19",
+    "manual": {
+      "title": "GDM-8352 User Manual",
+      "revision": "GW Instek part no. 82DM-83520E01",
+      "location": "Local copy ref/gwinstek/GDM-8352_User_Manual_82DM-83520E01.pdf; command tables PDF pp. 99-106; command reference PDF pp. 107-141 (physical pages)"
+    }
+  },
+  "data": {
+    "kind": "scalar-value",
+    "raw_path": "assets/fixtures/meas-volt-dc.txt",
+    "raw_sha256": "6380eed705e5ce2f965d4af8cb94e60f15b3b5a3519607d6ade1cbbe843fbf34",
+    "raw_provenance": "Real MEAS:VOLT:DC? response captured on 2026-11-19 from GDM-8352 serial GEP848232, firmware 1.00, over USB CDC-ACM 2184:003b. The raw bytes are indexed in assets/fixtures/captures.jsonl. The reading is uncalibrated read-back, not a calibration certificate. The instrument was disconnected after capture and was not re-tested."
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": true,
+    "hardware_verified_scope": "Restricted to the seven observations listed below, from GDM-8352 serial GEP848232, firmware 1.00, USB CDC-ACM 2184:003b at /dev/ttyACM0, captured 2026-11-19. The instrument was disconnected after capture and was not re-tested. All remaining documented commands are documented only.",
+    "control_level": "documented",
+    "control_verified": false,
+    "known_limitations": [
+      "*IDN?: raw identity captured; verification applies to one instrument.",
+      "MEAS:VOLT:DC?: raw response captured without a unit suffix; the unit comes from the command.",
+      "MEAS:CURR:DC?: raw response captured without a unit suffix; the unit comes from the command.",
+      "READ?: two fields captured; the second display's function and unit are UNVERIFIED.",
+      "SYST:BEEP:STAT?: only No Beep was captured; the other two texts are documented.",
+      "SYST:BEEP:STAT OFF: accepted with no response in the historical log; the following query still read No Beep, so no state transition was shown. This Skill refuses the setter.",
+      "SYST:ERR?: only the observed free text Command error is hardware-verified; no numbered error queue is established.",
+      "USB-TMC was not exercised; no function, range, or input-terminal switching was exercised, and terminal selection was not verified.",
+      "No accuracy or calibration was verified; no known input source was attached for a cross-check.",
+      "No AC voltage, AC current, 2-wire/4-wire resistance, frequency, period, capacitance, temperature, diode, continuity, or MEASure2 response was captured."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "pass",
+        "evidence": {
+          "hardware_capture": true,
+          "capture_index": "assets/fixtures/captures.jsonl",
+          "synthetic_fixtures_separated_in": "assets/fixtures/synthetic/"
+        }
+      },
+      {
+        "name": "raw_sha256",
+        "status": "pass",
+        "evidence": "SHA-256 of assets/fixtures/meas-volt-dc.txt matches data.raw_sha256 and the capture index."
+      },
+      {
+        "name": "measurement_accuracy",
+        "status": "not_checked",
+        "evidence": "No calibrated input cross-check or repeat measurement was performed."
+      }
+    ],
+    "reasons": [
+      "unit_not_encoded_in_response",
+      "accuracy_and_calibration_not_verified",
+      "not_retested_after_capture"
+    ]
+  }
+}
