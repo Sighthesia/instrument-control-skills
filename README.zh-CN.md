@@ -8,11 +8,11 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 
 | Skill | 仪器类型 | 实机验证 |
 |---|---|---|
-| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | 示波器 | ✅ SDS824X HD，日期未记录 |
-| [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | 台式万用表 | ✅ Model 2000，2026-10-20 |
-| [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | 台式万用表 | ✅ GDM-8352，2026-11-19 |
+| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | 示波器 | ✅ SDS824X HD |
+| [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | 台式万用表 | ✅ Model 2000 |
+| [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | 台式万用表 | ✅ GDM-8352 |
 | [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | 函数发生器 | — |
-| [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | 直流电源 | ✅ GPD-4303S，2026-11-19 |
+| [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | 直流电源 | ✅ GPD-4303S |
 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | 示波器 | — |
 | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | 编写指南 | — |
 
@@ -28,7 +28,7 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | `gwinstek-gds1000b-control`    | 部分：41 条测量命令；波形下载        | `gds1000b_protocol`：IEEE 块编解码、离线波形校验         |
 | `write-new-instrument-control` | —（无设备命令）                      | 解析器模板、响应分帧示例、完整性状态                     |
 
-## 台架备注
+## 备注
 
 - GPD-4303S：验证机台处于串联跟踪（`SER/INDEP` 灯亮，与 `STATUS?` 解码一致），
   CH1/CH2 接成一路 0-60 V，而非两个独立通道。
@@ -41,7 +41,7 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 - AFG-2225 与 GDS-1000B：仅 `documented`，未做任何实机验证。
 - 不得把 `hardware-verified` 扩展到所记录的型号、固件、接口与功能之外。
 
-## 证据等级
+## 验证
 
 `documented` < `hardware-verified` = `firmware-scoped`：标签描述的是证据，而不是功能数量。
 

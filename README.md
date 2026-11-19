@@ -9,11 +9,11 @@ evidence labels.
 
 | Skill | Instrument type | Verified on hardware |
 |---|---|---|
-| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Oscilloscope | ✅ SDS824X HD, date not recorded |
-| [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Bench DMM | ✅ Model 2000, 2026-10-20 |
-| [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | Bench DMM | ✅ GDM-8352, 2026-11-19 |
+| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Oscilloscope | ✅ SDS824X HD |
+| [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Bench DMM | ✅ Model 2000 |
+| [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | Bench DMM | ✅ GDM-8352 |
 | [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | Function generator | — |
-| [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | DC power supply | ✅ GPD-4303S, 2026-11-19 |
+| [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | DC power supply | ✅ GPD-4303S |
 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | Oscilloscope | — |
 | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | Authoring guide | — |
 
