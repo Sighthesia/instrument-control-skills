@@ -103,6 +103,18 @@ Reading the leftmost character as bit 0 (`lsb-first`, the default):
   `OUT0` sequence.
 - beep bit (bit 4) changes between captures, following the `BEEP0`/`BEEP1` probes.
 
+The newest capture, `00110010`, corroborates `lsb-first` twice:
+
+- `baud_9600_matches_link`: bits 6, 7 read `10` -> 9600 bps, the rate of the
+  `/dev/ttyUSB0` 9600 8N1 link that delivered the response.
+- `output_off_matches_vout_zero`: bit 5 reads `0` -> output off, agreeing with
+  `VOUT1?`-`VOUT4?` in the same session, all `0.000V`.
+
+The parser records both strings in the `status_bit_order` check as
+`corroborated_by`. They are corroborations, not proof: the manual still does not
+state the order, so the check remains `not_checked`, the artifact remains
+`UNVERIFIED`, and the reason `status_bit_order_not_documented` is retained.
+
 Reading the leftmost character as bit 7 (`msb-first`) gives baud codes
 `00`/`11`/`00` -> 115200/undefined/115200, which contradicts the live 9600 link,
 and an output bit that does not follow the observed sequence.
@@ -114,9 +126,12 @@ The default is therefore `lsb-first` **as an inference, not a documented fact**:
 `--bit-order msb-first` to see the other reading.
 
 Unresolved: under `lsb-first` the tracking field reads `11` (series) in all three
-captures. The panel's `SER/INDEP` key would confirm it, but `TRACK<NR1>` is a
+captures. `VSET1? = VSET2? = 24.000V` is consistent with series tracking but does
+not prove it. The panel's `SER/INDEP` key would confirm it, but `TRACK<NR1>` is a
 write command and was not sent, so this Skill does not claim to know the unit's
-tracking mode — it reports the bits.
+tracking mode — it reports the bits. If `STATUS?` reports series or parallel
+tracking, the assumption that CH1 and CH2 are independent fails until the
+front/rear panel is checked; this decode has not been panel-confirmed.
 
 ## Error messages
 
@@ -139,24 +154,28 @@ advertises. `HELP?` itself is absent, as manual p. 52 says. The channel hint lin
 
 `assets/fixtures/captures/` holds the byte-level evidence, plus
 `captures.jsonl` with command, request bytes, response bytes, SHA-256 and
-timestamp. Six of the seven entries were written directly by
-`gpd4303s_session.py --capture-dir`; the `HELP?` entry carries
-`capture_method: console-transcript` because it was reconstructed after the
-instrument disconnected (see its row below). The descriptive copies are
-byte-identical to those capture files (a unit test asserts it).
+timestamp. It has 15 entries: six written directly by
+`gpd4303s_session.py --capture-dir`, eight written by `verify_all`
+(`capture_method: verify_all`, with base64 request/response bytes), and the
+`HELP?` entry (`capture_method: console-transcript`, reconstructed after the
+instrument disconnected). The descriptive copies are byte-identical to those
+capture files (a unit test asserts it). The second-session directory
+`artifacts/verification/evidence/20261119T113850Z/` is git-ignored and is a local
+reference, not a required dependency; the eight `verify_all` rows copy its
+response bytes into this Skill.
 
-Only CH1 and CH2 have preserved raw response bytes. The CH3/CH4 responses appear
-in the session transcript but were never written to `captures/`, so those
-channel-scoped claims are `documented`, not `hardware-verified`.
+CH3/CH4 now have preserved raw response bytes, so every per-channel query form
+carries a channel-scoped `hardware-verified` claim. The CH1/CH2 VSET/ISET
+responses remain transcript-recorded; their VOUT/IOUT responses have raw files.
 
 | Fixture | Response | How it was obtained | Level |
 |---|---|---|---|
 | `idn.txt`, `status-output-off.txt`, `vout1-off.txt`, `iout1-off.txt`, `vout2-off.txt`, `iout2-off.txt` | `…V2.08`, `00110010`, `0.000V`, `0.000A` | Written by `--capture-dir` on 2026-11-19, GPD-4303S V2.08 at 9600 8N1 | `hardware-verified` |
 | `vset1.txt`, `vset2.txt` | `24.000V`, `24.000V` | **Real read-only `VSET1?`/`VSET2?` responses** from the same 2026-11-19 session on the same unit (V2.08, 9600 8N1), recorded verbatim in the session transcript. Not manual text, not synthetic. | `hardware-verified` (CH1/CH2) |
 | `iset1.txt`, `iset2.txt` | `1.000A`, `1.000A` | **Real read-only `ISET1?`/`ISET2?` responses**, same session and unit, transcribed from the transcript | `hardware-verified` (CH1/CH2) |
-| `vset3.txt`, `vset4.txt` | `3.300V`, `2.500V` | **Real read-only `VSET3?`/`VSET4?` responses**, same session and unit, transcribed from the transcript — but no raw response bytes were preserved, so the claim is not `hardware-verified`. Channel numbering comes from manual pp. 48-49 and the `HELP?` hint `x:1=CH1,2=CH2 (4303:3=CH3,4=CH4)`. | `documented` (CH3/CH4) |
-| `iset3.txt`, `iset4.txt` | `3.000A`, `1.000A` | **Real read-only `ISET3?`/`ISET4?` responses**, same session and unit, transcript only, no preserved raw bytes | `documented` (CH3/CH4) |
-| `vout3-off.txt`, `vout4-off.txt`, `iout3-off.txt`, `iout4-off.txt` | `0.000V`, `0.000V`, `0.000A`, `0.000A` | **Real read-only `VOUT3?`/`VOUT4?`/`IOUT3?`/`IOUT4?` responses**, same session and unit, transcript only, no preserved raw bytes | `documented` (CH3/CH4) |
+| `vset3.txt`, `vset4.txt` | `3.300V`, `2.500V` | **Real read-only `VSET3?`/`VSET4?` responses**, same session and unit. Preserved byte-for-byte as `captures/006-VSET3.raw` and `007-VSET4.raw`; channel numbering comes from manual pp. 48-49 and the `HELP?` hint `x:1=CH1,2=CH2 (4303:3=CH3,4=CH4)`. | `hardware-verified` (CH3/CH4) |
+| `iset3.txt`, `iset4.txt` | `3.000A`, `1.000A` | **Real read-only `ISET3?`/`ISET4?` responses**, same session and unit. Preserved as `captures/008-ISET3.raw` and `009-ISET4.raw`. | `hardware-verified` (CH3/CH4) |
+| `vout3-off.txt`, `vout4-off.txt`, `iout3-off.txt`, `iout4-off.txt` | `0.000V`, `0.000V`, `0.000A`, `0.000A` | **Real read-only `VOUT3?`/`VOUT4?`/`IOUT3?`/`IOUT4?` responses**, same session and unit. Preserved as `captures/010-VOUT3.raw`-`013-IOUT4.raw`. | `hardware-verified` (CH3/CH4) |
 | `vout1-on.txt`, `vout2-on.txt`, `iout1-on.txt` | `23.994V`, `23.987V`, `0.002A` | Real `VOUT1?`/`VOUT2?`/`IOUT1?` responses from the **earlier probe session** recorded in `artifacts/manuals/ground-truth.md`; not re-captured, because re-energising the output is out of scope | `hardware-verified` |
 | `status-output-on.txt`, `status-output-off-beep-on.txt` | `11110110`, `00111010` | Same earlier probe session (`ground-truth.md`) | `hardware-verified` |
 | `help-list.txt` | 18-line command list | Real `HELP?` response returned 2026-11-19 (934 bytes at capture time); reconstructed from the recorded console transcript after the instrument disconnected, and the reconstructed length equals the reported 934 bytes. Preserved as `assets/fixtures/captures/help-transcribed.raw` (SHA-256 `cc99fc5c…`) and indexed in `captures.jsonl` with `capture_method: console-transcript`. Not written by `--capture-dir`, not manual text, not synthetic. | `hardware-verified` (transcript-reconstructed raw) |
@@ -164,11 +183,11 @@ channel-scoped claims are `documented`, not `hardware-verified`.
 | `vout1-lowercase-probe.txt` | `0.000V` | Real reply to `vout1?`, proving the "not case-sensitive" rule of manual p. 46 | `hardware-verified` |
 | `synthetic/*.txt` | wrong model, missing firmware, unitless value, wrong unit, short/non-binary status, undocumented error text, missing terminator, extra line | **Synthetic negatives** built to exercise failure paths; no instrument produced them | synthetic |
 
-Every capture in this Skill is a single, non-repeatable observation: the
-instrument was disconnected from the host after the session and was not
-re-measured. Do not extend any of it to another unit, firmware, or interface, and
-do not upgrade a write command to `hardware-verified` on the strength of a
-read-only capture.
+The read-only query forms were observed in two sessions on 2026-11-19, the second
+one later the same day (`verify_all`, 11:38:50Z). The output-on readings remain a
+single observation because re-energising the output is out of scope. Do not
+extend any of it to another unit, firmware, or interface, and do not upgrade a
+write command to `hardware-verified` on the strength of a read-only capture.
 
 ## Provenance fields in artifacts
 
@@ -178,13 +197,19 @@ read-only capture.
   snapshots).
 - `evidence.command`, `evidence.command_evidence` (per-command level) and
   `evidence.pdf_page` on dispatched responses.
-- `bit_order` and `decoded_alternate_order` on `STATUS?` results.
+- `bit_order`, `decoded_alternate_order` and `status_bit_order.evidence.corroborated_by`
+  on `STATUS?` results; the last records the two same-session observations that
+  agree with `lsb-first` (`baud_9600_matches_link`,
+  `output_off_matches_vout_zero`).
 - Capture index (`captures.jsonl`): run id, timestamp, port, baud, command,
   request bytes, response bytes, SHA-256, raw file name.
 
 ## Known limitations
 
-- `STATUS?` character order is undocumented; the decode is an inference.
+- `STATUS?` character order is undocumented; the decode is an inference
+  corroborated by two same-session observations, not a manual fact.
+- The `lsb-first` tracking decode (`11` -> series) has not been confirmed on the
+  panel; when `STATUS?` reports tracking, CH1/CH2 independence is unproven.
 - No write command was exercised, so no side effect of `OUT`, `VSET`, `ISET`,
   `TRACK`, `SAV`, `RCL`, `BAUD`, `LOCAL`, or `REMOTE` is verified.
 - Only `Invalid Character.` was seen on the wire; the other five error messages

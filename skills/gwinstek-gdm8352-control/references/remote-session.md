@@ -15,7 +15,9 @@ The captured unit enumerated at `/dev/ttyACM0` as USB CDC-ACM, VID:PID
 `2184:003b`. `lsusb` showing `GW Instek GDM-8351` is expected for this unit:
 it is a stale USB descriptor, not the instrument identity. This host-side
 evidence is from the 2026-11-19 capture on firmware `1.00`, serial `GEP848232`.
-The device was disconnected after capture and was not re-tested.
+The unit was re-tested later the same day (`verify_all`, 11:38:50Z); that
+evidence directory, `artifacts/verification/evidence/20261119T113850Z/`, is
+git-ignored and is a local reference only.
 
 **USB CDC ignores the host baud-rate setting on the captured unit.** Both
 115200 and 9600 received the same correct responses. Explicitly passing
@@ -39,6 +41,13 @@ apply this observation to RS-232 or USB-TMC.
   commands do not perform an identity handshake for you.
 
 ## Timeouts and error text
+
+Measured on the verified unit (2026-11-19, values are measured, not manual
+figures): `MEAS:VOLT:DC?` returned its first byte after about **0.262 s**,
+`MEAS:CURR:DC?` after about **0.135 s**, and `READ?` after about **0.025 s**.
+DC voltage is the slowest query, so give it a timeout budget of at least **1 s**;
+the shipped 2 s default is intentionally above that and must not be reduced
+towards the measured latency.
 
 The session defaults to a 2 s read timeout (`--timeout` sets it) and two
 attempts. Before each send, it clears pending input with `reset_input_buffer`

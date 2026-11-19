@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import sys
@@ -230,6 +231,14 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(artifact["integrity"]["reasons"], ["status_bit_order_not_documented"])
         checks = {check["name"]: check["status"] for check in artifact["integrity"]["checks"]}
         self.assertEqual(checks["status_bit_order"], "not_checked")
+        order = next(
+            check for check in artifact["integrity"]["checks"]
+            if check["name"] == "status_bit_order"
+        )
+        self.assertEqual(
+            order["evidence"]["corroborated_by"],
+            ["baud_9600_matches_link", "output_off_matches_vout_zero"],
+        )
 
     def test_alternate_order_is_reported(self):
         artifact = parse_status(fixture("status-output-off.txt"))
@@ -389,18 +398,16 @@ class ClassifyTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             build_query("SYST:ERR?")
 
-    def test_only_ch1_and_ch2_queries_are_hardware_verified(self):
-        for text in ("VSET1?", "ISET2?", "VOUT2?", "IOUT1?"):
+    def test_all_four_channel_queries_are_hardware_verified(self):
+        for text in (
+            "VSET1?", "VSET3?", "VSET4?", "ISET2?", "ISET4?",
+            "VOUT2?", "VOUT3?", "IOUT1?", "IOUT4?",
+        ):
             with self.subTest(text=text):
                 result = classify_command(text)
                 self.assertEqual(result["evidence"], "hardware-verified")
                 self.assertIsNone(result["evidence_note"])
-        for text in ("VSET3?", "ISET4?", "VOUT3?", "IOUT4?"):
-            with self.subTest(text=text):
-                result = classify_command(text)
-                self.assertEqual(result["evidence"], "documented")
-                self.assertIn("CH3/CH4", result["evidence_note"])
-                self.assertEqual(result["evidence_channels"], [1, 2])
+                self.assertEqual(result["evidence_channels"], [1, 2, 3, 4])
 
 
 class ParseResponseTests(unittest.TestCase):
@@ -426,10 +433,14 @@ class ParseResponseTests(unittest.TestCase):
         self.assertEqual(artifact["kind"], "command-list")
 
     def test_channel_scope_reaches_the_artifact(self):
-        artifact = parse_response(fixture("vout3-off.txt"), "VOUT3?")
-        self.assertEqual(artifact["evidence"]["command_evidence"], "documented")
-        artifact = parse_response(fixture("vout2-off.txt"), "VOUT2?")
-        self.assertEqual(artifact["evidence"]["command_evidence"], "hardware-verified")
+        for fixture_name, command in (
+            ("vout3-off.txt", "VOUT3?"),
+            ("vout4-off.txt", "VOUT4?"),
+            ("vout2-off.txt", "VOUT2?"),
+        ):
+            with self.subTest(command=command):
+                artifact = parse_response(fixture(fixture_name), command)
+                self.assertEqual(artifact["evidence"]["command_evidence"], "hardware-verified")
 
     def test_non_query_is_rejected(self):
         with self.assertRaises(ProtocolError):
@@ -461,6 +472,14 @@ class FixtureProvenanceTests(unittest.TestCase):
             "iout1-off.txt": "captures/003-IOUT1.raw",
             "vout2-off.txt": "captures/004-VOUT2.raw",
             "iout2-off.txt": "captures/005-IOUT2.raw",
+            "vset3.txt": "captures/006-VSET3.raw",
+            "vset4.txt": "captures/007-VSET4.raw",
+            "iset3.txt": "captures/008-ISET3.raw",
+            "iset4.txt": "captures/009-ISET4.raw",
+            "vout3-off.txt": "captures/010-VOUT3.raw",
+            "vout4-off.txt": "captures/011-VOUT4.raw",
+            "iout3-off.txt": "captures/012-IOUT3.raw",
+            "iout4-off.txt": "captures/013-IOUT4.raw",
             "help-list.txt": "captures/help-transcribed.raw",
         }
         for descriptive, captured in pairs.items():
@@ -469,15 +488,24 @@ class FixtureProvenanceTests(unittest.TestCase):
 
     def test_capture_index_hashes_match_the_raw_files(self):
         lines = (FIXTURES / "captures" / "captures.jsonl").read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(lines), 7)
-        methods = {}
+        self.assertEqual(len(lines), 15)
+        entries = {}
         for line in lines:
             entry = json.loads(line)
             raw = (FIXTURES / "captures" / entry["raw_path"]).read_bytes()
             self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["response_sha256"])
-            methods[entry["command"]] = entry.get("capture_method", "capture-dir")
-        self.assertEqual(methods["HELP?"], "console-transcript")
-        self.assertEqual(methods["*IDN?"], "capture-dir")
+            self.assertEqual(base64.b64decode(entry["response_base64"]), raw)
+            entries[entry["command"]] = entry
+        self.assertEqual(entries["HELP?"].get("capture_method"), "console-transcript")
+        self.assertEqual(entries["*IDN?"].get("capture_method", "capture-dir"), "capture-dir")
+        for command in ("VSET3?", "VSET4?", "ISET3?", "ISET4?",
+                        "VOUT3?", "VOUT4?", "IOUT3?", "IOUT4?"):
+            with self.subTest(command=command):
+                entry = entries[command]
+                self.assertEqual(entry["capture_method"], "verify_all")
+                self.assertEqual(entry["port"], "/dev/ttyUSB0")
+                self.assertEqual(entry["baud"], 9600)
+                self.assertTrue(entry["captured_at"])
 
     def test_captured_and_transcribed_fixtures_end_with_crlf(self):
         for path in sorted(FIXTURES.glob("*.txt")):

@@ -36,6 +36,13 @@ The GPD makes this rule sharper than usual:
 - `TRACK<NR1>` changes the output topology: `1` series doubles the voltage
   (0-60 V), `2` parallel doubles the current (0-6 A) (manual pp. 33, 39, 55).
   It also turns the output off automatically (manual p. 25).
+- **A `STATUS?` tracking decode is not panel confirmation.** Under the default
+  `lsb-first` decode the observed `00110010` reads `tracking_code=11`, which the
+  manual maps to series tracking (0-60 V); that is consistent with
+  `VSET1? = VSET2? = 24.000V`. If `STATUS?` reports series or parallel tracking,
+  the assumption that CH1 and CH2 are independent fails: confirm the mode at the
+  front and rear panel before relying on independent-channel behaviour. This
+  decode has not been confirmed on the panel.
 - `SAV<NR1>` and `RCL<NR1>` turn the output off automatically and always store
   and recall output on/off, panel lock, and beep as **off** (manual pp. 41-42).
   A recall silently de-energises the outputs and unlocks the panel.
@@ -59,20 +66,18 @@ The GPD makes this rule sharper than usual:
 ## Evidence and scope
 
 - **Verified instrument**: GW Instek GPD-4303S, serial `EP924162`, firmware
-  `V2.08`, `/dev/ttyUSB0`, 9600 8N1, no flow control, captured 2026-11-19. The
-  instrument was disconnected from the host after the capture session and was
-  not re-tested, so every fixture is a single non-repeatable observation.
+  `V2.08`, `/dev/ttyUSB0`, 9600 8N1, no flow control, captured 2026-11-19. A
+  second read-only session later the same day (`verify_all`, 11:38:50Z)
+  re-queried the same unit; its evidence is archived locally under
+  `artifacts/verification/evidence/20261119T113850Z/` (git-ignored, local
+  reference only). The output-on readings were not re-created, because
+  re-energising the output is out of scope.
 - **`hardware-verified` (read-only queries only)**: `*IDN?`, `STATUS?`, `HELP?`,
-  and `VSET<X>?` / `ISET<X>?` / `VOUT<X>?` / `IOUT<X>?` **on CH1 and CH2 only**.
-  The captured bytes live in `assets/fixtures/captures/` with byte-level
-  provenance; `HELP?` is indexed there as `help-transcribed.raw` because it was
-  reconstructed from the recorded console transcript rather than written by the
-  capture tool.
-- **`documented` only for CH3/CH4 queries**: `VSET3?`, `ISET3?`, `VOUT3?`,
-  `IOUT3?`, `VSET4?`, `ISET4?`, `VOUT4?`, `IOUT4?` answered on the verified unit,
-  but no raw response bytes were preserved for them, so the channel-scoped claim
-  stays `documented` even though channel numbering is documented by manual
-  pp. 48-49 and by the `HELP?` hint `x:1=CH1,2=CH2 (4303:3=CH3,4=CH4)`.
+  and `VSET<X>?` / `ISET<X>?` / `VOUT<X>?` / `IOUT<X>?` **on CH1-CH4**. The
+  captured bytes live in `assets/fixtures/captures/` with byte-level provenance,
+  including `006-VSET3.raw` through `013-IOUT4.raw`; `HELP?` is indexed there as
+  `help-transcribed.raw` because it was reconstructed from the recorded console
+  transcript rather than written by the capture tool.
 - **`documented` only**: `ISET<X>:<NR2>`, `VSET<X>:<NR2>`, `TRACK<NR1>`,
   `BEEP<Boolean>`, `OUT<Boolean>`, `RCL<NR1>`, `SAV<NR1>`, `BAUD<NR1>`,
   `LOCAL`, `REMOTE`, `ERR?`, and every error message except
@@ -83,11 +88,14 @@ The GPD makes this rule sharper than usual:
   exist; `BEEP?` does not exist; the device replies `Invalid Character.` (capital
   `C`, trailing period) where manual p. 46 prints `Invalid character`.
 - **Capture status**: the responses above were collected on 2026-11-19 from one
-  GPD-4303S at firmware `V2.08`; the instrument was unplugged afterwards, so no
-  capture could be repeated and the write commands remain unverified.
+  GPD-4303S at firmware `V2.08` and re-queried later the same day; the write
+  commands remain unverified.
 - **`UNVERIFIED`**: the transmission order of the eight `STATUS?` characters.
-  The manual defines the bit meanings but not their order; see
-  [response-and-evidence.md](references/response-and-evidence.md).
+  The manual defines the bit meanings but not their order. The `lsb-first`
+  default is corroborated, but not proven, by two same-session observations:
+  `00110010` decodes to `baud_code=10` -> 9600 bps, the rate the link actually
+  used, and to `output=off`, matching `VOUT1?`-`VOUT4?` all reading `0.000V`.
+  See [response-and-evidence.md](references/response-and-evidence.md).
 - **External evidence (not manual text)**: the USB descriptor `0403:6001`
   ("Future Technology Devices International, Ltd FT232 Serial (UART) IC") was
   read with `lsusb`; the manual only says "USB slave port, rear panel".
@@ -225,7 +233,12 @@ cd skills/gwinstek-gpd4303s-control/scripts && python3 -m unittest -v
 - Every write command is `documented` only; no output, setpoint, tracking,
   memory, baud, or remote/local command was exercised, by design.
 - The `STATUS?` character order is not documented; the decode defaults to
-  `lsb-first` and always reports the alternate decode next to it.
+  `lsb-first`, reports the alternate decode next to it, and records the two
+  same-session corroborations (`baud_9600_matches_link`,
+  `output_off_matches_vout_zero`) without upgrading the check to `pass`.
+- The `lsb-first` tracking decode (`11` -> series) has not been confirmed on the
+  panel; do not assume CH1 and CH2 are independent when `STATUS?` reports a
+  tracking mode.
 - The `STATUS?` description on p. 50 says "Returns the GPD-X3303S", and p. 51
   prints the `*IDN?` example as `GPD-X3303`; the verified unit answers
   `GPD-4303S`. The manual's model strings are copy-paste defects.

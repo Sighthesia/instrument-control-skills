@@ -49,11 +49,11 @@ MAX_RESPONSE_BYTES = 65_536
 VOLTAGE_SET_RANGE = (Decimal("0"), Decimal("32.000"))
 CURRENT_SET_RANGE = (Decimal("0"), Decimal("3.200"))
 
-# Manual pp. 48-49: "X 1: CH1, 2: CH2, (4303S: 3: CH3, 4: CH4)".  CH3/CH4 answered
-# on the verified unit (firmware V2.08, 2026-11-19) but no raw response bytes were
-# preserved for them, so only CH1/CH2 carry a channel-scoped hardware claim.
-DOCUMENTED_CHANNELS = (1, 2, 3, 4)
-VERIFIED_CHANNELS = (1, 2)
+# Manual pp. 48-49: "X 1: CH1, 2: CH2, (4303S: 3: CH3, 4: CH4)".  All four channels
+# answered on the verified unit (firmware V2.08, 2026-11-19) and their raw response
+# bytes are preserved in assets/fixtures/captures/, so every per-channel query form
+# carries a channel-scoped hardware claim.
+VERIFIED_CHANNELS = (1, 2, 3, 4)
 
 # Manual p. 50: STATUS? bit map.  The manual defines the bit meanings but not
 # the order in which the eight characters are transmitted.
@@ -393,16 +393,6 @@ def classify_command(text: str) -> dict[str, Any]:
             low, high = spec.value_range
             if number < low or number > high:
                 problems.append("value_out_of_range")
-        evidence = spec.evidence
-        evidence_note = None
-        if channel is not None and channel not in VERIFIED_CHANNELS:
-            # CH3/CH4 answered during the verified session, but their responses
-            # were not preserved as raw bytes, so the claim stays documented.
-            evidence = "documented"
-            evidence_note = (
-                "CH3/CH4 answered on the verified unit, but no raw response bytes were "
-                "preserved; the channel-scoped claim stays documented"
-            )
         return {
             "text": stripped,
             "known": True,
@@ -417,9 +407,9 @@ def classify_command(text: str) -> dict[str, Any]:
             "length_ok": len(stripped) <= MAX_COMMAND_CHARS,
             "pdf_page": spec.pdf_page,
             "description": spec.description,
-            "evidence": evidence,
+            "evidence": spec.evidence,
             "evidence_channels": list(VERIFIED_CHANNELS) if channel is not None else None,
-            "evidence_note": evidence_note,
+            "evidence_note": None,
             "problems": problems,
         }
 
@@ -853,6 +843,12 @@ def normalize(
                         "used": bit_order,
                         "documented": False,
                         "reason": "the manual defines the bits but not their transmission order",
+                        # Two same-session observations agree with this order; neither
+                        # is a manual statement, so the check stays not_checked.
+                        "corroborated_by": [
+                            "baud_9600_matches_link",
+                            "output_off_matches_vout_zero",
+                        ] if bit_order == DEFAULT_BIT_ORDER else [],
                     },
                 },
             ],

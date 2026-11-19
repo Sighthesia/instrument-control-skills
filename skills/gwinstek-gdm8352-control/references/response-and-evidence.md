@@ -26,8 +26,14 @@ failed/retried read into a complete result.
   voltage, or "zero."
 - **`SYST:BEEP:STAT?`:** the three documented texts are `No Beep`,
   `Beep on Pass`, and `Beep on Fail` (PDF p. 133). Only `No Beep` was captured.
-  The historical write `SYST:BEEP:STAT OFF` produced no response bytes; that
-  silence does not establish a state change. This Skill refuses the setter.
+  The silent writes `SYST:BEEP:STAT 0` (2026-11-19) and `SYST:BEEP:STAT OFF`
+  (historical) produced no response bytes; the state claim comes from the
+  following query, which still read `No Beep`, confirming the beeper off.
+  Silence alone does not establish a state change. This Skill refuses the setter.
+- **`FUNC1?`:** the manual documents `[SENSe:]FUNCtion[1/2]?` (PDF p. 125).
+  The verified unit returned the current function, observed as `VOLT` and
+  `CURR`; no raw bytes were preserved. Other function markers are `documented`
+  only, and this Skill does not implement the query.
 - **`CONF?`:** the captured attempt timed out without receiving a byte, not
   even an EOL. This is an invalid query, not an instrument fault or an empty
   response line. For the documented query forms, see
@@ -52,15 +58,22 @@ refer to the raw files, including the terminator when present. The table
 contains six `hardware-verified` query responses and one zero-byte timeout
 record for the undocumented `CONF?` probe. That record is not a response and
 is not an additional `hardware-verified` command. The silent beeper write is
-recorded only in the historical hardware log; it has no fixture row. The
-synthetic fixtures under `assets/fixtures/synthetic/` are not captures.
+recorded only in the session transcript and the historical hardware log; it has
+no fixture row. The synthetic fixtures under `assets/fixtures/synthetic/` are
+not captures.
+
+The unit was re-tested later the same day (`verify_all`, 11:38:50Z). That
+git-ignored local directory is
+`artifacts/verification/evidence/20261119T113850Z/`. Its values differ from the
+fixtures because they are different readings; the fixtures below are not
+replaced, and the directory is not a required dependency.
 
 | File | Command | Bytes | sha256 | Captured | Note |
 |---|---|---:|---|---|---|
-| `idn.txt` | `*IDN?` | 33 | `7101090c136112d7c9398e643cc5d3632bae81eab0595b15220bb71e47026671` | 2026-11-19 | Identity, firmware `1.00`, serial `GEP848232`; device disconnected after capture, not re-tested. |
-| `meas-volt-dc.txt` | `MEAS:VOLT:DC?` | 14 | `6380eed705e5ce2f965d4af8cb94e60f15b3b5a3519607d6ade1cbbe843fbf34` | 2026-11-19 | DC voltage; unit from command, no wire suffix; device disconnected after capture, not re-tested. |
-| `meas-curr-dc.txt` | `MEAS:CURR:DC?` | 14 | `7ab2c3a3df87ee8480385c406f78e9516cfd0286ce8682b5eb7dcad08892161b` | 2026-11-19 | DC current; unit from command, no wire suffix; device disconnected after capture, not re-tested. |
-| `read-two-display.txt` | `READ?` | 27 | `d4aebf352351c0c55f5c162fbb6aa5fefab68949f9c1519857adf0dbba73e869` | 2026-11-19 | Two fields at default sample count; second function and unit `UNVERIFIED`; device disconnected after capture, not re-tested. |
-| `syst-beep-stat-no-beep.txt` | `SYST:BEEP:STAT?` | 9 | `a77e2d0f1f3c6212032ba0b1d7bbe2c1e4d45be3380c6ea713d32b037a64f852` | 2026-11-19 | Exact text `No Beep`; device disconnected after capture, not re-tested. |
-| `syst-err-command-error.txt` | `SYST:ERR?` | 15 | `524d46fcaf39f33d691eeb890ee6eb9f93c08635304baf54f196f9bee326f74a` | 2026-11-19 | Free text `Command error`, not a numbered queue entry; device disconnected after capture, not re-tested. |
-| `conf-query-timeout.empty` | `CONF?` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | 2026-11-19 | No bytes within the timeout; not an empty response line; device disconnected after capture, not re-tested. |
+| `idn.txt` | `*IDN?` | 33 | `7101090c136112d7c9398e643cc5d3632bae81eab0595b15220bb71e47026671` | 2026-11-19 | Identity, firmware `1.00`, serial `GEP848232`; captured 2026-11-19, unit re-tested later that day. |
+| `meas-volt-dc.txt` | `MEAS:VOLT:DC?` | 14 | `6380eed705e5ce2f965d4af8cb94e60f15b3b5a3519607d6ade1cbbe843fbf34` | 2026-11-19 | DC voltage; unit from command, no wire suffix; captured 2026-11-19, unit re-tested later that day. |
+| `meas-curr-dc.txt` | `MEAS:CURR:DC?` | 14 | `7ab2c3a3df87ee8480385c406f78e9516cfd0286ce8682b5eb7dcad08892161b` | 2026-11-19 | DC current; unit from command, no wire suffix; captured 2026-11-19, unit re-tested later that day. |
+| `read-two-display.txt` | `READ?` | 27 | `d4aebf352351c0c55f5c162fbb6aa5fefab68949f9c1519857adf0dbba73e869` | 2026-11-19 | Two fields at default sample count; second function and unit `UNVERIFIED`; captured 2026-11-19, unit re-tested later that day. |
+| `syst-beep-stat-no-beep.txt` | `SYST:BEEP:STAT?` | 9 | `a77e2d0f1f3c6212032ba0b1d7bbe2c1e4d45be3380c6ea713d32b037a64f852` | 2026-11-19 | Exact text `No Beep`; captured 2026-11-19, unit re-tested later that day. |
+| `syst-err-command-error.txt` | `SYST:ERR?` | 15 | `524d46fcaf39f33d691eeb890ee6eb9f93c08635304baf54f196f9bee326f74a` | 2026-11-19 | Free text `Command error`, not a numbered queue entry; captured 2026-11-19, unit re-tested later that day. |
+| `conf-query-timeout.empty` | `CONF?` | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | 2026-11-19 | No bytes within the timeout; not an empty response line; captured 2026-11-19, unit re-tested later that day. |

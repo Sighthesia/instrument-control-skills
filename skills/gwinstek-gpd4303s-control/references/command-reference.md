@@ -8,12 +8,13 @@ be verified against the manual and labelled `documented` before use.
 Evidence labels are per command **and per channel**, not per Skill.
 `hardware-verified` means a real response for **that query form on that
 channel** was captured on GPD-4303S serial `EP924162`, firmware `V2.08`,
-`/dev/ttyUSB0` at 9600 8N1, on 2026-11-19; the instrument was disconnected after
-capture and was not re-tested. Only CH1 and CH2 have preserved raw response
-bytes (`VOUT<X>?`/`IOUT<X>?`) or a recorded capture (`VSET<X>?`/`ISET<X>?` and
-`*IDN?`/`STATUS?`/`HELP?`); CH3/CH4 responses appeared in the session transcript
-but were not preserved, so those claims are `documented`. No write command was
-ever sent, so no write command is `hardware-verified`.
+`/dev/ttyUSB0` at 9600 8N1, on 2026-11-19; the same unit was re-queried later
+the same day (`verify_all`, 11:38:50Z). CH3/CH4 now have preserved raw response
+bytes under `assets/fixtures/captures/`: `006`-`009` for
+VSET3/VSET4/ISET3/ISET4 and `010`-`013` for VOUT3/VOUT4/IOUT3/IOUT4. CH1/CH2
+retain the earlier VOUT/IOUT captures (`002`-`005`) and transcript-recorded
+VSET/ISET responses. No write command was ever sent, so no write command is
+`hardware-verified`.
 
 ## Conventions (manual p. 46)
 
@@ -33,10 +34,10 @@ ever sent, so no write command is `hardware-verified`.
 | Command | Channel / parameter | Return format | Page | Evidence |
 |---|---|---:|---:|---|
 | `*IDN?` | — | `GW INSTEK,<model>,SN:<serial>,V<m>.<n>` — observed `GW INSTEK,GPD-4303S,SN:EP924162,V2.08` (no space after commas). Manual shows `GW INSTEK, GPD-X3303, SN: xxxxxxxx, Vx.xx`, so the spacing and model string in the manual are not faithful. | 50-51 | `hardware-verified` |
-| `VSET<X>?` | `1`-`4` | Voltage setpoint, observed `24.000V` on CH1/CH2, `3.300V` on CH3, `2.500V` on CH4. Unit `V`, three decimals. | 49 | `hardware-verified` on CH1/CH2; `documented` on CH3/CH4 (transcript only, no preserved raw bytes) |
-| `ISET<X>?` | `1`-`4` | Current setpoint, observed `1.000A` on CH1/CH2/CH4, `3.000A` on CH3. Unit `A`, three decimals. | 48 | `hardware-verified` on CH1/CH2; `documented` on CH3/CH4 |
-| `VOUT<X>?` | `1`-`4` | Measured output voltage, observed `0.000V` with the output off and `23.994V` / `23.987V` on CH1/CH2 while energised. Unit `V`. | 49 | `hardware-verified` on CH1/CH2 (raw files `002`-`005` in `assets/fixtures/captures/`); `documented` on CH3/CH4 |
-| `IOUT<X>?` | `1`-`4` | Measured output current, observed `0.000A` with the output off and `0.002A` on CH1 while energised. Unit `A`. | 49 | `hardware-verified` on CH1/CH2; `documented` on CH3/CH4 |
+| `VSET<X>?` | `1`-`4` | Voltage setpoint, observed `24.000V` on CH1/CH2, `3.300V` on CH3, `2.500V` on CH4. Unit `V`, three decimals. | 49 | `hardware-verified` on CH1-CH4 (CH3/CH4 raw files `006`, `007`) |
+| `ISET<X>?` | `1`-`4` | Current setpoint, observed `1.000A` on CH1/CH2/CH4, `3.000A` on CH3. Unit `A`, three decimals. | 48 | `hardware-verified` on CH1-CH4 (CH3/CH4 raw files `008`, `009`) |
+| `VOUT<X>?` | `1`-`4` | Measured output voltage, observed `0.000V` with the output off and `23.994V` / `23.987V` on CH1/CH2 while energised. Unit `V`. | 49 | `hardware-verified` on CH1-CH4 (raw files `002`-`005` and `010`, `011`) |
+| `IOUT<X>?` | `1`-`4` | Measured output current, observed `0.000A` with the output off and `0.002A` on CH1 while energised. Unit `A`. | 49 | `hardware-verified` on CH1-CH4 (raw files `003`, `005`, `012`, `013`) |
 | `STATUS?` | — | Exactly eight characters of `0`/`1`, observed `00111010`, `11110110`, `00110010`. Bit meanings are documented on p. 50; the character order is not. | 50 | `hardware-verified` (framing); bit decode `UNVERIFIED` |
 | `HELP?` | — | Command list, 18 CR-separated lines ending in CR LF, 934 bytes observed. `HELP?` itself is not listed (manual p. 52). | 52 | `hardware-verified` (raw `assets/fixtures/captures/help-transcribed.raw`, reconstructed from the session transcript) |
 | `ERR?` | — | "Returns the last error message" (manual p. 52). Not exercised; this Skill never sends it. | 52 | `documented` |
@@ -55,6 +56,12 @@ ever sent, so no write command is `hardware-verified`.
 The manual does not say whether the leftmost character is bit 0 or bit 7. See
 [response-and-evidence.md](response-and-evidence.md) for the capture-consistent
 default and the reason the alternate decode is always printed next to it.
+The `00110010` capture corroborates the `lsb-first` default twice: bits 6, 7 read
+`10` -> 9600 bps, matching the 9600 8N1 link that produced the response, and bit
+5 reads `0` -> output off, matching `VOUT1?`-`VOUT4?` all reading `0.000V`.
+Neither observation is a manual statement, so the check remains `not_checked`
+with reason `status_bit_order_not_documented`. Under the same decode the
+tracking field reads `11` (series); the panel has not confirmed that mode.
 
 ## Set and mode commands
 
@@ -100,10 +107,8 @@ actual reply on your unit.
   `VOUT<X>?`, `IOUT<X>?`, `STATUS?`, `HELP?`, `ERR?`) and 10 set/mode commands
   (`ISET<X>:<NR2>`, `VSET<X>:<NR2>`, `TRACK<NR1>`, `BEEP<Boolean>`,
   `OUT<Boolean>`, `RCL<NR1>`, `SAV<NR1>`, `BAUD<NR1>`, `LOCAL`, `REMOTE`).
-- 7 of the 8 query forms are `hardware-verified` on CH1/CH2: `*IDN?`, `STATUS?`,
-  `HELP?`, and `VSET<X>?` / `ISET<X>?` / `VOUT<X>?` / `IOUT<X>?` with `X` = 1 or 2.
-  `ERR?` stays `documented`, and the same four per-channel query forms are
-  `documented` (not `hardware-verified`) for CH3/CH4 because no raw response
-  bytes were preserved for those channels.
+- 7 of the 8 query forms are `hardware-verified` on all four channels: `*IDN?`,
+  `STATUS?`, `HELP?`, and `VSET<X>?` / `ISET<X>?` / `VOUT<X>?` / `IOUT<X>?` with
+  `X` = 1-4. `ERR?` stays `documented`.
 - 10 set/mode commands are `documented` only, and the live helper refuses all of
   them before writing to the port.

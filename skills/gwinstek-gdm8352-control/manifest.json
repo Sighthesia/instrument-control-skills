@@ -24,12 +24,12 @@
     "kind": "scalar-value",
     "raw_path": "assets/fixtures/meas-volt-dc.txt",
     "raw_sha256": "6380eed705e5ce2f965d4af8cb94e60f15b3b5a3519607d6ade1cbbe843fbf34",
-    "raw_provenance": "Real MEAS:VOLT:DC? response captured on 2026-11-19 from GDM-8352 serial GEP848232, firmware 1.00, over USB CDC-ACM 2184:003b. The raw bytes are indexed in assets/fixtures/captures.jsonl. The reading is uncalibrated read-back, not a calibration certificate. The instrument was disconnected after capture and was not re-tested."
+    "raw_provenance": "Real MEAS:VOLT:DC? response captured on 2026-11-19 from GDM-8352 serial GEP848232, firmware 1.00, over USB CDC-ACM 2184:003b. The raw bytes are indexed in assets/fixtures/captures.jsonl. The reading is uncalibrated read-back, not a calibration certificate. The unit was re-tested later the same day (verify_all, 11:38:50Z); that evidence directory is git-ignored and is a local reference only."
   },
   "support": {
     "level": "documented",
     "hardware_verified": true,
-    "hardware_verified_scope": "Restricted to the seven observations listed below, from GDM-8352 serial GEP848232, firmware 1.00, USB CDC-ACM 2184:003b at /dev/ttyACM0, captured 2026-11-19. The instrument was disconnected after capture and was not re-tested. All remaining documented commands are documented only.",
+    "hardware_verified_scope": "Restricted to the eight observations listed below, from GDM-8352 serial GEP848232, firmware 1.00, USB CDC-ACM 2184:003b at /dev/ttyACM0, captured 2026-11-19 and re-tested later the same day (verify_all, 11:38:50Z; the evidence directory is git-ignored and local-only). The beeper write is silent; its state claim comes from the following SYST:BEEP:STAT? readback of No Beep. FUNC1? was observed returning VOLT and CURR but no raw bytes were preserved. All remaining documented commands are documented only.",
     "control_level": "documented",
     "control_verified": false,
     "known_limitations": [
@@ -38,7 +38,8 @@
       "MEAS:CURR:DC?: raw response captured without a unit suffix; the unit comes from the command.",
       "READ?: two fields captured; the second display's function and unit are UNVERIFIED.",
       "SYST:BEEP:STAT?: only No Beep was captured; the other two texts are documented.",
-      "SYST:BEEP:STAT OFF: accepted with no response in the historical log; the following query still read No Beep, so no state transition was shown. This Skill refuses the setter.",
+      "SYST:BEEP:STAT 0 / SYST:BEEP:STAT OFF: both accepted with no response; after SYST:BEEP:STAT 0 the following query still read No Beep, so the beeper is confirmed off. Silence alone is not evidence. This Skill refuses the setter.",
+      "FUNC1?: returned the current function, observed as VOLT and CURR; no raw bytes were preserved, other function markers are documented only, and the query is not implemented by this Skill.",
       "SYST:ERR?: only the observed free text Command error is hardware-verified; no numbered error queue is established.",
       "USB-TMC was not exercised; no function, range, or input-terminal switching was exercised, and terminal selection was not verified.",
       "No accuracy or calibration was verified; no known input source was attached for a cross-check.",
@@ -70,8 +71,7 @@
     ],
     "reasons": [
       "unit_not_encoded_in_response",
-      "accuracy_and_calibration_not_verified",
-      "not_retested_after_capture"
+      "accuracy_and_calibration_not_verified"
     ]
   }
 }

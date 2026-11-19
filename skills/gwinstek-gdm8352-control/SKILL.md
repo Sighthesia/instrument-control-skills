@@ -74,14 +74,20 @@ range, which input terminal, and what the reading will mean afterwards.**
 
 - **Verified instrument**: GW Instek GDM-8352, serial `GEP848232`, firmware
   `1.00`, USB CDC-ACM `2184:003b`, host node `/dev/ttyACM0`, captured
-  2026-11-19; the device was disconnected after capture and was not re-tested.
-- **`hardware-verified` commands** (exactly these seven): `*IDN?`,
-  `MEAS:VOLT:DC?`, `MEAS:CURR:DC?`, `READ?`, `SYST:BEEP:STAT?`,
-  `SYST:BEEP:STAT OFF` (accepted with no response), and `SYST:ERR?` (only the
-  fact that it returned the free text `Command error`). Every one of these
-  carries the provenance sentence above. Raw bytes exist for the six queries in
-  `assets/fixtures/`; `SYST:BEEP:STAT OFF` is recorded only in the hardware
-  ground-truth log because a silent write produces no bytes.
+  2026-11-19. The unit was re-tested later the same day in the `verify_all`
+  session archived locally under
+  `artifacts/verification/evidence/20261119T113850Z/` (git-ignored; local
+  reference only).
+- **`hardware-verified` commands** (exactly these eight): `*IDN?`,
+  `MEAS:VOLT:DC?`, `MEAS:CURR:DC?`, `READ?`, `SYST:BEEP:STAT?`, the silent
+  `SYST:BEEP:STAT 0` write (accepted with no response; a following
+  `SYST:BEEP:STAT?` still read `No Beep`, so the beeper is confirmed off),
+  `FUNC1?` (returned the current function, observed as `VOLT` and `CURR`), and
+  `SYST:ERR?` (only the fact that it returned the free text `Command error`).
+  Every one of these carries the provenance sentence above. Raw bytes exist for
+  the six queries in `assets/fixtures/`; the beeper write and `FUNC1?` have no
+  preserved response bytes (a silent write produces none, and `FUNC1?` was
+  recorded only in the session transcript).
 - **`documented` only**: every `CONFigure`, `CONFigure2`, `SENSe`, `CALCulate`,
   `TRIGger`, `SAMPle`, `SYSTem`, `DISPlay`, `DIGitalio`, `STATus`, interface,
   IEEE 488.2 common command, and every measurement function other than DC
@@ -109,8 +115,10 @@ range, which input terminal, and what the reading will mean afterwards.**
   `SAMPle`, `SYSTem` (other than beeper off), `DISPlay`, `DIGitalio`, `STATus`,
   interface, or IEEE 488.2 common command was exercised; no input source was
   attached for a cross-check; no function or range was deliberately changed
-  during the verified session; and the device was not re-tested, so every
-  capture is a single non-repeatable observation.
+  during the verified session; `FUNC1?` has no preserved raw bytes, only the two
+  observed values; and the second session re-measured the same queries with
+  different readings, but the original fixture captures remain single
+  observations.
 - **Synthetic fixtures** live under `assets/fixtures/synthetic/` and are
   deliberately bad responses used to prove failure handling. They are not
   hardware evidence and must never be presented as captures.
@@ -124,7 +132,7 @@ range, which input terminal, and what the reading will mean afterwards.**
 | `firmware-scoped` | Hardware evidence records exact model, firmware, interface, and date. |
 
 These labels describe evidence, not feature count. This Skill is
-`hardware-verified` for the seven commands listed above and `documented` for
+`hardware-verified` for the eight commands listed above and `documented` for
 everything else.
 
 ## Device boundary

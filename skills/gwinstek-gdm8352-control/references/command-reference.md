@@ -4,7 +4,7 @@
 
 来源为 GW Instek《GDM-8352 使用手册》`82DM-83520E01` 中文版，文件位于 `ref/gwinstek/GDM-8352_User_Manual_82DM-83520E01.pdf`。命令表见 PDF pp. 99–106，命令参考见 PDF pp. 107–141。本文一律使用 **PDF 物理页**，手册印刷页码比它大 1。
 
-`hardware-verified` 行共 7 条，证据均来自 2026-11-19 采集的同一台 GDM-8352，固件 `1.00`，序列号 `GEP848232`，USB CDC-ACM `2184:003b`。采集后设备已断开、未复测。证据仅覆盖观察到的确切命令和响应，不延伸至同族语法或可选参数。
+`hardware-verified` 行共 8 条，证据均来自 2026-11-19 采集的同一台 GDM-8352，固件 `1.00`，序列号 `GEP848232`，USB CDC-ACM `2184:003b`。当日稍后已复测（`verify_all`，11:38:50Z）；证据目录 `artifacts/verification/evidence/20261119T113850Z/` 被 gitignore，仅作本地引用，不是必需依赖。证据仅覆盖观察到的确切命令和响应，不延伸至同族语法或可选参数。
 
 方括号表示可选部分，竖线表示备选值，`<NR1>` 为整数，`<NRf>` 为灵活数字格式。表内的示例响应来自手册，真机接收内容另行注明。
 
@@ -94,7 +94,7 @@
 | Command | Syntax | Parameters / return | PDF page | Evidence | Implemented |
 |---|---|---|---|---|---|
 | `SENS:FUNC[1/2]` | `[SENSe:]FUNCtion[1/2] "<function>"` | 手册以 `1`、`2` 指示显示。第一显示可设 `VOLT[:DC]`、`VOLT:AC`、`VOLT:DCAC`、`CURR[:DC]`、`CURR:AC`、`CURR:DCAC`、`RES`、`FRES`、`FREQ`、`PER`、`TEMP:TCO`、`DIOD`、`CONT`、`CAP`。第二显示可设 `VOLT[:DC]`、`VOLT:AC`、`CURR[:DC]`、`CURR:AC`、`RES`、`FRES`、`FREQ`、`PER`、`NON`。 | 125 | documented | no — refused by build_query |
-| `SENS:FUNC[1/2]?` | `[SENSe:]FUNCtion[1/2]?` | 返回对应显示的功能标记。与写入参数列表相比，返回的直流功能为 `VOLT`、`CURR`，热电偶功能为 `TEMP:TCO`。 | 125 | documented | no — refused by build_query |
+| `SENS:FUNC[1/2]?` | `[SENSe:]FUNCtion[1/2]?` | 返回对应显示的功能标记。与写入参数列表相比，返回的直流功能为 `VOLT`、`CURR`，热电偶功能为 `TEMP:TCO`。实测 `FUNC1?` 返回当前功能，观察到 `VOLT` 与 `CURR`；未留存原始字节。 | 125 | hardware-verified（仅 `FUNC1?`） | no — refused by build_query |
 | `SENS:UNIT` | `[SENSe:]UNIT C \| F` | 温度单位设为摄氏或华氏。 | 124 | documented | no — refused by build_query |
 | `SENS:UNIT?` | `[SENSe:]UNIT?` | 返回当前温度单位，命令详解未列响应字面格式。`UNIT?` 亦为手册列出的有效形式。 | 124（语法别名见 97） | documented | yes |
 | `SENS:DET:RATE` | `[SENSe:]DETector:RATE S \| M \| F` | 设置慢、中、快三档采样率。 | 122 | documented | no — refused by build_query |
@@ -165,7 +165,7 @@
 | Command | Syntax | Parameters / return | PDF page | Evidence | Implemented |
 |---|---|---|---|---|---|
 | `SYST:BEEP:STAT` | `SYSTem:BEEPer:STATe <NR1>` | 手册仅列 `0`（不响）、`1`（通过时响）、`2`（失败时响）。 | 133 | documented | no — refused by build_query |
-| `SYST:BEEP:STAT OFF` | `SYST:BEEP:STAT OFF` | 采集记录记为接受但无响应。手册只列同族的数值参数，未列 `OFF`。静默本身不能证实状态。 | —（同族 133） | hardware-verified | no — refused by build_query |
+| `SYST:BEEP:STAT 0` / `SYST:BEEP:STAT OFF` | `SYST:BEEP:STAT 0` 或 `SYST:BEEP:STAT OFF` | 两种写法均被静默接受、无响应。发送 `SYST:BEEP:STAT 0` 后回读仍为 `No Beep`，蜂鸣确已关闭；状态由后续查询确立，静默本身不能证实。手册只列数值参数 `0`/`1`/`2`，未列 `OFF`。 | —（同族 133） | hardware-verified | no — refused by build_query |
 | `SYST:BEEP:STAT?` | `SYSTem:BEEPer:STATe?` | 手册列 `No Beep`、`Beep on Pass`、`Beep on Fail`；真机仅观察到 `No Beep`。 | 133 | hardware-verified | yes |
 | `SYST:BEEP:ERR` | `SYSTem:BEEPer:ERRor ON \| OFF` | 设置 SCPI 出错时蜂鸣开关。 | 133 | documented | no — refused by build_query |
 | `SYST:BEEP:ERR?` | `SYSTem:BEEPer:ERRor?` | 返回 `0`（关闭）或 `1`（开启）。 | 133 | documented | no — refused by build_query |
@@ -190,9 +190,10 @@
 
 手册公共命令表（PDF p. 106）及详解（PDF pp. 138–141）无 `*TST?` 或 `*WAI` 条目。两者均被 `build_query` 拒绝，语法、参数、响应及适用性无此手册依据。
 
-## 四项真机观察
+## 五项真机观察
 
 1. **`CONF?` 无响应。** 本次采集在超时前未收到字节。手册没有裸 `CONF?`，正确查询为 `CONF:FUNC?`（功能，PDF p. 110）、`CONF:RANG?`（量程，p. 110）及 `CONF:AUTO?`（自动量程状态，p. 111）。这三条均为 `documented`。
 2. **`SYST:ERR?` 返回自由文本。** 原文为 `Command error`。手册只说返回当前系统错误（若有，PDF p. 133），未定义错误编号或错误队列。此响应不应作为错误队列条目解析。
-3. **`SYST:BEEP:STAT?` 的返回为三态文本。** 手册列出 `No Beep`、`Beep on Pass`、`Beep on Fail`（PDF p. 133），夹具仅记录 `No Beep`。`0`、`1`、`2` 属于同族写命令参数，不能用于解释查询响应。采集记录中的 `SYST:BEEP:STAT OFF` 被接受但没有响应，静默不能证实切换后的状态。
+3. **`SYST:BEEP:STAT?` 的返回为三态文本。** 手册列出 `No Beep`、`Beep on Pass`、`Beep on Fail`（PDF p. 133），夹具仅记录 `No Beep`。`0`、`1`、`2` 属于同族写命令参数，不能用于解释查询响应。`SYST:BEEP:STAT 0` 与 `SYST:BEEP:STAT OFF` 均被静默接受、无响应；发送 `0` 后回读仍为 `No Beep`，蜂鸣确已关闭，状态由后续查询确立，静默本身不能证实。
 4. **`READ?` 本次返回两个逗号分隔字段。** 响应正文为 `+0.00023E-02,+0.00000E+00`。手册按第一、第二显示顺序给出值（PDF p. 130），多样本示例含多对字段。本次第二字段的功能和单位均为 `UNVERIFIED`，即使数值等于零也不能据此推断其含义。
+5. **`FUNC1?` 返回当前功能。** 实测观察到 `VOLT` 与 `CURR` 两种值；未留存原始字节。手册对应查询为 `[SENSe:]FUNCtion[1/2]?`（PDF p. 125），其他功能标记仍为 `documented`，本 Skill 不实现该查询。
