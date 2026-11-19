@@ -5,19 +5,66 @@
 一些供 AI 使用的仪器操作与数据分析技能：连接和配置仪器、解析仪器返回的
 数据、校验数据完整性。
 
-## Skills
+## 技能列表
 
-| 仪器类型 | Skill | 仪器系列 | 能力 | 验证情况 |
+| Skill | 仪器 | 接口 |
+|---|---|---|
+| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Siglent SDS800X HD 系列 | `LAN (TCP 5025)`、`USB-TMC` |
+| [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Keithley Model 2000 | `RS-232` |
+| [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | GW Instek GDM-8352 | `USB CDC-ACM` |
+| [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | GW Instek AFG-2225 | `USB CDC` |
+| [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | GW Instek GPD-4303S | `FTDI serial` |
+| [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | GW Instek GDS-1000B 系列 | `USB CDC`、`LAN`（四通道型号） |
+| [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | 任意仪器（编写指南） | — |
+
+## 能力概览
+
+- **`siglent-sds800xhd-control`** —— 测量、截图、波形捕获、协议解码、模板测试、
+  离线分析。
+- **`keithley-2000-control`** —— 交直流电压/电流、电阻、频率、温度、二极管与通断
+  测量及响应校验。
+- **`gwinstek-gdm8352-control`** —— 只读身份与交直流电压/电流查询、双显示帧解析、
+  仅查询白名单。
+- **`gwinstek-afg2225-control`** —— 标准与任意波形、调制、扫描、突发、计数器与
+  ARB 上传校验。
+- **`gwinstek-gpd4303s-control`** —— 只读电源监控：身份、`STATUS?` 解码、设定值
+  与输出回读，不含使负载上电的命令。
+- **`gwinstek-gds1000b-control`** —— 采集、触发、波形下载与校验、测量、保存与
+  截图。
+- **`write-new-instrument-control`** —— 新仪器 Skill 的编写指南与解析器模板；
+  不连接硬件。
+
+## 实机验证情况
+
+| Skill | 型号 | 固件 | 接口 | 台架日期 |
 |---|---|---|---|---|
-| 示波器 | [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Siglent SDS800X HD 系列 —— SDS802X HD、SDS804X HD、SDS812X HD、SDS814X HD、SDS822X HD、SDS824X HD（2 或 4 通道；70/100/200 MHz；50 或 100 Mpts） | 发现与连接、信号测量、截图与波形捕获、协议解码、异常/模板（Mask）测试、计数器/光标/历史读取、本地波形分析（NumPy）、写入校验与“设置不生效”静默失败的诊断；LAN（raw TCP）与 USB（USBTMC/VISA） | ✅已验证（SDS824X HD，固件 `4.8.12.1.1.6.5`；与通道数、带宽、存储深度相关的功能须在所连型号上重新确认） |
-| 台式万用表 | [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Keithley Model 2000（6½ 位万用表） | 基于 SCPI 手册的直流/交流电压与电流、二线/四线电阻、频率/周期、热电偶温度、二极管与通断测量；读数命令选择、响应校验，以及带前置条件的触发/缓冲/限值/扫描参考；离线标量/协议解析器与可选的 RS-232 会话工具（支持干跑与安全护栏） | ✅直流电压与直流电流 + RS-232 已实机验证（序列号 `0944865`，固件 `A17`/`A02`，9600 8N1，2026-10-20）；其余功能与接口仍基于 2000-900-01 Rev. J / August 2010 手册标记为 `documented` |
-| 台式万用表 | [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | GW Instek GDM-8352（5½ 位双显示万用表；USB CDC-ACM） | 只读类 SCPI 流程：身份与固件核对、直流/交流电压与电流查询、`READ?` 双显示帧解析、蜂鸣状态解码、系统错误文本，以及 IEEE 488.2 数值原始文本保留；离线协议/会话工具支持干跑，并以仅查询白名单拒绝一切写命令 | ✅七条只读查询已实机验证并当日复测（USB CDC-ACM，序列号 `GEP848232`，固件 `1.00`，`2184:003b`，2026-11-19）；全部写命令与其余测量功能仍基于 GDM-8352 使用手册（固纬料号 82DM-83520E01）标记为 `documented` |
-| 任意函数发生器 | [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | GW Instek AFG-2225（25 MHz，2 通道，120 MSa/s，4k 点 ARB，USB CDC） | 基于 SCPI 手册的身份/会话、基本波形、调制、扫描、突发、计数器，以及经校验的任意波形上传（ASCII 或显式字节序 IEEE 块）；离线响应/ARB 校验 | 基于 AFG-2225 User Manual（GW Instek part no. 82RF-22250M01）标记为 `documented`；USB CDC 身份未实机验证 |
-| 直流电源 | [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | GW Instek GPD-4303S（多路直流电源；CH1/CH2 独立 0-30 V / 0-3 A，串联 0-60 V，并联 0-6 A） | 只读监控：身份与固件、`STATUS?` 寄存器解码、`VSET`/`ISET` 设定值回读、`VOUT`/`IOUT` 实际输出回读、`HELP?` 命令表捕获、响应帧解析，以及防止探测型命令误使负载上电的安全规则 | ✅CH1-CH4 只读查询已实机验证并当日复测（FTDI 串口，序列号 `EP924162`，固件 `V2.08`，9600 8N1，2026-11-19）；全部输出、设定值、跟踪、记忆类命令仍基于 GPD-X303S 系列使用手册（固纬料号 82PD-433S0MC1）标记为 `documented`。受验机台当时为串联跟踪（`SER/INDEP` 灯亮，与 `STATUS?` 解码一致），CH1/CH2 合成单路 0-60 V，而非两个独立通道 |
-| 示波器 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | GW Instek GDS-1000B 系列（GDS-1054B/1072B/1074B/1102B/1104B/1202B；2/4 通道；50-200 MHz；USB CDC；四通道型号支持以太网） | 基于 SCPI 手册的身份/会话、采集/触发/时基/通道配置、波形存储下载与校验、测量、保存/截图；离线解析器 | 基于 GDS-1000B Programming Manual Version 1.00, March 2015 标记为 `documented`；未实机验证 |
-| 任意仪器（编写指南） | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | 可扩展至任意仪器：示波器、万用表、电源、分析仪等 | 编写指南与解析器模板、示例，用于新建仪器 Skill；不连接硬件 | 编写指南，无设备指令需要实机验证 |
+| `siglent-sds800xhd-control` | SDS824X HD | `4.8.12.1.1.6.5` | LAN TCP 5025 | 未记录 |
+| `keithley-2000-control` | Model 2000 | `A17` / `A02` | RS-232 9600 8N1 | 2026-10-20 |
+| `gwinstek-gdm8352-control` | GDM-8352 | `1.00` | USB CDC-ACM `2184:003b` | 2026-11-19 |
+| `gwinstek-gpd4303s-control` | GPD-4303S | `V2.08` | FTDI serial 9600 8N1 | 2026-11-19 |
 
-使用 skills CLI 安装：
+## 台架备注
+
+- SDS824X HD：与通道数、带宽、存储深度相关的行为须在所连型号上重新确认。
+- Keithley Model 2000：仅直流电压与直流电流经 RS-232 实机验证（序列号
+  `0944865`）；其余功能仍为 `documented`。
+- GDM-8352：七条只读查询已实机验证并当日复测（序列号 `GEP848232`）；全部写命令与
+  其他测量功能仍为 `documented`。
+- GPD-4303S：CH1-CH4 只读查询已实机验证并当日复测（序列号 `EP924162`）；全部输出、
+  设定值、跟踪、记忆命令仍为 `documented`。受验机台当时为串联跟踪（`SER/INDEP`
+  灯亮，与 `STATUS?` 解码一致），CH1/CH2 合成单路 0-60 V，而非两个独立通道。
+- AFG-2225 与 GDS-1000B 均为 `documented`，未做任何实机验证。
+- 不得把 `hardware-verified` 扩展到所记录的型号、固件、接口与功能之外。
+
+## 证据等级
+
+`documented` < `hardware-verified` = `firmware-scoped`：标签描述的是特定型号、固件与
+接口上的证据，而不是功能数量。
+
+**设备 Skill 是否算已验证，以在真实仪器上实际运行为准。**
+各 Skill 的 `SKILL.md` / `SUPPORT.md` 是权威记录。
+
+## 安装
 
 ```bash
 npx skills@latest add Sighthesia/instrument-control-skills
@@ -31,30 +78,10 @@ skills 目录（OpenCode 例如 `~/.config/opencode/skills/`）。
 如果你有想要添加的仪器通信方法，也可将其加入。为新型号仪器添加 Skill 时，
 从本仓库自带的编写指南
 [`skills/write-new-instrument-control/SKILL.md`](skills/write-new-instrument-control/SKILL.md)
-入手。它会走一遍编写路径：界定仪器边界、从编程手册收集可引用的证据、划分
-响应格式、把解析拆分为多个阶段。
+入手：界定仪器边界、从编程手册收集可引用的证据、划分响应格式、把解析拆分为
+多个阶段。
 
-指南本身不连接真实硬件。设备 Skill 是否算已验证，以在真实仪器上实际运行为
-准；可以在 Skill 或 README 表格中补充截图、固件版本等证据，但不强制。
-
-### 参考依据
-
-新建设备 Skill 会遵循编写指南中关于响应分帧（行式文本、CSV、IEEE 488.2 块、
-长度前缀与分段二进制）、元数据/载荷分离、完整性状态与报告结构、标量/波形/坐标轴
-检查、溯源、离线回放测试的规定。
-
-编写指南与波形分析器还参考了公开标准与成熟的开源仪器项目；它们都不是运行时依赖：
-
-- **IEEE 488.2** 块分帧，用于定长波形传输。
-- **IEEE Std 181 / IEC 60469** 提供上升时间、脉宽、过冲与振铃等转换/脉冲/畸变
-  术语。
-- **PyVISA、PyVISA-sim、PyMeasure、QCoDeS** 用于传输选项、回放测试以及传输层与
-  语义分离。
-- **M4**（VLDB 2014）用于有损预览，**NumPy `memmap`** 用于分块读取，
-  **SciPy `find_peaks`/`welch`** 作为未来检测器参考。
-- **厂商编程手册** 用于所有命令、字段和单位断言。
-
-阈值交叉、脉宽与 runt 宽度、振铃筛查均为启发式实现，不声称符合任何标准。
-完整索引、链接与注意事项见 [`docs/references.md`](docs/references.md)。
+指南本身不连接真实硬件。编写规则与分析方法的具体依据见
+[`docs/references.md`](docs/references.md)。
 
 提交时保持 `README.md` 与 `README.zh-CN.md` 同步。

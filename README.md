@@ -8,17 +8,71 @@ validating data integrity.
 
 ## Skills
 
-| Instrument type | Skill | Instrument series | Capabilities | Evidence |
-|---|---|---|---|---|
-| Oscilloscope | [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Siglent SDS800X HD series — SDS802X HD, SDS804X HD, SDS812X HD, SDS814X HD, SDS822X HD, SDS824X HD (2 or 4 channels; 70/100/200 MHz; 50 or 100 Mpts) | Discovery and connection, signal measurement, screenshot and waveform capture, protocol decode, anomaly/mask testing, counter/cursor/history reads, local waveform analysis (NumPy), write-verification and silent-failure diagnosis for settings that do not take effect; LAN (raw TCP) and USB (USBTMC/VISA) | ✅Verified (SDS824X HD, firmware `4.8.12.1.1.6.5`; channel-count-, bandwidth-, and memory-depth-dependent behavior must be reconfirmed on the connected model) |
-| Bench multimeter | [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Keithley Model 2000 (6½-digit multimeter) | Documented SCPI workflows for DC/AC voltage and current, 2-/4-wire resistance, frequency/period, thermocouple temperature, diode and continuity; readout selection, response validation, and conditional trigger/buffer/limit/scanner reference; offline scalar/protocol parsers and an optional RS-232 session helper with dry-run and safety guards | ✅Verified for DC voltage and DC current over RS-232 (serial `0944865`, firmware `A17`/`A02`, 9600 8N1, 2026-10-20); other functions and interfaces remain `documented` from manual 2000-900-01 Rev. J / August 2010 |
-| Bench multimeter | [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | GW Instek GDM-8352 (5½-digit dual-display multimeter; USB CDC-ACM) | Read-only SCPI workflows for identity and firmware checks, DC/AC voltage and current queries, `READ?` two-display framing, beeper-state decoding, system-error text, and IEEE 488.2 numeric preservation; offline protocol/session helpers with dry-run and a query-only whitelist that refuses every setter | ✅Verified for seven read-only queries over USB CDC-ACM (serial `GEP848232`, firmware `1.00`, `2184:003b`, captured and re-tested 2026-11-19); every setter and all other measurement functions remain `documented` from GDM-8352 User Manual (GW Instek part no. 82DM-83520E01) |
-| Arbitrary function generator | [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | GW Instek AFG-2225 (25 MHz, 2-channel, 120 MSa/s, 4k-point ARB, USB CDC) | Documented SCPI workflows for identity/session, basic waveforms, modulation, sweep, burst, counter, and validated arbitrary-waveform uploads (ASCII or explicit-endianness IEEE block); offline response/ARB validation | `documented` from AFG-2225 User Manual (GW Instek part no. 82RF-22250M01); USB CDC identity not hardware-verified |
-| DC power supply | [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | GW Instek GPD-4303S (multi-channel DC power supply; CH1/CH2 0-30 V / 0-3 A independent, 0-60 V series, 0-6 A parallel) | Read-only monitoring for identity and firmware, `STATUS?` register decoding, `VSET`/`ISET` set-point readback, `VOUT`/`IOUT` output readback, `HELP?` command capture, response framing, and the safety rules that keep a probing command from energising a load | ✅Verified for read-only queries on CH1-CH4 over FTDI serial (serial `EP924162`, firmware `V2.08`, 9600 8N1, captured and re-tested 2026-11-19); every output, set-point, tracking, and memory command remains `documented` from GPD-X303S Series User Manual (GW Instek part no. 82PD-433S0MC1). The verified unit was in series tracking (`SER/INDEP` LED on, matching the `STATUS?` decode), so CH1/CH2 formed one 0-60 V supply rather than two independent channels |
-| Oscilloscope | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | GW Instek GDS-1000B series (GDS-1054B/1072B/1074B/1102B/1104B/1202B; 2/4 channels; 50-200 MHz; USB CDC; Ethernet on 4-channel models) | Documented SCPI workflows for identity/session, acquisition/trigger/timebase/channel setup, waveform-memory download and validation, measurements, save/screenshot; offline parsers | `documented` from GDS-1000B Programming Manual Version 1.00, March 2015; no hardware verification |
-| Any instrument (authoring guide) | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | Extensible to any instrument: oscilloscopes, multimeters, power supplies, analyzers, and more | Authoring guide with parser templates and examples for new instrument Skills; does not connect to hardware | Authoring guide; no device commands to verify |
+| Skill | Instrument | Interface |
+|---|---|---|
+| [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | Siglent SDS800X HD series | `LAN (TCP 5025)`, `USB-TMC` |
+| [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | Keithley Model 2000 | `RS-232` |
+| [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | GW Instek GDM-8352 | `USB CDC-ACM` |
+| [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | GW Instek AFG-2225 | `USB CDC` |
+| [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | GW Instek GPD-4303S | `FTDI serial` |
+| [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | GW Instek GDS-1000B series | `USB CDC`, `LAN` (4-channel models) |
+| [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | Any instrument (authoring guide) | — |
 
-Install with the skills CLI:
+## Coverage
+
+- **`siglent-sds800xhd-control`** — measurement, screenshot, waveform capture,
+  protocol decode, mask testing, offline analysis.
+- **`keithley-2000-control`** — DC/AC voltage and current, resistance, frequency,
+  temperature, diode and continuity measurements with response validation.
+- **`gwinstek-gdm8352-control`** — read-only identity and DC/AC measurement
+  queries with two-display framing and a query-only whitelist.
+- **`gwinstek-afg2225-control`** — standard and arbitrary waveform generation,
+  modulation, sweep, burst, counter, and validated ARB upload.
+- **`gwinstek-gpd4303s-control`** — read-only supply monitoring: identity,
+  `STATUS?` decode, set-point and output readback, no command that energises a
+  load.
+- **`gwinstek-gds1000b-control`** — acquisition, trigger, waveform download and
+  validation, measurements, save and screenshot.
+- **`write-new-instrument-control`** — authoring guide with parser templates and
+  examples for new instrument Skills; it does not connect to hardware.
+
+## Verified on hardware
+
+| Skill | Model | Firmware | Interface | Bench date |
+|---|---|---|---|---|
+| `siglent-sds800xhd-control` | SDS824X HD | `4.8.12.1.1.6.5` | LAN TCP 5025 | not recorded |
+| `keithley-2000-control` | Model 2000 | `A17` / `A02` | RS-232 9600 8N1 | 2026-10-20 |
+| `gwinstek-gdm8352-control` | GDM-8352 | `1.00` | USB CDC-ACM `2184:003b` | 2026-11-19 |
+| `gwinstek-gpd4303s-control` | GPD-4303S | `V2.08` | FTDI serial 9600 8N1 | 2026-11-19 |
+
+## Bench notes
+
+- SDS824X HD: channel-count-, bandwidth-, and memory-depth-dependent behavior
+  must be reconfirmed on the connected model.
+- Keithley Model 2000: verified only for DC voltage and DC current over
+  RS-232, unit `0944865`; every other function remains `documented`.
+- GDM-8352: seven read-only queries verified on unit `GEP848232`, re-tested the
+  same day; every setter and all other measurement functions remain
+  `documented`.
+- GPD-4303S: CH1-CH4 read-only queries verified on unit `EP924162`, re-tested
+  the same day; every output, set-point, tracking, and memory command remains
+  `documented`. The unit was in series tracking (`SER/INDEP` LED on, matching
+  the `STATUS?` decode), so CH1/CH2 formed one 0-60 V supply, not two
+  independent channels.
+- AFG-2225 and GDS-1000B are `documented` only; neither has been verified on
+  hardware.
+- Do not extend `hardware-verified` beyond the recorded model, firmware,
+  interface, and functions.
+
+## Evidence labels
+
+`documented` < `hardware-verified` = `firmware-scoped`: a label describes
+evidence for a named model, firmware, and interface, never feature count.
+
+**A device Skill counts as verified only when exercised on a real instrument.**
+Each Skill's `SKILL.md` / `SUPPORT.md` is the authoritative record.
+
+## Install
 
 ```bash
 npx skills@latest add Sighthesia/instrument-control-skills
@@ -32,36 +86,11 @@ agent's skills directory (for OpenCode, e.g. `~/.config/opencode/skills/`).
 If you have an instrument communication method you'd like to add, you're
 welcome to include it here. To add a Skill for a new instrument, start with
 [`skills/write-new-instrument-control/SKILL.md`](skills/write-new-instrument-control/SKILL.md),
-the authoring guide shipped in this repository. It walks through the authoring
-path: define the instrument boundary, collect cited evidence from the
-programming manual, classify response formats, and split parsing into stages.
+the authoring guide shipped in this repository: define the instrument boundary,
+collect cited evidence from the programming manual, classify response formats,
+and split parsing into stages.
 
-The guide itself does not connect to real hardware. A device Skill counts as
-verified only when exercised on a real instrument; supporting evidence such as
-screenshots and the firmware version may be recorded in the Skill or README
-table, but is not mandatory.
-
-### Reference basis
-
-New device Skills follow the authoring guide's references on response framing
-(line text, CSV, IEEE 488.2 blocks, length-prefixed and segmented binary),
-metadata/payload separation, integrity statuses and report shape, scalar,
-waveform and axis checks, provenance, and offline replay testing.
-
-The guide and the waveform analyzer also draw on published standards and
-established open-source instrument projects; none is a runtime dependency:
-
-- **IEEE 488.2** block framing for definite-length waveform transfers.
-- **IEEE Std 181 / IEC 60469** for transition, pulse, and aberration terms such as
-  rise time, pulse width, overshoot, and ringing.
-- **PyVISA, PyVISA-sim, PyMeasure, QCoDeS** for transfer options, replay testing,
-  and transport/semantic separation.
-- **M4** (VLDB 2014) for the lossy preview, **NumPy `memmap`** for chunked reads,
-  **SciPy `find_peaks`/`welch`** as future detector references.
-- **Vendor programming manuals** for every command, field, and unit claim.
-
-Threshold crossings, pulse and runt widths, and ringing screening are heuristics
-and are not claimed to comply with any standard. Full index, links, and caveats:
-[`docs/references.md`](docs/references.md).
+The guide itself does not connect to real hardware. Reference basis for the
+authoring rules and analysis routines: [`docs/references.md`](docs/references.md).
 
 Keep `README.md` and `README.zh-CN.md` in sync when submitting.
