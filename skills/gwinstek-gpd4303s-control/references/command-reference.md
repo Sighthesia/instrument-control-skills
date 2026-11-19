@@ -38,7 +38,7 @@ VSET/ISET responses. No write command was ever sent, so no write command is
 | `ISET<X>?` | `1`-`4` | Current setpoint, observed `1.000A` on CH1/CH2/CH4, `3.000A` on CH3. Unit `A`, three decimals. | 48 | `hardware-verified` on CH1-CH4 (CH3/CH4 raw files `008`, `009`) |
 | `VOUT<X>?` | `1`-`4` | Measured output voltage, observed `0.000V` with the output off and `23.994V` / `23.987V` on CH1/CH2 while energised. Unit `V`. | 49 | `hardware-verified` on CH1-CH4 (raw files `002`-`005` and `010`, `011`) |
 | `IOUT<X>?` | `1`-`4` | Measured output current, observed `0.000A` with the output off and `0.002A` on CH1 while energised. Unit `A`. | 49 | `hardware-verified` on CH1-CH4 (raw files `003`, `005`, `012`, `013`) |
-| `STATUS?` | — | Exactly eight characters of `0`/`1`, observed `00111010`, `11110110`, `00110010`. Bit meanings are documented on p. 50; the character order is not. | 50 | `hardware-verified` (framing); bit decode `UNVERIFIED` |
+| `STATUS?` | — | Exactly eight characters of `0`/`1`, observed `00111010`, `11110110`, `00110010`. Bit meanings are documented on p. 50; the character order is not. `lsb-first` is corroborated by four independent observations, including the 2026-11-19 panel check (`SER/INDEP` LED on = series). | 50 | `hardware-verified` (framing and fields); character order `hardware-verified` for this unit only, artifact `UNVERIFIED` |
 | `HELP?` | — | Command list, 18 CR-separated lines ending in CR LF, 934 bytes observed. `HELP?` itself is not listed (manual p. 52). | 52 | `hardware-verified` (raw `assets/fixtures/captures/help-transcribed.raw`, reconstructed from the session transcript) |
 | `ERR?` | — | "Returns the last error message" (manual p. 52). Not exercised; this Skill never sends it. | 52 | `documented` |
 
@@ -56,12 +56,16 @@ VSET/ISET responses. No write command was ever sent, so no write command is
 The manual does not say whether the leftmost character is bit 0 or bit 7. See
 [response-and-evidence.md](response-and-evidence.md) for the capture-consistent
 default and the reason the alternate decode is always printed next to it.
-The `00110010` capture corroborates the `lsb-first` default twice: bits 6, 7 read
-`10` -> 9600 bps, matching the 9600 8N1 link that produced the response, and bit
-5 reads `0` -> output off, matching `VOUT1?`-`VOUT4?` all reading `0.000V`.
-Neither observation is a manual statement, so the check remains `not_checked`
-with reason `status_bit_order_not_documented`. Under the same decode the
-tracking field reads `11` (series); the panel has not confirmed that mode.
+The `00110010` capture is corroborated four times under `lsb-first`:
+`baud_9600_matches_link` (bits 6, 7 = `10` -> 9600 bps, the link that produced
+the response), `output_off_matches_vout_zero` (bit 5 = `0`, matching `VOUT1?`-
+`VOUT4?` all `0.000V`), `beep_off_matches_beep0` (bit 4 = `0`, matching the
+`BEEP0` probe), and `panel_ser_indep_led_on_matches_series_decode` (bits 2, 3 =
+`11` -> series, matching the operator's 2026-11-19 panel check that the
+`SER/INDEP` LED was on). `msb-first` contradicts all four. The parser therefore
+marks `status_bit_order` as `pass` for the default order while keeping
+`manual_defines_order: false`; the artifact remains `UNVERIFIED` because the
+manual never states the order.
 
 ## Set and mode commands
 
@@ -72,7 +76,7 @@ column is what the manual says happens, not something observed here.
 |---|---|---|---:|---|
 | `ISET<X>:<NR2>` | `0`-`3.200` A; `X` = 1-4 | Sets the current limit for the channel. Out-of-range input is expected to answer `Data out of range` (p. 46). | 48 | `documented` |
 | `VSET<X>:<NR2>` | `0`-`32.000` V; `X` = 1-4 | Sets the voltage for the channel. The programming range (32.000 V) is wider than the 30 V CH1/CH2 rating (p. 55); do not treat 32 V as a safe setting. | 48 | `documented` |
-| `TRACK<NR1>` | `0` independent, `1` series, `2` parallel | Changes the output topology: series doubles voltage (0-60 V), parallel doubles current (0-6 A). Automatically turns the output off (p. 25). CH2 output cannot be set while tracking (error `e`, p. 47). | 49 | `documented` |
+| `TRACK<NR1>` | `0` independent, `1` series, `2` parallel | Changes the output topology: series doubles voltage (0-60 V), parallel doubles current (0-6 A). Automatically turns the output off (p. 25). CH2 output cannot be set while tracking (error `e`, p. 47). The verified unit is currently in series tracking (panel-confirmed 2026-11-19); changing the mode requires operator authorisation. | 49 | `documented` |
 | `BEEP<Boolean>` | `0` off, `1` on | Beep only; the beep is enabled by default and beeps on output on/off, mode switching, save/recall, and panel lock (p. 25). | 50 | `documented` |
 | `OUT<Boolean>` | `0` off, `1` on | **No channel parameter.** The panel Output key switches all outputs at once (p. 25) and the panel lock does not block it (p. 53). `OUT1` is an enable, not a toggle, and `OUT1?` does not exist on the verified unit; `OUT0` is the only observed off command. | 50 | `documented` |
 | `RCL<NR1>` | `1`-`4` | Recalls a stored panel setup. Always recalls output on/off, panel lock, and beep as off, and turns the output off (pp. 25, 42). | 51 | `documented` |

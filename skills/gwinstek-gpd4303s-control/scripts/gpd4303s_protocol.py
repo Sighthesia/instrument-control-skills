@@ -75,10 +75,12 @@ METER_RESOLUTION_CURRENT = "1mA"
 
 # The two plausible transmission orders for the eight STATUS? characters.
 BIT_ORDERS = ("lsb-first", "msb-first")
-# Leftmost character is bit 0.  The manual does not state the order; this one is
-# the only one under which the 9600 bps baud field and the captured output bit
-# agree with the independently observed session (see references/response-and-
-# evidence.md).  It stays an inference, not a documented fact.
+# Leftmost character is bit 0.  The manual does not state the order.  Four
+# independent observations of the verified unit agree with this order: the 9600
+# bps baud field, the captured output bit, the BEEP0 beep bit, and a 2026-11-19
+# front-panel check (SER/INDEP LED on = series tracking).  It is still an
+# inference for any other unit, not a documented fact; see
+# references/response-and-evidence.md.
 DEFAULT_BIT_ORDER = "lsb-first"
 
 # Manual pp. 46-47: the six error messages the GPD-X303S may return.
@@ -838,21 +840,30 @@ def normalize(
                 },
                 {
                     "name": "status_bit_order",
-                    "status": "not_checked",
+                    # The default order is corroborated by four independent
+                    # observations, one of them a front-panel check on 2026-11-19
+                    # (SER/INDEP LED on = series tracking).  The manual still does
+                    # not state the order, so that evidence is scoped to the
+                    # verified unit; the artifact stays UNVERIFIED.
+                    "status": "pass" if bit_order == DEFAULT_BIT_ORDER else "not_checked",
                     "evidence": {
                         "used": bit_order,
-                        "documented": False,
+                        "manual_defines_order": False,
                         "reason": "the manual defines the bits but not their transmission order",
-                        # Two same-session observations agree with this order; neither
-                        # is a manual statement, so the check stays not_checked.
                         "corroborated_by": [
                             "baud_9600_matches_link",
                             "output_off_matches_vout_zero",
+                            "beep_off_matches_beep0",
+                            "panel_ser_indep_led_on_matches_series_decode",
                         ] if bit_order == DEFAULT_BIT_ORDER else [],
                     },
                 },
             ],
-            "reasons": ["status_bit_order_not_documented"],
+            "reasons": [
+                "status_bit_order_not_documented_but_panel_corroborated"
+                if bit_order == DEFAULT_BIT_ORDER
+                else "status_bit_order_not_documented"
+            ],
         }
 
     raise ProtocolError("metadata has no supported response_type", "UNSUPPORTED")

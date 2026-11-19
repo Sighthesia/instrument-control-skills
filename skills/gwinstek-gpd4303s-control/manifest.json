@@ -30,13 +30,13 @@
   "support": {
     "level": "documented",
     "hardware_verified": true,
-    "hardware_verified_scope": "Response parsing and read-only query framing only: *IDN?, STATUS?, HELP?, and VSET<X>?, ISET<X>?, VOUT<X>?, IOUT<X>? on CH1-CH4, on GPD-4303S serial EP924162, firmware V2.08, /dev/ttyUSB0 at 9600 8N1, captured 2026-11-19. The same unit was re-queried later the same day (verify_all, 11:38:50Z); that evidence directory is git-ignored and is a local reference only. CH3/CH4 have preserved raw bytes, including captures/006-VSET3.raw through 013-IOUT4.raw; CH1/CH2 VSET/ISET responses remain transcript-recorded. The HELP? response is indexed in captures.jsonl with capture_method console-transcript (reconstructed from the session transcript).",
+    "hardware_verified_scope": "Response parsing and read-only query framing only: *IDN?, STATUS?, HELP?, and VSET<X>?, ISET<X>?, VOUT<X>?, IOUT<X>? on CH1-CH4, on GPD-4303S serial EP924162, firmware V2.08, /dev/ttyUSB0 at 9600 8N1, captured 2026-11-19. The same unit was re-queried later the same day (verify_all, 11:38:50Z); that evidence directory is git-ignored and is a local reference only. CH3/CH4 have preserved raw bytes, including captures/006-VSET3.raw through 013-IOUT4.raw; CH1/CH2 VSET/ISET responses remain transcript-recorded. The HELP? response is indexed in captures.jsonl with capture_method console-transcript (reconstructed from the session transcript). A 2026-11-19 front-panel check by the operator (SER/INDEP LED on = series tracking) additionally corroborates the lsb-first STATUS? decode of the verified unit.",
     "control_level": "documented",
     "control_verified": false,
     "known_limitations": [
       "No write command was exercised: OUT<Boolean>, VSET/ISET set forms, TRACK<NR1>, SAV/RCL, BAUD, LOCAL, and REMOTE remain documented only.",
-      "The transmission order of the eight STATUS? characters is not documented by the manual; the decode defaults to lsb-first and reports the msb-first alternative next to it. The lsb-first default is corroborated, not proven, by the 00110010 capture: baud_9600_matches_link and output_off_matches_vout_zero.",
-      "The lsb-first tracking decode (11 -> series) has not been confirmed on the panel; when STATUS? reports series or parallel tracking, CH1/CH2 independence is unproven.",
+      "The transmission order of the eight STATUS? characters is not documented by the manual; the decode defaults to lsb-first and reports the msb-first alternative next to it. The lsb-first default agrees with four independent observations of the 00110010 capture: baud_9600_matches_link, output_off_matches_vout_zero, beep_off_matches_beep0, and panel_ser_indep_led_on_matches_series_decode (operator saw the SER/INDEP LED on = series tracking, 2026-11-19). The parser marks the check pass for the verified unit while keeping manual_defines_order false; the manual still does not state the order, so the artifact remains UNVERIFIED.",
+      "The verified unit was in series tracking on 2026-11-19 (panel-confirmed: the SER/INDEP LED was on), matching the lsb-first decode tracking_code=11. In series tracking CH1 and CH2 form one 0-60 V / 0-3 A supply (manual pp. 33-34) with the load across CH1+ and CH2-, not two independent 24 V channels. The panel check is scoped to this unit and date; on another unit, or after a mode change, CH1/CH2 independence must be confirmed at the panel.",
       "OUT1 is idempotent and OUT1? does not exist on the verified unit; OUT0 is the only observed way to turn the output off. This is probe-derived experience, not a manual statement.",
       "ERR? is documented (manual pp. 47, 52) but was not exercised and is not sent by this Skill.",
       "Only Invalid Character. was observed on the wire; the other five documented error messages are untested on this firmware.",
@@ -65,20 +65,23 @@
       },
       {
         "name": "status_bit_order",
-        "status": "not_checked",
+        "status": "pass",
         "evidence": {
           "reason": "the manual defines the STATUS? bit meanings but not their transmission order",
           "used": "lsb-first",
+          "manual_defines_order": false,
           "corroborated_by": [
             "baud_9600_matches_link",
-            "output_off_matches_vout_zero"
+            "output_off_matches_vout_zero",
+            "beep_off_matches_beep0",
+            "panel_ser_indep_led_on_matches_series_decode"
           ]
         }
       }
     ],
     "reasons": [
       "write_commands_unverified",
-      "status_bit_order_undocumented"
+      "status_bit_order_not_documented_but_panel_corroborated"
     ]
   }
 }

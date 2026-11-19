@@ -87,51 +87,62 @@ Rules:
 ## `STATUS?` bit order
 
 The manual (p. 50) defines the bit meanings but never says whether the leftmost
-character is bit 0 or bit 7. Three real captures exist:
+character is bit 0 or bit 7. Three real captures exist plus one front-panel
+check:
 
 | Capture | Wire text | State at capture time |
 |---|---|---|
 | 1 | `00111010` | output off, beep on |
 | 2 | `11110110` | output **on** (`OUT1` probe; CH1 at 23.994 V) |
 | 3 | `00110010` | output off, beep off |
+| Panel check, 2026-11-19 | — | operator saw the `SER/INDEP` LED **on** = series tracking |
 
-Reading the leftmost character as bit 0 (`lsb-first`, the default):
+The newest capture, `00110010`, has four independent corroborations. They are
+shown per field, in both candidate orders:
 
-- baud field (bits 6, 7) is `10` in all three captures -> 9600 bps, which matches
-  the only rate the instrument actually answered at (115200 received nothing).
-- output bit (bit 5) is off / on / off, exactly following the observed `OUT1` and
-  `OUT0` sequence.
-- beep bit (bit 4) changes between captures, following the `BEEP0`/`BEEP1` probes.
+| Field (manual p. 50) | `lsb-first` (leftmost = bit 0) | `msb-first` (leftmost = bit 7) | Independent observation |
+|---|---|---|---|
+| Baud (bits 6, 7) | `10` -> 9600 bps | `00` -> 115200 bps | The link answered only at 9600 8N1; 115200 received nothing. |
+| Output (bit 5) | `0` -> off | `1` -> on | `VOUT1?`-`VOUT4?` all read `0.000V`; no output was energised. |
+| Beep (bit 4) | `0` -> off | `1` -> on | `BEEP0` had been sent; the beep was off. |
+| Tracking (bits 2, 3) | `11` -> series (0-60 V) | `00` -> undefined | Confirmed by the panel row below. |
+| Panel confirmation, 2026-11-19 | `11` -> series, agrees | `00` -> undefined, contradicts | The operator looked at the front panel: the `SER/INDEP` LED was **on**, i.e. series tracking. |
 
-The newest capture, `00110010`, corroborates `lsb-first` twice:
+`lsb-first` therefore agrees with all four observations; `msb-first` contradicts
+all four (115200 instead of the live 9600 link, output on instead of `0.000V`,
+beep on instead of `BEEP0`, and an undefined tracking code instead of the
+panel-confirmed series mode).
 
-- `baud_9600_matches_link`: bits 6, 7 read `10` -> 9600 bps, the rate of the
-  `/dev/ttyUSB0` 9600 8N1 link that delivered the response.
-- `output_off_matches_vout_zero`: bit 5 reads `0` -> output off, agreeing with
-  `VOUT1?`-`VOUT4?` in the same session, all `0.000V`.
+Evidence types involved:
 
-The parser records both strings in the `status_bit_order` check as
-`corroborated_by`. They are corroborations, not proof: the manual still does not
-state the order, so the check remains `not_checked`, the artifact remains
-`UNVERIFIED`, and the reason `status_bit_order_not_documented` is retained.
+- `documented`: manual p. 50 defines the eight bit meanings and their
+  `01`/`11`/`10` encodings, but not the order in which the characters are sent.
+- `hardware-verified`: the `lsb-first` decode of real 2026-11-19 responses
+  agrees with the independently observed session state on this unit.
+- Panel confirmation: the `SER/INDEP` LED reading is an operator visual check,
+  not a SCPI result. This repository has no separate evidence level for a panel
+  check, so it is recorded under `hardware-verified` with the wording
+  "panel-confirmed"; no new level name is invented.
 
-Reading the leftmost character as bit 7 (`msb-first`) gives baud codes
-`00`/`11`/`00` -> 115200/undefined/115200, which contradicts the live 9600 link,
-and an output bit that does not follow the observed sequence.
+The parser records all four strings in the `status_bit_order` check as
+`corroborated_by` — `baud_9600_matches_link`, `output_off_matches_vout_zero`,
+`beep_off_matches_beep0`, `panel_ser_indep_led_on_matches_series_decode` — and
+marks the check `pass` for the default order. It keeps
+`manual_defines_order: false`: the manual still does not state the order, so the
+`pass` is scoped to this unit. The artifact remains `UNVERIFIED`, with reason
+`status_bit_order_not_documented_but_panel_corroborated`, and every result
+carries both `decoded` (the selected order) and `decoded_alternate_order`. Use
+`--bit-order msb-first` to see the other reading; for that order the check stays
+`not_checked` and no corroboration is claimed.
 
-The default is therefore `lsb-first` **as an inference, not a documented fact**:
-`parse_status` returns `integrity.status = UNVERIFIED`, the check
-`status_bit_order` is `not_checked`, and every result carries both
-`decoded` (the selected order) and `decoded_alternate_order`. Use
-`--bit-order msb-first` to see the other reading.
-
-Unresolved: under `lsb-first` the tracking field reads `11` (series) in all three
-captures. `VSET1? = VSET2? = 24.000V` is consistent with series tracking but does
-not prove it. The panel's `SER/INDEP` key would confirm it, but `TRACK<NR1>` is a
-write command and was not sent, so this Skill does not claim to know the unit's
-tracking mode — it reports the bits. If `STATUS?` reports series or parallel
-tracking, the assumption that CH1 and CH2 are independent fails until the
-front/rear panel is checked; this decode has not been panel-confirmed.
+Series tracking changes what the terminals mean. CH1 and CH2 are no longer two
+independent 0-30 V / 0-3 A channels but one 0-60 V / 0-3 A supply (manual
+pp. 33-34), and the load must be connected across `CH1+` and `CH2-`.
+`VSET1? = VSET2? = 24.000V` must not be read as "24 V on each channel". Leaving
+the mode requires the panel `SER/INDEP` key or `TRACK0`, a write command this
+Skill never sends. The panel confirmation is scoped to GPD-4303S `EP924162` on
+2026-11-19: on another unit, or after a mode change, read the panel instead of
+inferring the mode from SCPI.
 
 ## Error messages
 
@@ -198,18 +209,20 @@ write command to `hardware-verified` on the strength of a read-only capture.
 - `evidence.command`, `evidence.command_evidence` (per-command level) and
   `evidence.pdf_page` on dispatched responses.
 - `bit_order`, `decoded_alternate_order` and `status_bit_order.evidence.corroborated_by`
-  on `STATUS?` results; the last records the two same-session observations that
-  agree with `lsb-first` (`baud_9600_matches_link`,
-  `output_off_matches_vout_zero`).
+  on `STATUS?` results; the last records the four observations that agree with
+  `lsb-first` (`baud_9600_matches_link`, `output_off_matches_vout_zero`,
+  `beep_off_matches_beep0`, `panel_ser_indep_led_on_matches_series_decode`).
 - Capture index (`captures.jsonl`): run id, timestamp, port, baud, command,
   request bytes, response bytes, SHA-256, raw file name.
 
 ## Known limitations
 
 - `STATUS?` character order is undocumented; the decode is an inference
-  corroborated by two same-session observations, not a manual fact.
-- The `lsb-first` tracking decode (`11` -> series) has not been confirmed on the
-  panel; when `STATUS?` reports tracking, CH1/CH2 independence is unproven.
+  corroborated by four independent observations on this unit (including the
+  2026-11-19 panel check), not a manual fact.
+- The panel confirmation of series tracking is scoped to this unit and date; on
+  another unit, or after a mode change, CH1/CH2 independence must be confirmed
+  at the panel.
 - No write command was exercised, so no side effect of `OUT`, `VSET`, `ISET`,
   `TRACK`, `SAV`, `RCL`, `BAUD`, `LOCAL`, or `REMOTE` is verified.
 - Only `Invalid Character.` was seen on the wire; the other five error messages

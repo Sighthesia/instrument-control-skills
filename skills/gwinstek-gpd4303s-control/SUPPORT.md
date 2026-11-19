@@ -23,7 +23,8 @@
 | `VOUT<X>?` / `IOUT<X>?` respond with the same numeric-plus-unit format | `hardware-verified` on CH1-CH4 | `assets/fixtures/captures/002-VOUT1.raw`, `003-IOUT1.raw`, `004-VOUT2.raw`, `005-IOUT2.raw`, `010-VOUT3.raw`-`013-IOUT4.raw` (plus `vout1-on.txt`, `iout1-on.txt` from the prior session) |
 | `STATUS?` returns eight binary characters | `hardware-verified` | `assets/fixtures/status-output-off.txt` and two prior captures |
 | `STATUS?` bit meanings | `documented` | manual p. 50 |
-| `STATUS?` character transmission order | `UNVERIFIED` | not in the manual; decode reports both orders. The `lsb-first` default is corroborated, not proven, by `baud_9600_matches_link` and `output_off_matches_vout_zero` from `00110010` |
+| `STATUS?` character transmission order | `hardware-verified` for this unit; the order itself is not in the manual | decode reports both orders. The `lsb-first` default agrees with four independent observations of `00110010`: `baud_9600_matches_link`, `output_off_matches_vout_zero`, `beep_off_matches_beep0`, and `panel_ser_indep_led_on_matches_series_decode`. The panel confirmation is the operator's 2026-11-19 visual check that the `SER/INDEP` LED was on (series tracking). The artifact stays `UNVERIFIED` because the manual never states the order |
+| `STATUS?` tracking decode matches the front panel (`SER/INDEP` LED on = series, 0-60 V) | `hardware-verified` (panel observation, this unit) | operator visual check of the front panel on 2026-11-19, recorded as `panel_ser_indep_led_on_matches_series_decode` |
 | `HELP?` returns an 18-line CR-separated list ending in CR LF | `hardware-verified` (transcript-reconstructed raw) | `assets/fixtures/captures/help-transcribed.raw` (SHA-256 `cc99fc5c…`, indexed in `captures.jsonl` with `capture_method: console-transcript`) |
 | `Invalid Character.` is the reply to an unknown command | `hardware-verified` | `assets/fixtures/invalid-character.txt` |
 | `OUT<Boolean>`, `VSET/ISET` writes, `TRACK`, `SAV`/`RCL`, `BAUD`, `LOCAL`, `REMOTE` | `documented` | manual pp. 46-52; never sent |
@@ -36,11 +37,12 @@
 - No calibration: read-back is ±(0.03 % of reading + 10 mV) /
   ±(0.3 % of reading + 10 mA) with 1 mV / 1 mA meter resolution (manual
   pp. 55-56).
-- No panel confirmation of the `lsb-first` tracking decode: the bits read
-  `tracking_code=11` (series) and are consistent with
-  `VSET1? = VSET2? = 24.000V`, but the front/rear panel was not inspected. If
-  `STATUS?` reports series or parallel tracking, do not assume CH1 and CH2 are
-  independent until the panel confirms it.
+- No panel confirmation beyond this unit and date: on 2026-11-19 the operator
+  saw the `SER/INDEP` LED on for GPD-4303S `EP924162` (series tracking, 0-60 V),
+  matching the `lsb-first` decode `tracking_code=11`. On another unit, or after
+  anyone changes the mode, do not assume CH1 and CH2 are independent — check the
+  panel. In series tracking the two channels form one 0-60 V / 0-3 A supply
+  (manual pp. 33-34) with the load across CH1+ and CH2-.
 
 Do not upgrade this record to full `hardware-verified` control without
 preserving real responses for the write commands, including the exact

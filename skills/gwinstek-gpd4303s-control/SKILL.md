@@ -36,13 +36,17 @@ The GPD makes this rule sharper than usual:
 - `TRACK<NR1>` changes the output topology: `1` series doubles the voltage
   (0-60 V), `2` parallel doubles the current (0-6 A) (manual pp. 33, 39, 55).
   It also turns the output off automatically (manual p. 25).
-- **A `STATUS?` tracking decode is not panel confirmation.** Under the default
-  `lsb-first` decode the observed `00110010` reads `tracking_code=11`, which the
-  manual maps to series tracking (0-60 V); that is consistent with
-  `VSET1? = VSET2? = 24.000V`. If `STATUS?` reports series or parallel tracking,
-  the assumption that CH1 and CH2 are independent fails: confirm the mode at the
-  front and rear panel before relying on independent-channel behaviour. This
-  decode has not been confirmed on the panel.
+- **Tracking mode changes what the terminals mean.** On 2026-11-19 the operator
+  looked at the front panel of the verified unit and read the `SER/INDEP` LED as
+  **on**, i.e. series tracking; that matches the `lsb-first` decode of
+  `00110010` (`tracking_code=11` -> series). In series tracking CH1 and CH2 are
+  not two independent 0-30 V / 0-3 A channels: they form one 0-60 V / 0-3 A
+  supply (manual pp. 33-34), and the load must be connected across `CH1+` and
+  `CH2-`. In that mode `VSET1? = VSET2? = 24.000V` must not be read as "24 V on
+  each channel". Leaving the mode needs the panel `SER/INDEP` key or `TRACK0`, a
+  write command that this Skill never sends. The panel check is scoped to this
+  unit and date: on any other instrument, or after anyone touches the mode,
+  confirm tracking at the panel instead of inferring it from SCPI.
 - `SAV<NR1>` and `RCL<NR1>` turn the output off automatically and always store
   and recall output on/off, panel lock, and beep as **off** (manual pp. 41-42).
   A recall silently de-energises the outputs and unlocks the panel.
@@ -90,12 +94,17 @@ The GPD makes this rule sharper than usual:
 - **Capture status**: the responses above were collected on 2026-11-19 from one
   GPD-4303S at firmware `V2.08` and re-queried later the same day; the write
   commands remain unverified.
-- **`UNVERIFIED`**: the transmission order of the eight `STATUS?` characters.
-  The manual defines the bit meanings but not their order. The `lsb-first`
-  default is corroborated, but not proven, by two same-session observations:
-  `00110010` decodes to `baud_code=10` -> 9600 bps, the rate the link actually
-  used, and to `output=off`, matching `VOUT1?`-`VOUT4?` all reading `0.000V`.
-  See [response-and-evidence.md](references/response-and-evidence.md).
+- **`UNVERIFIED`**: the transmission order of the eight `STATUS?` characters
+  remains undocumented in the manual, even though the `lsb-first` default is now
+  supported by four independent observations of `00110010`: `baud_code=10` ->
+  9600 bps (the rate the link actually used), `output=off` (matching
+  `VOUT1?`-`VOUT4?` all reading `0.000V`), `beep=off` (matching the `BEEP0`
+  probe), and `tracking_code=11` -> series, matching the operator's front-panel
+  check that the `SER/INDEP` LED was on. That last observation is panel
+  confirmation for this instrument, made on 2026-11-19 by the operator looking
+  at the front panel (not a SCPI inference); it does not turn the order into a
+  manual fact, so the artifact stays `UNVERIFIED`. See
+  [response-and-evidence.md](references/response-and-evidence.md).
 - **External evidence (not manual text)**: the USB descriptor `0403:6001`
   ("Future Technology Devices International, Ltd FT232 Serial (UART) IC") was
   read with `lsusb`; the manual only says "USB slave port, rear panel".
@@ -232,13 +241,17 @@ cd skills/gwinstek-gpd4303s-control/scripts && python3 -m unittest -v
 
 - Every write command is `documented` only; no output, setpoint, tracking,
   memory, baud, or remote/local command was exercised, by design.
-- The `STATUS?` character order is not documented; the decode defaults to
-  `lsb-first`, reports the alternate decode next to it, and records the two
-  same-session corroborations (`baud_9600_matches_link`,
-  `output_off_matches_vout_zero`) without upgrading the check to `pass`.
-- The `lsb-first` tracking decode (`11` -> series) has not been confirmed on the
-  panel; do not assume CH1 and CH2 are independent when `STATUS?` reports a
-  tracking mode.
+- The `STATUS?` character order is not documented by the manual; the decode
+  defaults to `lsb-first`, reports the alternate decode next to it, and records
+  four corroborations (`baud_9600_matches_link`,
+  `output_off_matches_vout_zero`, `beep_off_matches_beep0`,
+  `panel_ser_indep_led_on_matches_series_decode`). The check is `pass` for the
+  default order on this unit, but the artifact stays `UNVERIFIED` because the
+  manual never states the order.
+- The tracking mode is confirmed only for this unit on 2026-11-19: the operator
+  saw the `SER/INDEP` LED on, i.e. series tracking (0-60 V, load across `CH1+` and
+  `CH2-`). On another unit, or after a mode change, check the panel before
+  assuming CH1 and CH2 are independent.
 - The `STATUS?` description on p. 50 says "Returns the GPD-X3303S", and p. 51
   prints the `*IDN?` example as `GPD-X3303`; the verified unit answers
   `GPD-4303S`. The manual's model strings are copy-paste defects.

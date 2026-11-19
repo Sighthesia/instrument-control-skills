@@ -224,21 +224,40 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(artifact["decoded"]["ch1_regulation"], "CV")
         self.assertEqual(artifact["decoded"]["ch2_regulation"], "CV")
 
-    def test_bit_order_stays_unverified(self):
+    def test_bit_order_is_corroborated_but_artifact_stays_unverified(self):
         artifact = parse_status(fixture("status-output-off.txt"))
         self.assertEqual(artifact["bit_order"], DEFAULT_BIT_ORDER)
         self.assertEqual(artifact["integrity"]["status"], "UNVERIFIED")
-        self.assertEqual(artifact["integrity"]["reasons"], ["status_bit_order_not_documented"])
+        self.assertEqual(
+            artifact["integrity"]["reasons"],
+            ["status_bit_order_not_documented_but_panel_corroborated"],
+        )
         checks = {check["name"]: check["status"] for check in artifact["integrity"]["checks"]}
-        self.assertEqual(checks["status_bit_order"], "not_checked")
+        self.assertEqual(checks["status_bit_order"], "pass")
         order = next(
             check for check in artifact["integrity"]["checks"]
             if check["name"] == "status_bit_order"
         )
+        self.assertFalse(order["evidence"]["manual_defines_order"])
         self.assertEqual(
             order["evidence"]["corroborated_by"],
-            ["baud_9600_matches_link", "output_off_matches_vout_zero"],
+            [
+                "baud_9600_matches_link",
+                "output_off_matches_vout_zero",
+                "beep_off_matches_beep0",
+                "panel_ser_indep_led_on_matches_series_decode",
+            ],
         )
+
+    def test_alternate_bit_order_is_not_marked_pass(self):
+        artifact = parse_status(fixture("status-output-off.txt"), bit_order="msb-first")
+        order = next(
+            check for check in artifact["integrity"]["checks"]
+            if check["name"] == "status_bit_order"
+        )
+        self.assertEqual(order["status"], "not_checked")
+        self.assertEqual(order["evidence"]["corroborated_by"], [])
+        self.assertFalse(order["evidence"]["manual_defines_order"])
 
     def test_alternate_order_is_reported(self):
         artifact = parse_status(fixture("status-output-off.txt"))
