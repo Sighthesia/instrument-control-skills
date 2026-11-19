@@ -1,0 +1,80 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "gpd4303s-protocol",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "GW Instek",
+    "model": "GPD-4303S",
+    "firmware": "V2.08",
+    "serial": "EP924162"
+  },
+  "source": {
+    "operation": "offline response parsing, STATUS? bit decoding, and read-only query construction",
+    "transport": "FTDI FT232R USB serial port /dev/ttyUSB0 at 9600 8N1, no flow control; saved response bytes for every test",
+    "captured_at": "2026-11-19",
+    "manual": {
+      "title": "GPD-X303S Series User Manual",
+      "revision": "GW Instek part no. 82PD-433S0MC1",
+      "url": "https://www.gwinstek.com/en-global/products/detail/GPD-4303S",
+      "location": "REMOTE CONTROL chapter, PDF pp. 43-52; local copy ref/gwinstek/GPD-X303S_User_Manual_82PD-433S0MC1.pdf"
+    }
+  },
+  "data": {
+    "kind": "scalar-value",
+    "raw_path": "assets/fixtures/vout1-on.txt",
+    "raw_sha256": "a31676417646fb7830070fe7c77a41b7a300d9de15c021c82a23dbd98426f7c5",
+    "raw_provenance": "Real VOUT1? response captured on 2026-11-19 from GPD-4303S serial EP924162, firmware V2.08, at 9600 8N1 while the output was energised; recorded in artifacts/manuals/ground-truth.md. The reading is uncalibrated read-back, not a calibration certificate."
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": true,
+    "hardware_verified_scope": "Response parsing and read-only query framing only: *IDN?, STATUS?, HELP?, and VSET<X>?, ISET<X>?, VOUT<X>?, IOUT<X>? on CH1 and CH2 only, on GPD-4303S serial EP924162, firmware V2.08, /dev/ttyUSB0 at 9600 8N1, captured 2026-11-19. CH3/CH4 queries answered but no raw response bytes were preserved, so they stay documented. The HELP? response is indexed in captures.jsonl with capture_method console-transcript (reconstructed from the session transcript). The instrument was disconnected after capture and was not re-tested.",
+    "control_level": "documented",
+    "control_verified": false,
+    "known_limitations": [
+      "No write command was exercised: OUT<Boolean>, VSET/ISET set forms, TRACK<NR1>, SAV/RCL, BAUD, LOCAL, and REMOTE remain documented only.",
+      "CH3/CH4 per-channel queries are documented only: their responses appeared in the session transcript but were not preserved as raw bytes, so only CH1/CH2 carry channel-scoped hardware evidence.",
+      "The transmission order of the eight STATUS? characters is not documented by the manual; the decode defaults to lsb-first and reports the msb-first alternative next to it.",
+      "OUT1 is idempotent and OUT1? does not exist on the verified unit; OUT0 is the only observed way to turn the output off. This is probe-derived experience, not a manual statement.",
+      "ERR? is documented (manual pp. 47, 52) but was not exercised and is not sent by this Skill.",
+      "Only Invalid Character. was observed on the wire; the other five documented error messages are untested on this firmware.",
+      "VOUT and IOUT are separate queries, so a voltage and its current are not simultaneous samples.",
+      "USB descriptor 0403:6001 and the /dev/ttyUSB0 node are host-side evidence, not manual text.",
+      "The instrument was disconnected after capture, so every fixture is a single non-repeatable capture and the whole set was not re-measured."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "pass",
+        "evidence": {
+          "hardware_capture": true,
+          "synthetic_fixtures_separated_in": "assets/fixtures/synthetic/"
+        }
+      },
+      {
+        "name": "control_command_evidence",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no write command was sent during the verified session"
+        }
+      },
+      {
+        "name": "status_bit_order",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "the manual defines the STATUS? bit meanings but not their transmission order"
+        }
+      }
+    ],
+    "reasons": [
+      "write_commands_unverified",
+      "status_bit_order_undocumented",
+      "not_retested_after_capture"
+    ]
+  }
+}
