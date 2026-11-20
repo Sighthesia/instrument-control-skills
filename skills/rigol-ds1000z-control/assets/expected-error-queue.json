@@ -1,0 +1,20 @@
+{
+  "fixture": "error-queue-undefined.txt",
+  "command": ":SYSTem:ERRor?",
+  "status": "UNVERIFIED",
+  "code": -113,
+  "message": "Undefined header; keyword cannot be found",
+  "error_class": "command",
+  "raw_sha256": "216088c40ffe69595e672650d1fb3506529195dd0d52e9bc8e4c95a3d4d87d4f",
+  "empty": {
+    "fixture": "error-queue-none.txt",
+    "status": "COMPLETE",
+    "code": 0,
+    "message": "No error"
+  },
+  "overflow": {
+    "fixture": "error-queue-overflow.txt",
+    "status": "INCOMPLETE",
+    "code": -350
+  }
+}

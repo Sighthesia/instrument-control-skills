@@ -1,0 +1,27 @@
+{
+  "fixture": "screenshot-compact.bin",
+  "command": ":DISPlay:DATA?",
+  "status": "COMPLETE",
+  "declared_bytes": 102,
+  "payload_bytes": 102,
+  "trailing_bytes": 3,
+  "trailing_hex": "3b300a",
+  "panel": [
+    4,
+    4
+  ],
+  "bits_per_pixel": 24,
+  "reasons": [
+    "firmware_trailing_bytes_after_block"
+  ],
+  "trimmed_bmp_sha256": "e1a34eb9a070a3d60ef2fb5cac9598a63cd0f8dd7a84d22f51b92eb558cee94f",
+  "raw_sha256": "c3d3ecd671bd4e75f5b6e9e04191257a480f096eb3b6df4f0a4b5e018c6c5878",
+  "real_frame": {
+    "fixture": "screenshot-color-head.bin",
+    "status": "INCOMPLETE",
+    "declared_bytes": 1152054,
+    "reason": "declared payload is 1152054 bytes but only the 54-byte BMP header is shipped",
+    "full_capture_bytes": 1152068,
+    "full_capture_sha256": "0991c4c963aed49906ff21f23a2cad9f4476e0d0130c978ef87121d34750bb61"
+  }
+}

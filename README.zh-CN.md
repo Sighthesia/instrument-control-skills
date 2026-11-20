@@ -14,6 +14,7 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | 函数发生器 | — |
 | [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | 直流电源 | ✅ GPD-4303S |
 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | 示波器 | — |
+| [`rigol-ds1000z-control`](skills/rigol-ds1000z-control/SKILL.md) | 示波器 | ✅ DS1074Z |
 | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | 编写指南 | — |
 
 ## 能力
@@ -26,6 +27,7 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | `gwinstek-afg2225-control`     | 部分：9 个构建/解析函数；13 个单位表 | `afg2225_protocol`：ARB/IEEE 块编解码、错误队列          |
 | `gwinstek-gpd4303s-control`    | 仅可读子集：18 条形式中 8 条         | `gpd4303s_protocol`/`_session`：`STATUS?` 位解码、试运行 |
 | `gwinstek-gds1000b-control`    | 部分：41 条测量命令；波形下载        | `gds1000b_protocol`：IEEE 块编解码、离线波形校验         |
+| `rigol-ds1000z-control`        | 部分：355 条命令索引；实测分帧规则   | `ds1000z_protocol`/`_session`：IEEE 块、前导→电压、BMP 裁剪、锁步 TCP |
 | `write-new-instrument-control` | —（无设备命令）                      | 解析器模板、响应分帧示例、完整性状态                     |
 
 ## 提示或已知问题

@@ -1,0 +1,115 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "ds1000z-protocol",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "RIGOL",
+    "model": "DS1000Z series (DS1054Z/DS1074Z/DS1104Z)",
+    "firmware": "00.04.02.SP4",
+    "serial": "DS1ZA171004155",
+    "verified_model": "DS1074Z",
+    "channels": 4,
+    "bandwidth_mhz": 70
+  },
+  "source": {
+    "operation": "offline response parsing and opt-in live read of identity, error queue, measurements, waveform preamble, waveform data, and screen images",
+    "transport": "raw TCP port 5555 (exercised on hardware); VXI-11 device core registered on TCP 617 after a UDP portmapper lookup (probed only, not implemented)",
+    "manual": {
+      "title": "MSO1000Z/DS1000Z Programming Guide",
+      "part_number": "PGA19108-1110",
+      "revision": "software version 00.04.03.SP2, December 2015",
+      "url": "https://www.rigol.com/dam/global/downloads/brochures/en/program-guide/oscilloscopes/DS1000Z_ProgrammingGuide_EN.pdf",
+      "location": "local copy ref/DS1000Z_ProgrammingGuide_EN_Dec2015.pdf"
+    },
+    "capture": {
+      "date": "2026-11-20",
+      "host": "10.99.0.194",
+      "port": 5555,
+      "evidence_log": "artifacts/rigol-ds1000z/hardware-evidence.md (local-only)",
+      "raw_captures": "artifacts/rigol-ds1000z/raw/ with per-file SHA-256 and timing in session-log.json (local-only)"
+    }
+  },
+  "data": {
+    "kind": "waveform",
+    "raw_path": "assets/fixtures/waveform-norm-ch1.bin",
+    "raw_sha256": "654292d20e1bc37498a8912059d41611772097c7335bbb2e830ec72b66c64723",
+    "raw_provenance": "Real :WAVeform:PREamble? NORM line immediately followed by the real 1212-byte :WAVeform:DATA? block captured from DS1ZA171004155 on 2026-11-20. The two instrument responses were concatenated unchanged; no byte inside either part was modified.",
+    "component_fixtures": [
+      {
+        "path": "assets/fixtures/preamble-norm.txt",
+        "sha256": "3b6a518f52debc2b376014649c5ebf19324bfd76a2668d9248f672d73cc08205",
+        "source": "artifacts/rigol-ds1000z/raw/waveform-norm-preamble.raw"
+      },
+      {
+        "path": "assets/fixtures/waveform-norm-block.bin",
+        "sha256": "8af547a8c05b87e76e1ce15ce88a8a3002eb3ecfeda8f34672c6dcc6e1383283",
+        "source": "artifacts/rigol-ds1000z/raw/waveform-norm-ch1.raw"
+      }
+    ]
+  },
+  "support": {
+    "level": "firmware-scoped",
+    "hardware_verified": true,
+    "hardware_evidence": {
+      "model": "DS1074Z",
+      "serial": "DS1ZA171004155",
+      "firmware": "00.04.02.SP4",
+      "interface": "raw TCP 5555",
+      "date": "2026-11-20"
+    },
+    "known_limitations": [
+      "yincrement differs between modes at the same vertical scale: 0.02 in NORM and 0.0209375 in RAW at 0.5 V/div. A NORM increment must never be applied to RAW bytes; the parser keeps them separate and reports the observed value.",
+      "RAW and MAX waveform reads require :STOP first; :WAVeform:STOP is rejected with -220 while the acquisition runs, and the scripts restore the previous run state afterwards.",
+      ":ACQuire:MDEPth accepts a new depth only while running (a write while stopped returns -200 Execution error) and rejects K/M suffixes with -220; only bare integers and AUTO were accepted.",
+      ":DISPlay:DATA? appends three bytes ';0\\n' after the declared BMP length (measured total 1152068 bytes for a declared 1152054-byte 800x480 24-bit image). The image is trimmed at the declared length; the trailing bytes are reported, never written into the .bmp.",
+      ":DISPlay:DATA? format is fixed to BMP24 on this firmware: only bare, ON, OFF, ON,OFF and ON,ON were accepted; ON,OFF,BMP, ON,ON,BMP, OFF,OFF,PNG and OFF,OFF,JPEG returned command error or -220.",
+      "9.9E37 is the 'no result' sentinel, not a reading: it is reported as status INCOMPLETE with value null for channel-off, no-signal, and no-value measurement items.",
+      "This firmware rejects the manual spellings :MEASure:RISetime?, :MEASure:FALLtime?, :MEASure:+DUTy?, :MEASure:-DUTy?, :MEASure:+PULses?, :MEASure:-PULses?, :MEASure:+EDGes?, :MEASure:-EDGes?, :MEASure:PHASe?, :MEASure:VAVerage?, :MEASure:COUNter? and :MEASure:STATistic:ITEM? with 'command error'; the manual's RTIMe/FTIMe work only through :MEASure:ITEM?.",
+      ":LAN:DHCP?, :LAN:IPADdress?, :LAN:SMASk?, :LAN:GATeway?, :LAN:MAC?, :LAN:STATus? and :LAN:MANual? answer on this firmware but are absent from the programming manual; they are labelled measured-only, and every :LAN: write is refused by the scripts.",
+      "No voltage calibration was performed. Converted voltages reproduce :MEASure:VPP? / VMIN? / VMAX? on the same screen (3.04 V, -0.04 V, 3.00 V) but remain UNVERIFIED; code-domain and relative claims only.",
+      "Undefined command headers answer the literal 13-byte 'command error' with no terminator and queue -113; any reader that requires LF blocks until its idle timeout. Only one command may be written per send: a multi-command write is answered for the first command only.",
+      "NORM returns the fixed 1200-point screen record; a NORM preamble reporting more points (the stale :WAVeform:STOP window) is treated as INVALID metadata rather than decoded.",
+      "RAW reads larger than 250000 points in BYTE format must be read in several windows; the scripts read one window per call and do not merge segments.",
+      "Not verified on this firmware: *OPT?, :SYSTem:SETup?, :SYSTem:KEY?, :SYSTem:EXPANSion?, :INFO:MODEL?, :CHANnel1:POSition?, :WAVeform:WIDTh?, :DISPlay:BRIGhtness? all return 'command error' and are not implemented.",
+      "VXI-11 over TCP 617 was probed through the UDP portmapper only; the scripts use the raw socket 5555 that was exercised.",
+      "The scripts never send *RST, *SAV, *RCL, :SAVE, :RECAll, :LAN: writes, :AUToscale or the panel lock, even with --allow-writes."
+    ]
+  },
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "pass",
+        "evidence": {
+          "hardware_capture": true,
+          "instrument": "DS1074Z",
+          "firmware": "00.04.02.SP4",
+          "date": "2026-11-20"
+        }
+      },
+      {
+        "name": "declared_points_match_payload",
+        "status": "pass",
+        "evidence": {
+          "declared_points": 1200,
+          "payload_bytes": 1200,
+          "bytes_per_point": 1
+        }
+      },
+      {
+        "name": "voltage_calibration",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no calibration reference was measured"
+        }
+      }
+    ],
+    "analysis_allowed": "code-domain-only",
+    "limitations": [
+      "Voltages are converted with an empirically validated formula ((code - yorigin - yreference) * yincrement, cross-checked against :MEASure:VPP?/VMIN?/VMAX? on the same screen); the Programming Guide does not publish this formula and no calibration was performed."
+    ]
+  }
+}

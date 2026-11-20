@@ -1,0 +1,40 @@
+{
+  "fixture": "waveform-norm-ch1.bin",
+  "preamble_fixture": "preamble-norm.txt",
+  "layout": "preamble line (LF) followed by the raw :WAVeform:DATA? block",
+  "status": "COMPLETE",
+  "points": 1200,
+  "bytes_per_point": 1,
+  "declared_block_bytes": 1200,
+  "mode": "NORM",
+  "format": "BYTE",
+  "xincrement": 2e-06,
+  "xorigin": -0.0012,
+  "yincrement": 0.02,
+  "yorigin": -76.0,
+  "yreference": 127.0,
+  "zero_code": 51.0,
+  "codes": {
+    "points": 1200,
+    "min_code": 49,
+    "max_code": 201,
+    "min_volts": -0.04,
+    "max_volts": 3.0,
+    "vpp_volts": 3.04
+  },
+  "measured_vpp_volts": 3.04,
+  "measured_vmin_volts": -0.04,
+  "measured_vmax_volts": 3.0,
+  "calibration": "UNVERIFIED",
+  "analysis_allowed": "code-domain-only",
+  "payload_sha256": "7dbbbd7b4a6187fde109b6a173103261591618f047dd12079eeca20051e7aba0",
+  "raw_sha256": "654292d20e1bc37498a8912059d41611772097c7335bbb2e830ec72b66c64723",
+  "block_only": {
+    "fixture": "waveform-norm-block.bin",
+    "status": "UNVERIFIED",
+    "reasons": [
+      "preamble_missing"
+    ]
+  },
+  "preamble_raw_sha256": "3b6a518f52debc2b376014649c5ebf19324bfd76a2668d9248f672d73cc08205"
+}

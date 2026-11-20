@@ -1,0 +1,29 @@
+{
+  "fixture": "measurement-vpp.txt",
+  "command": ":MEASure:VPP?",
+  "quantity": "vpp",
+  "status": "COMPLETE",
+  "value": 3.04,
+  "numeric_token": "3.040000e+00",
+  "unit": "V",
+  "unit_status": "documented",
+  "raw_sha256": "26ef4ce0919bb3c5280e6bbf291dceeb43b24be43118f20d24cb629ebd933153",
+  "no_result": {
+    "fixture": "measurement-no-result.txt",
+    "status": "INCOMPLETE",
+    "value": null,
+    "sentinel": "9.9E37",
+    "reasons": [
+      "no_measurement_result_sentinel"
+    ]
+  },
+  "command_error": {
+    "fixture": "command-error.bin",
+    "status": "UNSUPPORTED",
+    "value": null,
+    "command_error": true,
+    "reasons": [
+      "instrument_command_error"
+    ]
+  }
+}

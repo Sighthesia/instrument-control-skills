@@ -15,6 +15,7 @@ evidence labels.
 | [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | Function generator | — |
 | [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | DC power supply | ✅ GPD-4303S |
 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | Oscilloscope | — |
+| [`rigol-ds1000z-control`](skills/rigol-ds1000z-control/SKILL.md) | Oscilloscope | ✅ DS1074Z |
 | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | Authoring guide | — |
 
 ## Capabilities
@@ -27,6 +28,7 @@ evidence labels.
 | `gwinstek-afg2225-control` | Partial: 9 builder/parser functions; 13 unit tables | `afg2225_protocol`: ARB/IEEE block codec, error queue |
 | `gwinstek-gpd4303s-control` | Read-only subset: 8 of 18 command forms; writes refused | `gpd4303s_protocol`/`_session`: `STATUS?` decode, dry run |
 | `gwinstek-gds1000b-control` | Partial: 41 measurement commands; waveform download | `gds1000b_protocol`: IEEE block, offline waveform check |
+| `rigol-ds1000z-control` | Partial: 355 indexed commands; measured framing rules | `ds1000z_protocol`/`_session`: IEEE block, preamble-to-volts, BMP trim, lockstep TCP |
 | `write-new-instrument-control` | n/a: no device commands | parser templates, framing examples, integrity statuses |
 
 ## Hints and known issues

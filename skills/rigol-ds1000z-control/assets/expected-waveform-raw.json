@@ -1,0 +1,24 @@
+{
+  "fixture": "waveform-raw-ch1.bin",
+  "preamble_fixture": "preamble-raw.txt",
+  "status": "COMPLETE",
+  "points": 4000,
+  "declared_block_bytes": 4000,
+  "mode": "RAW",
+  "xincrement": 1e-09,
+  "yincrement": 0.0209375,
+  "yorigin": -72.0,
+  "yreference": 121.0,
+  "zero_code": 49.0,
+  "codes": {
+    "points": 4000,
+    "min_code": 49,
+    "max_code": 53,
+    "min_volts": 0.0,
+    "max_volts": 0.08375,
+    "vpp_volts": 0.08375
+  },
+  "note": "the same 0.5 V/div setting yields yincrement 0.0209375 in RAW, never the NORM 0.02",
+  "payload_sha256": "1b1d9ad6d2a5cc7ad98744cc67439d5fb3917a701cbbcba19e981ce263fcfdb7",
+  "raw_sha256": "8665eee6808a2bf38af37c96dedfb414d70404573ac751603f08b23fce492af1"
+}

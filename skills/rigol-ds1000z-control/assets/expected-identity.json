@@ -1,0 +1,32 @@
+{
+  "fixture": "identity.txt",
+  "command": "*IDN?",
+  "status": "COMPLETE",
+  "identity": {
+    "vendor": "RIGOL TECHNOLOGIES",
+    "model": "DS1074Z",
+    "serial": "DS1ZA171004155",
+    "firmware": "00.04.02.SP4"
+  },
+  "profile": {
+    "channels": 4,
+    "bandwidth_mhz": 70,
+    "series": "DS1000Z"
+  },
+  "raw_bytes": 55,
+  "raw_sha256": "8e360e06c7eeade931c6224a381c6922935d7388a692e4370953c7ef6b678724",
+  "variants": {
+    "identity-missing-firmware.txt": {
+      "status": "INCOMPLETE",
+      "reasons": [
+        "identity_firmware_missing"
+      ]
+    },
+    "identity-wrong-vendor.txt": {
+      "status": "INVALID",
+      "reasons": [
+        "unexpected_vendor"
+      ]
+    }
+  }
+}

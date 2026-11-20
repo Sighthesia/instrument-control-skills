@@ -1,0 +1,571 @@
+# Command Reference (Fallback Index, DS1000Z)
+
+**This is a fallback index, not a starting point.** Load it only when the
+task-specific reference and the scripts cannot answer a command question. Its
+scope is what this Skill has already recorded from the *MSO1000Z/DS1000Z
+Programming Guide*, PGA19108-1110, Software Version 00.04.03.SP2; that manual is
+the authority and is not copied here. **Any command outside this index must be
+verified against the manual before use, and the safety rules in `SKILL.md` still
+apply**: no routine `*RST`, no `*SAV`/`*RCL`/`:SAVE`/`:RECAll`, no writing
+`:LAN:` command, no `:AUToscale`, no reference/mask/calibration writes, and no
+overwrite of operator files on the instrument or on disk.
+
+Status in the `说明` column:
+
+- `hardware-verified` — an actual reply was captured from
+  `RIGOL TECHNOLOGIES,DS1074Z,DS1ZA171004155,00.04.02.SP4`; the quote is in the
+  note or in `artifacts/rigol-ds1000z/`.
+- `documented` — from the manual only, untested on that firmware.
+- `not implemented` — this Skill never sends it; read the cited page first.
+
+Conventions: `<n>` is a channel/index number, `?` marks the query form, `\|`
+separates alternative values inside `{}`, and `—` in the parameter column means
+the manual defines no parameter. Numeric parameters take bare numbers in the
+command's default unit; a unit suffix such as `12K` is rejected with
+`-220,"Parameter error"` (`hardware-verified`, manual PDF p. 17 note 3).
+
+## IEEE 488.2 common commands (PDF pp. 95-97)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `*CLS` | — | none | Clear event registers and the error queue | 95 |
+| `*ESE <value>` | `*ESE?` | Integer, bits 1 and 6 unused (`X0XXXX0X`) | Standard event enable; default 0 | 95 |
+| `*ESR?` | — | returns integer | Query and clear the event register; answered `32` (`hardware-verified`) | 96 |
+| `*IDN?` | — | returns `RIGOL TECHNOLOGIES,<model>,<serial>,<software version>` | Gate the model first; answered `RIGOL TECHNOLOGIES,DS1074Z,DS1ZA171004155,00.04.02.SP4` (`hardware-verified`) | 96 |
+| `*OPC` | `*OPC?` | `1` when the operation finished | `*OPC?` answered `1` (`hardware-verified`) | 96 |
+| `*RST` | — | none | Restores the default state and destroys the operator setup; refused by this Skill | 96 |
+| `*SRE <value>` | `*SRE?` | Integer 0 to 255, bits 0-1 unused | Service request enable; default 0 | 97 |
+| `*STB?` | — | returns integer | Status byte; answered `4` (`hardware-verified`) | 97 |
+| `*TST?` | — | returns integer | Self-test result; answered `0` (`hardware-verified`) | 97 |
+| `*WAI` | — | none | Wait for the current operation | 97 |
+
+`*OPT?` is **not** in the manual and returns `command error` on this firmware
+(`hardware-verified`); the option inventory is only reachable through
+`:SYSTem:OPTion:*` (PDF pp. 162-163).
+
+## Run and acquisition control (PDF pp. 18-19)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:RUN` | — | none | Start acquisition; returns nothing, leave ~0.3-0.4 s (`hardware-verified`) | 18 |
+| `:STOP` | — | none | Stop acquisition; required before RAW/MAXimum reads | 18 |
+| `:SINGle` | — | none | One trigger then stop; `:TRIGger:STATus?` became `STOP` (`hardware-verified`) | 19 |
+| `:TFORce` | — | none | Force a trigger; only in `NORMal`/`SINGle` sweep | 19 |
+| `:CLEar` | — | none | Clear the display; the trace reappears immediately in RUN | 18 |
+| `:AUToscale` | — | none | Rewrites vertical, timebase and trigger; operator authorization required, never sent | 18 |
+
+## Acquisition (`:ACQuire`, PDF pp. 20-23)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:ACQuire:TYPE <type>` | `:ACQuire:TYPE?` | `{NORMal\|AVERages\|PEAK\|HRESolution}`, default `NORMal`; echoes `NORM`/`AVER`/`PEAK`/`HRES` | answered `NORM` (`hardware-verified`) | 22 |
+| `:ACQuire:MDEPth <mdep>` | `:ACQuire:MDEPth?` | pts; 1 ch `{AUTO\|12000\|120000\|1200000\|12000000\|24000000}`, 2 ch `{AUTO\|6000\|60000\|600000\|6000000\|12000000}`, 3-4 ch `{AUTO\|3000\|30000\|300000\|3000000\|6000000}`, default `AUTO` | Writable **only while running**; stopped = `-200 Execution error`; `12K`-style suffixes = `-220` (`hardware-verified`) | 21 |
+| `:ACQuire:AVERages <count>` | `:ACQuire:AVERages?` | Integer `2^n`, n = 1..10 (2 to 1024), default 2 | Applies only in `AVERages` mode | 20 |
+| `:ACQuire:SRATe?` | — | NR3, Sa/s | Read-only; answered `1.000000e+09` (`hardware-verified`) | 23 |
+
+## Vertical (`:CHANnel<n>`, PDF pp. 25-31)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:CHANnel<n>:SCALe <scale>` | `:CHANnel<n>:SCALe?` | V/div; 1X 1 mV-10 V, 10X 10 mV-100 V; default 1 V at 10X | 1-2-5 steps unless `VERNier ON`; answered `5.000000e-01` (`hardware-verified`) | 30 |
+| `:CHANnel<n>:RANGe <range>` | `:CHANnel<n>:RANGe?` | V; 1X 8 mV-80 V, 10X 80 mV-800 V; default 8 V at 10X | Sets scale = range/8 indirectly | 28 |
+| `:CHANnel<n>:OFFSet <offset>` | `:CHANnel<n>:OFFSet?` | V; 1X scale≥500 mV/div: ±100 V, scale<500 mV/div: ±2 V; 10X doubles; default 0 V | The only vertical-position control; answered `-1.520000e+00` (`hardware-verified`) | 27 |
+| `:CHANnel<n>:COUPling <coupling>` | `:CHANnel<n>:COUPling?` | `{AC\|DC\|GND}`, default `DC` | answered `DC` (`hardware-verified`) | 26 |
+| `:CHANnel<n>:PROBe <atten>` | `:CHANnel<n>:PROBe?` | `{0.01\|0.02\|0.05\|0.1\|0.2\|0.5\|1\|2\|5\|10\|20\|50\|100\|200\|500\|1000}`, default 10 | Set before `SCALe`; answered `1.000000e+00` (`hardware-verified`) | 30 |
+| `:CHANnel<n>:BWLimit <type>` | `:CHANnel<n>:BWLimit?` | `{20M\|OFF}`, default `OFF` | answered `OFF` (`hardware-verified`) | 25 |
+| `:CHANnel<n>:INVert <bool>` | `:CHANnel<n>:INVert?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Inverts displayed and measured values | 27 |
+| `:CHANnel<n>:DISPlay <bool>` | `:CHANnel<n>:DISPlay?` | `{{1\|ON}\|{0\|OFF}}`; default `1` CH1, `0` CH2-CH4 | CH1-CH4 read `1,0,0,0` (`hardware-verified`) | 26 |
+| `:CHANnel<n>:UNITs <units>` | `:CHANnel<n>:UNITs?` | `{VOLTage\|WATT\|AMPere\|UNKNown}`, default `VOLTage`; echoes `VOLT`/`WATT`/`AMP`/`UNKN` | Changes the unit of amplitude commands and trigger level | 31 |
+| `:CHANnel<n>:VERNier <bool>` | `:CHANnel<n>:VERNier?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Fine vertical adjust; answered `1` (`hardware-verified`) | 31 |
+| `:CHANnel<n>:TCAL <val>` | `:CHANnel<n>:TCAL?` | s; -100 ns to 100 ns, default 0 s; `TIMEbase ≥ 10 µs/div` forbids adjustment | Zero-delay trim, not calibration; answered `0.000000e+00` (`hardware-verified`) | 29 |
+
+`:CHANnel<n>:POSition` **does not exist** (manual pp. 25-31; `command error` on
+hardware, `hardware-verified`). Use `:OFFSet`.
+
+## Horizontal (`:TIMebase`, PDF pp. 169-173)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TIMebase:MODE <mode>` | `:TIMebase:MODE?` | `{MAIN\|XY\|ROLL}`, default `MAIN` | answered `MAIN` (`hardware-verified`) | 173 |
+| `:TIMebase[:MAIN]:SCALe <scale>` | `:TIMebase[:MAIN]:SCALe?` | s/div; YT 5 ns/div-50 s/div, ROLL 200 ms/div-50 s/div, 1-2-5 steps; default 1 µs/div | answered `2.0000000e-04` (`hardware-verified`) | 173 |
+| `:TIMebase[:MAIN]:OFFSet <offset>` | `:TIMebase[:MAIN]:OFFSet?` | s; RUN `-0.5*MDEPth/SRATe` to 1 s (or to 10×scale at ≥200 ms/div), STOP `-MDEPth/SRATe` to `1 s+0.5*MDEPth/SRATe`; default 0 | Invalid in ROLL while running | 172 |
+| `:TIMebase:DELay:ENABle <bool>` | `:TIMebase:DELay:ENABle?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Delayed sweep on/off | 169 |
+| `:TIMebase:DELay:SCALe <scale>` | `:TIMebase:DELay:SCALe?` | s/div; max = main scale, min = 50/(sample rate × amplification factor); default 500 ns/div | 1-2-5 steps only | 171 |
+| `:TIMebase:DELay:OFFSet <offset>` | `:TIMebase:DELay:OFFSet?` | s; `-(LeftTime-DelayRange/2)` to `(RightTime-DelayRange/2)`; default 0 | Depends on main and delay scales | 170 |
+
+## Trigger, common (`:TRIGger`, PDF pp. 172-177)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:MODE <mode>` | `:TRIGger:MODE?` | `{EDGE\|PULSe\|RUNT\|WIND\|NEDG\|SLOPe\|VIDeo\|PATTern\|DELay\|TIMeout\|DURation\|SHOLd\|RS232\|IIC\|SPI}`, default `EDGE`; echoes `EDGE`/`PULS`/`RUNT`/`WIND`/`NEDG`/`SLOP`/`VID`/`PATT`/`DEL`/`TIM`/`DUR`/`SHOL`/`RS232`/`IIC`/`SPI` | answered `EDGE` (`hardware-verified`) | 174 |
+| `:TRIGger:SWEep <sweep>` | `:TRIGger:SWEep?` | `{AUTO\|NORMal\|SINGle}`, default `AUTO`; echoes `AUTO`/`NORM`/`SING` | `AUTO` never proves a trigger; answered `AUTO` (`hardware-verified`) | 175 |
+| `:TRIGger:COUPling <couple>` | `:TRIGger:COUPling?` | `{AC\|DC\|LFReject\|HFReject}`, default `DC`; echoes `AC`/`DC`/`LFR`/`HFR`; edge trigger on an analog source only | answered `DC` (`hardware-verified`) | 175 |
+| `:TRIGger:HOLDoff <value>` | `:TRIGger:HOLDoff?` | s; 16 ns-10 s, default 16 ns | Unavailable for video/timeout/setup-hold/Nth-edge/RS232/IIC/SPI | 176 |
+| `:TRIGger:NREJect <bool>` | `:TRIGger:NREJect?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Unavailable when the source is digital | 176 |
+| `:TRIGger:STATus?` | — | returns `TD`, `WAIT`, `RUN`, `AUTO`, `STOP` | `TD` running and `STOP` after `:STOP` (`hardware-verified`); other values `documented` | 175 |
+| `:TRIGger:POSition?` | — | integer; `-2` not triggered, `-1` triggered outside memory | Trigger position inside the memory record | 177 |
+
+## Edge trigger (`:TRIGger:EDGe`, PDF pp. 178-179)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:EDGe:SOURce <source>` | `:TRIGger:EDGe:SOURce?` | `{CHANnel1..CHANnel4\|AC\|D0..D15}`, default `CHANnel1`; echoes `CHAN1`..`CHAN4`/`AC`/`D0`..`D15` | answered `CHAN1` (`hardware-verified`) | 178 |
+| `:TRIGger:EDGe:SLOPe <slope>` | `:TRIGger:EDGe:SLOPe?` | `{POSitive\|NEGative\|RFALl}`, default `POSitive`; echoes `POS`/`NEG`/`RFAL` | answered `POS` (`hardware-verified`) | 178 |
+| `:TRIGger:EDGe:LEVel <level>` | `:TRIGger:EDGe:LEVel?` | source amplitude unit; `(-5×VScale-OFFSet)` to `(5×VScale-OFFSet)`, default 0 | Range moves with scale/offset; answered `1.500000e+00` (`hardware-verified`) | 179 |
+
+## Other trigger types: present in the manual, not implemented here
+
+Listed for header lookup only. Everything below is **`not implemented`** by this
+Skill: it configures no source, level, or qualifier for these types and has no
+evidence for them. Items marked "(Option)" depend on installed options that
+cannot be queried (`*OPT?` fails, `hardware-verified`).
+
+### Pulse width (`:TRIGger:PULSe`, PDF pp. 180-183)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:PULSe:SOURce <source>` | `:TRIGger:PULSe:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 180 |
+| `:TRIGger:PULSe:WHEN <when>` | `:TRIGger:PULSe:WHEN?` | `{PGReater\|PLESs\|NLESs\|PGLess\|NGLess}`, default `PGReater` | not implemented | 181 |
+| `:TRIGger:PULSe:WIDTh <width>` | `:TRIGger:PULSe:WIDTh?` | s; 8 ns-10 s (PLESs/NLESs default 2 µs) | not implemented | 181 |
+| `:TRIGger:PULSe:UWIDth <width>` | `:TRIGger:PULSe:UWIDth?` | s; 16 ns-10 s, default 2 µs | Upper-limit pulse width | 182 |
+| `:TRIGger:PULSe:LWIDth <width>` | `:TRIGger:PULSe:LWIDth?` | s; 8 ns-9.99 s, default 1 µs | Lower-limit pulse width | 182 |
+| `:TRIGger:PULSe:LEVel <level>` | `:TRIGger:PULSe:LEVel?` | source unit; default 0 | not implemented | 183 |
+
+### Rise/fall time (`:TRIGger:SLOPe`, PDF pp. 184-188)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:SLOPe:SOURce <source>` | `:TRIGger:SLOPe:SOURce?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 184 |
+| `:TRIGger:SLOPe:WHEN <when>` | `:TRIGger:SLOPe:WHEN?` | `{PGReater\|PLESs\|NLESs\|PGLess\|NGLess}`, default `PGReater` | not implemented | 185 |
+| `:TRIGger:SLOPe:TIME <time>` | `:TRIGger:SLOPe:TIME?` | s; 8 ns-10 s (PLESs/NLESs default 2 µs) | not implemented | 185 |
+| `:TRIGger:SLOPe:TUPPer <time>` | `:TRIGger:SLOPe:TUPPer?` | s; 16 ns-10 s, default 2 µs | Upper time limit | 186 |
+| `:TRIGger:SLOPe:TLOWer <time>` | `:TRIGger:SLOPe:TLOWer?` | s; 8 ns-9.99 s, default 1 µs | Lower time limit | 186 |
+| `:TRIGger:SLOPe:WINDow <window>` | `:TRIGger:SLOPe:WINDow?` | `{TA\|TB\|TAB}`, default `TA` | not implemented | 187 |
+| `:TRIGger:SLOPe:ALEVel <level>` | `:TRIGger:SLOPe:ALEVel?` | source unit; default 2 V | Upper threshold | 187 |
+| `:TRIGger:SLOPe:BLEVel <level>` | `:TRIGger:SLOPe:BLEVel?` | source unit; default 0 | Lower threshold | 188 |
+
+### Video (`:TRIGger:VIDeo`, PDF pp. 189-191)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:VIDeo:SOURce <source>` | `:TRIGger:VIDeo:SOURce?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 189 |
+| `:TRIGger:VIDeo:POLarity <polarity>` | `:TRIGger:VIDeo:POLarity?` | `{POSitive\|NEGative}`, default `POSitive` | not implemented | 189 |
+| `:TRIGger:VIDeo:MODE <mode>` | `:TRIGger:VIDeo:MODE?` | `{ODDField\|EVENfield\|LINE\|ALINes}`, default `ALINes` | not implemented | 190 |
+| `:TRIGger:VIDeo:LINE <line>` | `:TRIGger:VIDeo:LINE?` | line number (`documented`) | Only with `MODE LINE` | 190 |
+| `:TRIGger:VIDeo:STANdard <standard>` | `:TRIGger:VIDeo:STANdard?` | `{PALSecam\|NTSC\|480P\|576P}`, default `NTSC` | not implemented | 191 |
+| `:TRIGger:VIDeo:LEVel <level>` | `:TRIGger:VIDeo:LEVel?` | source unit; default 0 | not implemented | 191 |
+
+### Pattern (`:TRIGger:PATTern`, PDF pp. 192-194)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:PATTern:PATTern <pa_ch1>,…,<pa_ch4>,<pa_d0>,…,<pa_d15>` | `:TRIGger:PATTern:PATTern?` | per source `{H\|L\|X\|R\|F}`, default `X` | Not implemented; needs digital channels | 193 |
+| `:TRIGger:PATTern:LEVel <chan>,<level>` | `:TRIGger:PATTern:LEVel?` | `<chan>` `{CHANnel1..CHANnel4}`, level in source unit, default 0 | Pattern threshold | 194 |
+
+### Duration (`:TRIGger:DURATion`, PDF pp. 195-198)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:DURATion:SOURce <source>` | `:TRIGger:DURATion:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 195 |
+| `:TRIGger:DURATion:TYPe <type_ch1>,…` | `:TRIGger:DURATion:TYPe?` | per source `{H\|L\|X}`, default `X` | not implemented | 196 |
+| `:TRIGger:DURATion:WHEN <when>` | `:TRIGger:DURATion:WHEN?` | `{GREater\|LESS\|GLESs}`, default `GREater` | not implemented | 197 |
+| `:TRIGger:DURATion:TUPPer <NR3>` | `:TRIGger:DURATion:TUPPer?` | s; LESS 8 ns-10 s, GLESs 16 ns-10 s, default 2 µs | Upper duration limit | 197 |
+| `:TRIGger:DURATion:TLOWer <NR3>` | `:TRIGger:DURATion:TLOWer?` | s; 8 ns-9.99 s, default 1 µs | Lower duration limit | 198 |
+
+### Timeout, option (`:TRIGger:TIMeout`, PDF pp. 199-200)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:TIMeout:SOURce <source>` | `:TRIGger:TIMeout:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 199 |
+| `:TRIGger:TIMeout:SLOPe <slope>` | `:TRIGger:TIMeout:SLOPe?` | `{POSitive\|NEGative\|RFALl}`, default `POSitive` | not implemented | 199 |
+| `:TRIGger:TIMeout:TIMe <NR3>` | `:TRIGger:TIMeout:TIMe?` | s; 16 ns-10 s, default 16 ns | not implemented | 200 |
+
+### Runt, option (`:TRIGger:RUNT`, PDF pp. 201-204)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:RUNT:SOURce <source>` | `:TRIGger:RUNT:SOURce?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 201 |
+| `:TRIGger:RUNT:POLarity <polarity>` | `:TRIGger:RUNT:POLarity?` | `{POSitive\|NEGative}`, default `POSitive` | not implemented | 201 |
+| `:TRIGger:RUNT:WHEN <when>` | `:TRIGger:RUNT:WHEN?` | `{NONE\|GREater\|LESS\|GLESs}`, default `NONE` | not implemented | 202 |
+| `:TRIGger:RUNT:WUPPer <NR3>` | `:TRIGger:RUNT:WUPPer?` | s; GREater/LESS up to 10 s, GLESs 16 ns-10 s; default 2 µs | Upper width limit | 202 |
+| `:TRIGger:RUNT:WLOWer <NR3>` | `:TRIGger:RUNT:WLOWer?` | s; from 8 ns up to 9.99 s, default 1 µs | Lower width limit | 203 |
+| `:TRIGger:RUNT:ALEVel <level>` | `:TRIGger:RUNT:ALEVel?` | source unit; default 2 V | Upper threshold | 203 |
+| `:TRIGger:RUNT:BLEVel <level>` | `:TRIGger:RUNT:BLEVel?` | source unit; default 0 | Lower threshold | 204 |
+
+### Window, option (`:TRIGger:WINDows`, PDF pp. 205-207)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:WINDows:SOURce <source>` | `:TRIGger:WINDows:SOURce?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 205 |
+| `:TRIGger:WINDows:SLOPe <type>` | `:TRIGger:WINDows:SLOPe?` | `{POSitive\|NEGative\|RFALl}`, default `POSitive` | not implemented | 205 |
+| `:TRIGger:WINDows:POSition <type>` | `:TRIGger:WINDows:POSition?` | `{EXIT\|ENTER\|TIMe}`, default `ENTER` | Trigger on entering, exiting, or after a time | 206 |
+| `:TRIGger:WINDows:TIMe <NR3>` | `:TRIGger:WINDows:TIMe?` | s; 8 ns-10 s, default 1 µs | Only with `POSition TIMe` | 206 |
+| `:TRIGger:WINDows:ALEVel <level>` | `:TRIGger:WINDows:ALEVel?` | source unit; default 2 V | Upper threshold | 207 |
+| `:TRIGger:WINDows:BLEVel <level>` | `:TRIGger:WINDows:BLEVel?` | source unit; default 0 | Lower threshold | 207 |
+
+### Delay, option (`:TRIGger:DELay`, PDF pp. 208-211)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:DELay:SA <source>` | `:TRIGger:DELay:SA?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | Source A | 208 |
+| `:TRIGger:DELay:SLOPA <slope>` | `:TRIGger:DELay:SLOPA?` | `{POSitive\|NEGative}`, default `POSitive` | Source A edge | 208 |
+| `:TRIGger:DELay:SB <source>` | `:TRIGger:DELay:SB?` | `{CHANnel1..CHANnel4}`, default `CHANnel2` | Source B | 209 |
+| `:TRIGger:DELay:SLOPB <slope>` | `:TRIGger:DELay:SLOPB?` | `{POSitive\|NEGative}`, default `POSitive` | Source B edge | 209 |
+| `:TRIGger:DELay:TYPe <type>` | `:TRIGger:DELay:TYPe?` | `{GREater\|LESS\|GLESs\|GOUT}`, default `GREater` | not implemented | 210 |
+| `:TRIGger:DELay:TUPPer <NR3>` | `:TRIGger:DELay:TUPPer?` | s; 16 ns-10 s, default 2 µs | Upper delay limit | 210 |
+| `:TRIGger:DELay:TLOWer <NR3>` | `:TRIGger:DELay:TLOWer?` | s; GREater 8 ns-10 s, GOUT/GLESs 8 ns-9.99 s; default 1 µs | Lower delay limit | 211 |
+
+### Setup/hold, option (`:TRIGger:SHOLd`, PDF pp. 212-214)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:SHOLd:DSrc <source>` | `:TRIGger:SHOLd:DSrc?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | Data source | 212 |
+| `:TRIGger:SHOLd:CSrc <source>` | `:TRIGger:SHOLd:CSrc?` | `{CHANnel1..CHANnel4}`, default `CHANnel2` | Clock source | 212 |
+| `:TRIGger:SHOLd:SLOPe <slope>` | `:TRIGger:SHOLd:SLOPe?` | `{POSitive\|NEGative}`, default `POSitive` | Clock edge | 213 |
+| `:TRIGger:SHOLd:PATTern <pattern>` | `:TRIGger:SHOLd:PATTern?` | `{H\|L}`, default `H` | Data pattern | 213 |
+| `:TRIGger:SHOLd:TYPe <type>` | `:TRIGger:SHOLd:TYPe?` | `{SETup\|HOLd\|SETHOLd}`, default `SETup` | not implemented | 213 |
+| `:TRIGger:SHOLd:STIMe <NR3>` | `:TRIGger:SHOLd:STIMe?` | s; 8 ns-1 s, default 1 µs | Setup time | 214 |
+| `:TRIGger:SHOLd:HTIMe <NR3>` | `:TRIGger:SHOLd:HTIMe?` | s; 8 ns-1 s, default 1 µs | Hold time | 214 |
+
+### Nth edge, option (`:TRIGger:NEDGe`, PDF pp. 215-216)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:NEDGe:SOURce <source>` | `:TRIGger:NEDGe:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 215 |
+| `:TRIGger:NEDGe:SLOPe <slope>` | `:TRIGger:NEDGe:SLOPe?` | `{POSitive\|NEGative}`, default `POSitive` | not implemented | 215 |
+| `:TRIGger:NEDGe:IDLE <NR3>` | `:TRIGger:NEDGe:IDLE?` | s; 16 ns-10 s, default 1 µs | Idle time before counting | 216 |
+| `:TRIGger:NEDGe:EDGE <NR1>` | `:TRIGger:NEDGe:EDGE?` | Integer 1 to 65535, default 2 | Edge count | 216 |
+| `:TRIGger:NEDGe:LEVel <level>` | `:TRIGger:NEDGe:LEVel?` | source unit; default 0 | not implemented | 216 |
+
+### RS232, option (`:TRIGger:RS232`, PDF pp. 217-221)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:RS232:SOURce <source>` | `:TRIGger:RS232:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 217 |
+| `:TRIGger:RS232:WHEN <when>` | `:TRIGger:RS232:WHEN?` | `{STARt\|ERRor\|PARity\|DATA}`, default `STARt` | not implemented | 218 |
+| `:TRIGger:RS232:PARity <parity>` | `:TRIGger:RS232:PARity?` | `{EVEN\|ODD\|NONE}` | Parity check | 218 |
+| `:TRIGger:RS232:STOP <bit>` | `:TRIGger:RS232:STOP?` | `{1\|2}`, default `1` | Stop bits | 219 |
+| `:TRIGger:RS232:DATA <data>` | `:TRIGger:RS232:DATA?` | Integer `0` to `2^n-1` where n = width, default 90 | Data value | 219 |
+| `:TRIGger:RS232:WIDTh <width>` | `:TRIGger:RS232:WIDTh?` | `{5\|6\|7\|8}`, default `8` | Data bits | 219 |
+| `:TRIGger:RS232:BAUD <baud_rate>` | `:TRIGger:RS232:BAUD?` | Discrete presets up to 1000000, default 9600 | not implemented | 220 |
+| `:TRIGger:RS232:BUSer <user baud>` | `:TRIGger:RS232:BUSer?` | Integer 110 to 20000000, default 9600 | Custom baud | 220 |
+| `:TRIGger:RS232:LEVel <level>` | `:TRIGger:RS232:LEVel?` | source unit; default 0 | not implemented | 221 |
+
+### IIC, option (`:TRIGger:IIC`, PDF pp. 222-225)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:IIC:SCL <source>` | `:TRIGger:IIC:SCL?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 222 |
+| `:TRIGger:IIC:SDA <source>` | `:TRIGger:IIC:SDA?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel2` | not implemented | 222 |
+| `:TRIGger:IIC:WHEN <trig_type>` | `:TRIGger:IIC:WHEN?` | `{STARt\|RESTart\|STOP\|ACKLost\|ADDRess\|DATA\|ADATa}`, default `STARt` | Condition per PDF p. 223 | 223 |
+| `:TRIGger:IIC:AWIDth <bits>` | `:TRIGger:IIC:AWIDth?` | `{7\|8\|10}`, default `7` | Address width | 223 |
+| `:TRIGger:IIC:ADDRess <adr>` | `:TRIGger:IIC:ADDRess?` | Integer `0` to `2^n-1` (0-127/0-255/0-1023), default 1 | Address value | 224 |
+| `:TRIGger:IIC:DIRection <dir>` | `:TRIGger:IIC:DIRection?` | `{READ\|WRITe\|RWRite}`, default `READ` | Transfer direction | 224 |
+| `:TRIGger:IIC:DATA <data>` | `:TRIGger:IIC:DATA?` | Integer `0` to `2^n-1`, default 82 | Data value | 224 |
+| `:TRIGger:IIC:CLEVel <level>` | `:TRIGger:IIC:CLEVel?` | source unit; default 0 | SCL threshold | 225 |
+| `:TRIGger:IIC:DLEVel <level>` | `:TRIGger:IIC:DLEVel?` | source unit; default 0 | SDA threshold | 225 |
+
+### SPI, option (`:TRIGger:SPI`, PDF pp. 226-231)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:TRIGger:SPI:SCL <source>` | `:TRIGger:SPI:SCL?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | not implemented | 226 |
+| `:TRIGger:SPI:SDA <source>` | `:TRIGger:SPI:SDA?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel2` | not implemented | 227 |
+| `:TRIGger:SPI:WHEN <trig_type>` | `:TRIGger:SPI:WHEN?` | `{CS\|TIMeout}`, default `CS` | not implemented | 227 |
+| `:TRIGger:SPI:WIDTh <width>` | `:TRIGger:SPI:WIDTh?` | Integer 4 to 32, default 8 | Data width | 227 |
+| `:TRIGger:SPI:DATA <data>` | `:TRIGger:SPI:DATA?` | Integer `0` to `2^n-1`, default 82 | Data value | 228 |
+| `:TRIGger:SPI:TIMeout <time_value>` | `:TRIGger:SPI:TIMeout?` | s; 100 ns-1 s, default 1 µs | Only with `WHEN TIMeout` | 228 |
+| `:TRIGger:SPI:SLOPe <slope>` | `:TRIGger:SPI:SLOPe?` | `{POSitive\|NEGative}`, default `POSitive` | Clock edge | 228 |
+| `:TRIGger:SPI:CLEVel <level>` | `:TRIGger:SPI:CLEVel?` | source unit; default 0 | Clock threshold | 229 |
+| `:TRIGger:SPI:DLEVel <level>` | `:TRIGger:SPI:DLEVel?` | source unit; default 0 | Data threshold | 229 |
+| `:TRIGger:SPI:SLEVel <level>` | `:TRIGger:SPI:SLEVel?` | source unit; default 0 | CS threshold | 230 |
+| `:TRIGger:SPI:MODE <mode>` | `:TRIGger:SPI:MODE?` | `{HIGH\|LOW}`, default `LOW` | CS polarity | 230 |
+| `:TRIGger:SPI:CS <source>` | `:TRIGger:SPI:CS?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel3` | Chip-select source | 231 |
+
+**CAN and LIN do not exist in this manual.** There is no `:TRIGger:CAN`,
+`:TRIGger:LIN`, `:DECoder:CAN`, or `:DECoder:LIN` section for this family; do not
+send those headers expecting a documented behaviour.
+
+## Waveform readback (`:WAVeform`, PDF pp. 233-242)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:WAVeform:SOURce <source>` | `:WAVeform:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15\|MATH}`, default `CHANnel1` | `MATH` forces `MODE NORMal` | 233 |
+| `:WAVeform:MODE <mode>` | `:WAVeform:MODE?` | `{NORMal\|MAXimum\|RAW}`, default `NORMal`; echoes `NORM`/`MAX`/`RAW` | RAW and MAXimum require the stop state | 234 |
+| `:WAVeform:FORMat <format>` | `:WAVeform:FORMat?` | `{WORD\|BYTE\|ASCii}`, default `BYTE`; echoes `WORD`/`BYTE`/`ASC` | Sets the block encoding | 234 |
+| `:WAVeform:DATA?` | — | TMC `#9` block (BYTE/WORD) or comma-separated volts (ASCii) | Batch limit per read: BYTE 250000, WORD 125000, ASCii 15625 points | 235 |
+| `:WAVeform:STARt <sta>` | `:WAVeform:STARt?` | Integer; NORM 1-1200, MAX 1-effective points, RAW 1-memory depth; default 1 | Window start | 240 |
+| `:WAVeform:STOP <stop>` | `:WAVeform:STOP?` | Integer; same ranges; default 1200 | Window end; rejected with `-220` while running | 241 |
+| `:WAVeform:PREamble?` | — | 10 fields `format,type,points,count,xinc,xorig,xref,yinc,yorig,yref` | `type`: 0 NORM, 1 MAX, 2 RAW | 242 |
+| `:WAVeform:XINCrement?` | — | NR3, s (Hz for FFT MATH) | `TimeScale/100` in NORM, `1/SampleRate` in RAW | 238 |
+| `:WAVeform:XORigin?` | — | NR3, s | Start time of the data | 238 |
+| `:WAVeform:XREFerence?` | — | returns 0 | Reference time | 239 |
+| `:WAVeform:YINCrement?` | — | NR3, amplitude unit | `VerticalScale/25` in NORM; RAW value undocumented | 239 |
+| `:WAVeform:YORigin?` | — | integer | `VerticalOffset/YINCrement` in NORM | 239 |
+| `:WAVeform:YREFerence?` | — | integer | 127 in NORM (0 bottom, 255 top) | 240 |
+
+`:WAVeform:POINts?` = `STOP - STARt + 1` answered on this firmware
+(`hardware-verified`) but **is not in the Programming Guide**; treat it as
+`UNVERIFIED` against any manual.
+
+## Measurements (`:MEASure`, PDF pp. 131-141)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:MEASure:SOURce <sour>` | `:MEASure:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15\|MATH}`, default `CHANnel1` | Channels may be selected while off (that is how `9.9E37` appears) | 132 |
+| `:MEASure:COUNter:SOURce <sour>` | `:MEASure:COUNter:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15\|OFF}`, default `OFF` | Frequency-counter source | 132 |
+| `:MEASure:COUNter:VALue?` | — | NR3, Hz; `0.0000000e+00` when the counter is off | Answered `1.0000066e+03` (`hardware-verified`) | 133 |
+| `:MEASure:ITEM <item>[,<src>[,<src>]]` | `:MEASure:ITEM? <item>[,<src>[,<src>]]` | item enum per PDF pp. 140-141; source defaults to `:MEASure:SOURce` | `ITEM? VPP` answered `3.040000e+00`, `ITEM? RTIMe` answered `9.9E37` (`hardware-verified`) | 141 |
+| `:MEASure:ADISplay <bool>` | `:MEASure:ADISplay?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | All-measurement panel, 29 parameters | 134 |
+| `:MEASure:AMSource <src>[,<src>[,…]]` | `:MEASure:AMSource?` | `{CHANnel1..CHANnel4\|MATH}`, default `CHANnel1` | Sources for the all-measurement panel | 134 |
+| `:MEASure:CLEar <item>` | — | `{ITEM1\|ITEM2\|ITEM3\|ITEM4\|ITEM5\|ALL}` | Clears one of the last five items | 133 |
+| `:MEASure:RECover <item>` | — | same enum | Restores a cleared item | 133 |
+| `:MEASure:SETup:MAX <value>` | `:MEASure:SETup:MAX?` | Integer 7 to 95 (% of amplitude), default 90 | Threshold upper limit for time/delay/phase | 135 |
+| `:MEASure:SETup:MID <value>` | `:MEASure:SETup:MID?` | Integer 6 to 94 (%), default 50 | Threshold middle value | 135 |
+| `:MEASure:SETup:MIN <value>` | `:MEASure:SETup:MIN?` | Integer 5 to 93 (%), default 10 | Threshold lower limit | 135-136 |
+| `:MEASure:SETup:PSA <source>` | `:MEASure:SETup:PSA?` | `{CHANnel1..CHANnel4\|D0..D15}` | Phase source A | 136 |
+| `:MEASure:SETup:PSB <source>` | `:MEASure:SETup:PSB?` | `{CHANnel1..CHANnel4\|D0..D15}` | Phase source B | 137 |
+| `:MEASure:SETup:DSA <source>` | `:MEASure:SETup:DSA?` | `{CHANnel1..CHANnel4\|D0..D15}` | Delay source A | 137 |
+| `:MEASure:SETup:DSB <source>` | `:MEASure:SETup:DSB?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel2` | Delay source B | 138 |
+| `:MEASure:STATistic:DISPlay <bool>` | `:MEASure:STATistic:DISPlay?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Statistics must be enabled before any result query; not implemented | 138 |
+| `:MEASure:STATistic:MODE <mode>` | `:MEASure:STATistic:MODE?` | `{DIFFerence\|EXTRemum}`, default `EXTRemum`; echoes `DIFF`/`EXTR` | not implemented | 139 |
+| `:MEASure:STATistic:RESet` | — | none | Clears the history; not implemented | 139 |
+| `:MEASure:STATistic:ITEM <item>[,<src>[,…]]` | `:MEASure:STATistic:ITEM? <type>,<item>[,…]` | `<type>` `{MAXimum\|MINimum\|CURRent\|AVERages\|DEViation}` | Not enabled → `command error` plus `-410,"Query INTERRUPTED"` (`hardware-verified`) | 140 |
+
+Item enumeration for `:MEASure:ITEM` and `:MEASure:STATistic:ITEM`
+(PDF pp. 140-141, 37 items):
+
+```text
+VMAX VMIN VPP VTOP VBASe VAMP VAVG VRMS OVERshoot PREShoot MARea MPARea PERiod
+FREQuency RTIMe FTIMe PWIDth NWIDth PDUTy NDUTy RDELay FDELay RPHase FPHase TVMAX
+TVMIN PSLEWrate NSLEWrate VUPper VMID VLOWer VARIance PVRMS PPULses NPULses
+PEDGes NEDGes
+```
+
+Shortcut queries that are **not in the manual** but answered on
+`00.04.02.SP4` (`hardware-verified`); the item name behind each is the
+documented equivalent:
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:MEASure:VPP?` | query only | NR3, V | `3.040000e+00`; item `VPP` | — |
+| `:MEASure:VMAX?` | query only | NR3, V | `3.000000e+00`; item `VMAX` | — |
+| `:MEASure:VMIN?` | query only | NR3, V | `-4.000000e-02`; item `VMIN` | — |
+| `:MEASure:VAVG?` | query only | NR3, V | `1.493662e+00`; item `VAVG` | — |
+| `:MEASure:VAMP?` | query only | NR3, V | `2.916700e+00`; item `VAMP` | — |
+| `:MEASure:VRMS?` | query only | NR3, V | `2.082721e+00`; item `VRMS` | — |
+| `:MEASure:VTOP?` | query only | NR3, V | `2.952131e+00`; item `VTOP` | — |
+| `:MEASure:VBASe?` | query only | NR3, V | `3.098358e-02`; item `VBASe` | — |
+| `:MEASure:OVERshoot?` | query only | NR3, ratio | `1.638704e-02`; item `OVERshoot` | — |
+| `:MEASure:PREShoot?` | query only | NR3, ratio | `1.745327e-02`; item `PREShoot` | — |
+| `:MEASure:FREQuency?` | query only | NR3, Hz | `9.999999e+02`; item `FREQuency` | — |
+| `:MEASure:PERiod?` | query only | NR3, s | `1.000000e-03`; item `PERiod` | — |
+| `:MEASure:PDUTy?` | query only | NR3, fraction | `5.039999e-01`; item `PDUTy` | — |
+| `:MEASure:NDUTy?` | query only | NR3, fraction | `4.960000e-01`; item `NDUTy` | — |
+| `:MEASure:PWIDth?` | query only | NR3, s | `5.040000e-04`; item `PWIDth` | — |
+| `:MEASure:NWIDth?` | query only | NR3, s | `4.960000e-04`; item `NWIDth` | — |
+
+Rejected with `command error` on `00.04.02.SP4` (`hardware-verified`):
+`:MEASure:VAVerage?`, `:MEASure:RISetime?`, `:MEASure:FALLtime?`,
+`:MEASure:+DUTy?`, `:MEASure:-DUTy?`, `:MEASure:+PULses?`, `:MEASure:-PULses?`,
+`:MEASure:+EDGes?`, `:MEASure:-EDGes?`, `:MEASure:PHASe?`, `:MEASure:COUNter?`.
+Use the item spellings instead (`RTIMe`, `FTIMe`, `PDUTy`, `NDUTy`, `PPULses`,
+`NPULses`, `PEDGes`, `NEDGes`, `RPHase`/`FPHase`).
+
+## Display (`:DISPlay`, PDF pp. 78-82)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:DISPlay:DATA?` | — | `[<color>,<invert>,<format>]`; `<color>` `{ON\|OFF}`, `<invert>` `{{1\|ON}\|{0\|OFF}}`, `<format>` `{BMP24\|BMP8\|PNG\|JPEG\|TIFF}` | Firmware accepts only 0-2 arguments and always returns BMP; 3 bytes past the declared length (`hardware-verified`) | 79 |
+| `:DISPlay:CLEar` | — | none | Clear the display | 78 |
+| `:DISPlay:TYPE <type>` | `:DISPlay:TYPE?` | `{VECTors\|DOTS}`, default `VECTors` | answered `VECT` (`hardware-verified`) | 80 |
+| `:DISPlay:GRID <grid>` | `:DISPlay:GRID?` | `{FULL\|HALF\|NONE}`, default `FULL` | answered `FULL` (`hardware-verified`) | 82 |
+| `:DISPlay:GRADing:TIME <time>` | `:DISPlay:GRADing:TIME?` | persistence time | Changes what the screenshot shows | 81 |
+| `:DISPlay:WBRightness <time>` | `:DISPlay:WBRightness?` | waveform brightness | not implemented | 81 |
+| `:DISPlay:GBRightness <brightness>` | `:DISPlay:GBRightness?` | Integer 0 to 100, default 50 | Grid brightness; `:DISPlay:BRIGhtness?` is `command error` (`hardware-verified`) | 82 |
+
+## System (`:SYSTem`, PDF pp. 160-166)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:SYSTem:ERRor[:NEXT]?` | — | returns `<code>,"<text>"` | One entry per query, `0,"No error"` terminates; drain after every operation | 161 |
+| `:SYSTem:AUToscale <bool>` | `:SYSTem:AUToscale?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Enables the AUTO key behaviour, not the `:AUToscale` action | 160 |
+| `:SYSTem:BEEPer <bool>` | `:SYSTem:BEEPer?` | `{{1\|ON}\|{0\|OFF}}` | Key beeper | 161 |
+| `:SYSTem:GAM?` | — | always 12 | Confirms the 12-division horizontal geometry | 161 |
+| `:SYSTem:LANGuage <lang>` | `:SYSTem:LANGuage?` | `{SCHinese\|TCHinese\|ENGLish\|PORTuguese\|GERMan\|POLish\|KORean\|JAPAnese\|FRENch\|RUSSian}` | Survives `*RST`; not implemented | 161 |
+| `:SYSTem:LOCKed <bool>` | `:SYSTem:LOCKed?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Panel lock; dangerous for a remote-only operator, not implemented | 162 |
+| `:SYSTem:PON <pon>` | `:SYSTem:PON?` | `{LATest\|DEFault}`, default `LATest` | Power-on state | 162 |
+| `:SYSTem:OPTion:INSTall <license>` | — | 28-byte ASCII license | Installs an option; never sent | 162 |
+| `:SYSTem:OPTion:UNINSTall` | — | none | Removes options; never sent | 163 |
+| `:SYSTem:RAM?` | — | always 4 | Number of analog channels | 163 |
+| `:SYSTem:SETup <setup_stream>` | `:SYSTem:SETup?` | TMC block, e.g. `#9000002077` | The query returns `command error` on `00.04.02.SP4` (`hardware-verified`); the write restores state, never sent | 163 |
+
+Unsupported headers on this firmware despite a plausible shape
+(`hardware-verified`, `command error`): `:SYSTem:KEY?`, `:SYSTem:KEY:LOCK?`,
+`:SYSTem:Expansion?`, `:INFO:MODEL?`, `:ACQuire:MDEPth:AUTO?`,
+`:ACQuire:SAVer?`, `:DISPlay:BRIGhtness?`, `:WAVeform:WIDth?`,
+`:MENU:MEASure?`. `*SYSTem:MODEL?` is accepted as an alias of `*IDN?`
+(`hardware-verified`) but is not in the manual.
+
+## Storage, reference, and mask (not implemented)
+
+Every command below is **`not implemented`**: each one replaces operator data or
+consumes instrument memory. They are indexed so a header can be checked, not so
+they can be called.
+
+### Image-save settings (`:STORage`, PDF pp. 158-159)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:STORage:IMAGe:TYPE <type>` | `:STORage:IMAGe:TYPE?` | `{PNG\|BMP8\|BMP24\|JPEG\|TIFF}`, default `PNG` | Affects front-panel file saves, not `:DISPlay:DATA?` | 158 |
+| `:STORage:IMAGe:INVERT <bool>` | `:STORage:IMAGe:INVERT?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | not implemented | 158 |
+| `:STORage:IMAGe:COLor <bool>` | `:STORage:IMAGe:COLor?` | `{ON\|OFF}`, default `ON` | not implemented | 159 |
+
+### Reference waveforms (`:REFerence`, PDF pp. 142-145)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:REFerence<n>:SAVe` | — | `<n>` `{1..10}` | Overwrites that reference slot; never sent | 145 |
+| `:REFerence<n>:RESet` | — | `<n>` `{1..10}` | Deletes the slot content; never sent | 144 |
+| `:REFerence<n>:CURRent <n>` | `:REFerence<n>:CURRent?` | `{1..10}`, default 1 | Selects the current reference channel | 144 |
+| `:REFerence<n>:ENABle <bool>` | `:REFerence<n>:ENABle?` | `{{1\|ON}\|{0\|OFF}}` | Shows/hides a reference | 142 |
+| `:REFerence<n>:SOURce <source>` | `:REFerence<n>:SOURce?` | `{CHANnel1..CHANnel4\|D0..D15}`, default `CHANnel1` | Source of the reference | 143 |
+| `:REFerence<n>:VSCale <scale>` | `:REFerence<n>:VSCale?` | V/div; 1X 1 mV-10 V, default 100 mV | Reference vertical scale | 143 |
+| `:REFerence<n>:VOFFset <offset>` | `:REFerence<n>:VOFFset?` | ±10 × reference scale, default 0 | Reference vertical offset | 144 |
+| `:REFerence<n>:COLor <color>` | `:REFerence<n>:COLor?` | `{GRAY\|GREEn\|LBLue\|MAGenta\|ORANge}`, default `GRAY` | Display colour | 145 |
+| `:REFerence:DISPlay <bool>` | `:REFerence:DISPlay?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Reference display master switch | 142 |
+
+### Pass/fail mask (`:MASK`, PDF pp. 123-127)
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:MASK:ENABle <bool>` | `:MASK:ENABle?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Enables pass/fail testing | 123 |
+| `:MASK:SOURce <source>` | `:MASK:SOURce?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | Mask source | 124 |
+| `:MASK:OPERate <oper>` | `:MASK:OPERate?` | `{RUN\|STOP}`, default `STOP` | Starts/stops the test | 124 |
+| `:MASK:MDISplay <bool>` | `:MASK:MDISplay?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Statistic information display | 125 |
+| `:MASK:SOOutput <bool>` | `:MASK:SOOutput?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | "Stop on Fail" | 125 |
+| `:MASK:OUTPut <bool>` | `:MASK:OUTPut?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Beeper on a failed waveform | 126 |
+| `:MASK:X <x>` | `:MASK:X?` | div; 0.02 to 4 in 0.02 steps, default 0.02 | Horizontal mask tolerance | 126 |
+| `:MASK:Y <y>` | `:MASK:Y?` | div; 0.04 to 5.12 in 0.04 steps, default 0.96 | Vertical mask tolerance | 126 |
+| `:MASK:CREate` | — | none | Creates a mask from the current trace | 127 |
+| `:MASK:PASSed?` | — | returns integer | Passed frames | 127 |
+| `:MASK:FAILed?` | — | returns integers | Failed frames | 127 |
+| `:MASK:TOTal?` | — | returns integer | Total frames | 127 |
+| `:MASK:RESet` | — | none | Resets the counters | 127 |
+
+No `*SAV`, `*RCL`, `:SAVE`, or `:RECAll` subsystem exists in this manual;
+`grep` over the programming guide returns no such section.
+
+## Cursors (`:CURSor`, PDF pp. 32-52): not implemented
+
+68 commands exist. This Skill reads no cursor value and sets no cursor mode; the
+entries below are the entry points only.
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:CURSor:MODE <mode>` | `:CURSor:MODE?` | `{OFF\|MANual\|TRACk\|AUTO\|XY}`, default `OFF` | answered `MAN` (`hardware-verified`); not implemented | 32 |
+| `:CURSor:MANual:TYPE <type>` | `:CURSor:MANual:TYPE?` | `{X\|Y}`, default `X` | not implemented | 33 |
+| `:CURSor:MANual:SOURce <source>` | `:CURSor:MANual:SOURce?` | `{CHANnel1..CHANnel4\|MATH\|LA}`, default `CHANnel1` | not implemented | 34 |
+| `:CURSor:MANual:TUNit <unit>` | `:CURSor:MANual:TUNit?` | `{S\|HZ\|DEGRee\|PERCent}`, default `S` | not implemented | 34 |
+| `:CURSor:MANual:VUNit <unit>` | `:CURSor:MANual:VUNit?` | `{PERCent\|SOURce}`, default `SOURce` | not implemented | 35 |
+| `:CURSor:MANual:AX <x>` | `:CURSor:MANual:AX?` | Integer 5 to 594, default 100 | Cursor A horizontal position | 35 |
+| `:CURSor:MANual:BX <x>` | `:CURSor:MANual:BX?` | Integer 5 to 594, default 500 | Cursor B horizontal position | 36 |
+| `:CURSor:MANual:AY <y>` | `:CURSor:MANual:AY?` | Integer 5 to 394, default 100 | Cursor A vertical position | 36 |
+| `:CURSor:MANual:BY <y>` | `:CURSor:MANual:BY?` | Integer 5 to 394, default 300 | Cursor B vertical position | 37 |
+| `:CURSor:MANual:AXValue?` | — | NR3 | Cursor A value | 37 |
+| `:CURSor:MANual:AYValue?` | — | NR3 | Cursor A vertical value | 37 |
+| `:CURSor:MANual:BXValue?` | — | NR3 | Cursor B value | 38 |
+| `:CURSor:MANual:BYValue?` | — | NR3 | Cursor B vertical value | 38 |
+| `:CURSor:MANual:XDELta?` | — | NR3 | Horizontal difference | 38 |
+| `:CURSor:MANual:IXDELta?` | — | NR3 | Reciprocal of `XDELta` | 39 |
+| `:CURSor:MANual:YDELta?` | — | NR3 | Vertical difference | 39 |
+| `:CURSor:TRACk:SOURce1 <source>` | `:CURSor:TRACk:SOURce1?` | `{CHANnel1..CHANnel4\|MATH}`, default `CHANnel1` | not implemented | 40 |
+| `:CURSor:TRACk:SOURce2 <source>` | `:CURSor:TRACk:SOURce2?` | `{CHANnel1..CHANnel4\|MATH}`, default `CHANnel1` | not implemented | 41 |
+| `:CURSor:TRACk:AX <x>` | `:CURSor:TRACk:AX?` | Integer 5 to 594, default 100 | not implemented | 41 |
+| `:CURSor:TRACk:BX <x>` | `:CURSor:TRACk:BX?` | Integer 5 to 594, default 500 | not implemented | 42 |
+| `:CURSor:TRACk:AY?` | — | NR3 | Read-only | 42 |
+| `:CURSor:TRACk:BY?` | — | NR3 | Read-only | 42 |
+| `:CURSor:TRACk:AXValue?` / `AYValue?` | — | NR3 | Read-only | 43 |
+| `:CURSor:TRACk:BXValue?` / `BYValue?` | — | NR3 | Read-only | 43 |
+| `:CURSor:TRACk:XDELta?` / `YDELta?` / `IXDELTA?` | — | NR3 | Read-only | 44 |
+| `:CURSor:AUTO:ITEM <item>` | `:CURSor:AUTO:ITEM?` | `{OFF\|ITEM1\|ITEM2\|ITEM3\|ITEM4\|ITEM5}`, default `OFF` | not implemented | 45 |
+| `:CURSor:AUTO:AX?` … `:BYValue?` | — | NR3 | Read-only auto-cursor values | 46-48 |
+| `:CURSor:XY:AX <x>` | `:CURSor:XY:AX?` | Integer 5 to 394, default 100 | XY-mode cursor | 49 |
+| `:CURSor:XY:BX <x>` | `:CURSor:XY:BX?` | Integer 5 to 394, default 300 | XY-mode cursor | 50 |
+| `:CURSor:XY:AY <x>` | `:CURSor:XY:AY?` | Integer 5 to 394, default 100 | XY-mode cursor | 50 |
+| `:CURSor:XY:BY <x>` | `:CURSor:XY:BY?` | Integer 5 to 394, default 300 | XY-mode cursor | 51 |
+| `:CURSor:XY:AXValue?` … `:BYValue?` | — | NR3 | Read-only XY values | 51-52 |
+
+## Math (`:MATH`, PDF pp. 106-122): not implemented
+
+61 commands exist. This Skill never enables the math trace, so any
+`:WAVeform:SOURce MATH` read is `UNSUPPORTED`; the 10 fields of a MATH preamble
+would need the FFT or operator context recorded.
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:MATH:DISPlay <bool>` | `:MATH:DISPlay?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | answered `0` (`hardware-verified`); not implemented | 106 |
+| `:MATH:OPERator <opt>` | `:MATH:OPERator?` | `{ADD\|SUBTract\|MULTiply\|DIVision\|AND\|OR\|XOR\|NOT\|FFT\|INTG\|DIFF\|SQRT\|LOG\|LN\|EXP\|ABS\|FILTer}`, default `ADD` | answered `ADD` (`hardware-verified`); not implemented | 106 |
+| `:MATH:SOURce1 <src>` | `:MATH:SOURce1?` | `{CHANnel1..CHANnel4\|FX}`, default `CHANnel1` | not implemented | 107 |
+| `:MATH:SOURce2 <src>` | `:MATH:SOURce2?` | `{CHANnel1..CHANnel4\|FX}`, default `CHANnel1` | not implemented | 108 |
+| `:MATH:LSOUrce1 <src>` | `:MATH:LSOUrce1?` | `{D0..D15}`, default `D0` | Digital math source | 108 |
+| `:MATH:LSOUrce2 <src>` | `:MATH:LSOUrce2?` | `{D0..D15}`, default `D1` | Digital math source | 109 |
+| `:MATH:SCALe <scale>` | `:MATH:SCALe?` | 1 p to 5 T in 1-2-5 steps, default 1.00 V | not implemented | 109 |
+| `:MATH:OFFSet <offs>` | `:MATH:OFFSet?` | default 0.00 V | not implemented | 110 |
+| `:MATH:INVert <bool>` | `:MATH:INVert?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | not implemented | 110 |
+| `:MATH:RESet` | — | none | Resets the math settings | 111 |
+| `:MATH:FFT:SOURce <src>` | `:MATH:FFT:SOURce?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | FFT source | 111 |
+| `:MATH:FFT:WINDow <wnd>` | `:MATH:FFT:WINDow?` | `{RECTangle\|BLACkman\|HANNing\|HAMMing\|FLATtop\|TRIangle}`, default `RECTangle` | FFT window | 111 |
+| `:MATH:FFT:SPLit <bool>` | `:MATH:FFT:SPLit?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Split-screen FFT | 112 |
+| `:MATH:FFT:UNIT <unit>` | `:MATH:FFT:UNIT?` | `{VRMS\|DB}`, default `DB` | FFT vertical unit | 112 |
+| `:MATH:FFT:HSCale <hsc>` | `:MATH:FFT:HSCale?` | Hz/div, default 5 MHz | FFT horizontal scale | 113 |
+| `:MATH:FFT:HCENter <cent>` | `:MATH:FFT:HCENter?` | Hz, default 5 MHz | FFT centre frequency | 114 |
+| `:MATH:FFT:MODE <mode>` | `:MATH:FFT:MODE?` | `{TRACe\|MEMory}`, default `TRACe` | FFT source freshness | 114 |
+| `:MATH:FILTer:TYPE <type>` | `:MATH:FILTer:TYPE?` | `{LPASs\|HPASs\|BPASs\|BSTOP}`, default `LPASs` | Digital filter type | 115 |
+| `:MATH:FILTer:W1 <freq1>` | `:MATH:FILTer:W1?` | Hz, range per PDF p. 116 | Filter width 1 | 116 |
+| `:MATH:FILTer:W2 <freq2>` | `:MATH:FILTer:W2?` | Hz, default 0.1 × screen sample rate | Filter width 2 | 117 |
+| `:MATH:OPTion:STARt <sta>` | `:MATH:OPTion:STARt?` | Integer 0 to (end-1), default 0 | Logic-analyzer option window | 117 |
+| `:MATH:OPTion:END <end>` | `:MATH:OPTion:END?` | Integer (start+1) to 1199, default 1199 | Logic-analyzer option window | 118 |
+| `:MATH:OPTion:INVert <bool>` | `:MATH:OPTion:INVert?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | not implemented | 118 |
+| `:MATH:OPTion:SENSitivity <sens>` | `:MATH:OPTion:SENSitivity?` | 0 to 0.96 in 0.08 steps, default 0 | not implemented | 119 |
+| `:MATH:OPTion:DIStance <dist>` | `:MATH:OPTion:DIStance?` | Integer 3 to 201, default 3 | not implemented | 119 |
+| `:MATH:OPTion:ASCale <bool>` | `:MATH:OPTion:ASCale?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Auto scale for the math option | 120 |
+| `:MATH:OPTion:THReshold1 <thre>` | `:MATH:OPTion:THReshold1?` | V, default 0.00 V | not implemented | 120 |
+| `:MATH:OPTion:THReshold2 <thre>` | `:MATH:OPTion:THReshold2?` | V, default 0.00 V | not implemented | 121 |
+| `:MATH:OPTion:FX:SOURce1 <src>` | `:MATH:OPTion:FX:SOURce1?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 121 |
+| `:MATH:OPTion:FX:SOURce2 <src>` | `:MATH:OPTion:FX:SOURce2?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 122 |
+| `:MATH:OPTion:FX:OPERator <op>` | `:MATH:OPTion:FX:OPERator?` | `{ADD\|SUBTract\|MULTiply\|DIVision}`, default `ADD` | not implemented | 122 |
+
+## Digital channels and decoding: not implemented
+
+- **Digital channels** (`:LA`, PDF pp. 98-104, 20 commands): `:LA:STATe` (default
+  `0`), `:LA:ACTive <group>`, `:LA:AUTosort`, `:LA:DIGital<n>:DISPlay`,
+  `:LA:DIGital<n>:POSition`, `:LA:DIGital<n>:LABel`, `:LA:DISPlay`,
+  `:LA:POD<n>:DISPlay`, `:LA:POD<n>:THReshold` (-15 V to +15 V, default 1.40 V),
+  `:LA:SIZE`, `:LA:TCALibrate` (-100 ns to 100 ns). They apply only to MSO1000Z
+  and DS1000Z Plus models with the MSO upgrade (PDF p. 17, note 2).
+- **Decoder** (`:DECoder<n>:`, PDF pp. 53-77, 94 commands): entry points only —
+  `:DECoder<n>:MODE`, `:DECoder<n>:DISPlay`, `:DECoder<n>:FORMat`,
+  `:DECoder<n>:POSition`, `:DECoder<n>:THREshold:<src>`,
+  `:DECoder<n>:UART:*`, `:DECoder<n>:SPI:*`, `:DECoder<n>:IIC:*`,
+  `:DECoder<n>:PARallel:*`, `:DECoder<n>:CONFig:*`, `:DECoder<n>:BUS<n>:*`.
+  There is **no CAN and no LIN decoder** in this manual.
+- **Event table** (`:ETABle<n>:`, PDF pp. 83-86): `:DISP`, `:FORMat`
+  (`{HEX|ASCii|DEC}`), `:VIEW` (`{PACKage|DETail|PAYLoad}`), `:COLumn`
+  (`{DATA|TX|RX|MISO|MOSI}`), `:ROW`, `:SORT` (`{ASCend|DESCend}`), `:DATA?`.
+  The event table only shows decoded bus data, so it needs a decoder first.
+- **Waveform record/playback** (`:FUNCtion:*`, PDF pp. 87-94, "(Option)", 26
+  commands): `:FUNCtion:WRECord:*` and `:FUNCtion:WREPlay:*` record and replay
+  frames into instrument memory. They are invalid while other acquisition
+  commands run (PDF p. 18). This is **not** the built-in signal source of the
+  `-S` models, which lives under `[:SOURce[<n>]]:*` (PDF pp. 146-157) and is also
+  not implemented.
+
+## Verification note
+
+This index is generated from `artifacts/rigol-ds1000z/command-pages.tsv`, which
+maps each command to the PDF physical page it was found on, and from the page
+text of the *MSO1000Z/DS1000Z Programming Guide* (PGA19108-1110). A page number
+here is a starting point for a manual lookup, not proof that the firmware accepts
+the command: on `00.04.02.SP4` documented commands do answer `command error`
+(see the lists above), so check `:SYSTem:ERRor?` instead of trusting the manual.
