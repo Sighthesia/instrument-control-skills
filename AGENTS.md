@@ -72,9 +72,15 @@ python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
 npx skills@latest add . --list
 ```
 
-- `write-new-instrument-control` has no `scripts/` tests; run its bundled
-  examples instead:
+- Every Skill has `scripts/test_*.py`; the command above covers them all. A
+  Skill whose logic lives in `assets/` (the authoring guide's bundled examples)
+  also runs
   `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
+- Coverage claims are re-checked, not re-argued: `skills/write-new-instrument-control/scripts/extract_command_pages.py`
+  turns a manual into a page-cited TSV and `diff_command_index.py` reports the gap
+  classification (or `--drift` compares the index with the commands the code
+  sends). `true-gap` is a defect; the other classes are not. Never widen the
+  matcher to lower the number.
 - A passing offline test run is not hardware evidence and must not upgrade an
   evidence label.
 - `README.md` and `README.zh-CN.md` must describe the same Skill set and rules

@@ -20,6 +20,7 @@ new device Skill. Its references are loaded per stage:
 | Integrity status | `references/status-and-reports.md` | `COMPLETE`/`INCOMPLETE`/`INVALID`/`UNVERIFIED`/`UNSUPPORTED`; per-check `pass`/`fail`/`not_checked`; report shape and analysis gates |
 | Data-specific checks | `references/waveform-checks.md`, `references/scalar-checks.md`, `references/axes-and-sequences.md` | Point and byte counts, segment coverage, axes and units, reading count, non-values matched before numeric conversion, instrument status, ordering and duplicate records |
 | Evidence and provenance | `references/evidence-and-provenance.md` | Model, firmware, interface, command, raw response, SHA-256, parser version, manual citation, calibration binding, one label per claim |
+| Coverage tooling | `scripts/extract_command_pages.py`, `scripts/diff_command_index.py` | Manual to page-cited command TSV; index-versus-manual gap classification and index-versus-code drift; both offline, 24 bundled tests |
 | Offline testing | `references/replay-testing.md` | Valid and negative fixtures, expected results, no sockets or VISA in tests |
 
 `references/integrity-and-provenance.md` is an earlier, shorter restatement of
