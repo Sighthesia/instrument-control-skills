@@ -25,7 +25,7 @@
     },
     "capture": {
       "date": "2026-11-20",
-      "host": "10.99.0.194",
+      "host": "10.99.0.194 (first pass, DHCP lease) and 169.254.1.5 (after the LAN endpoint was reset, scope auto-IP)",
       "port": 5555,
       "evidence_log": "artifacts/rigol-ds1000z/hardware-evidence.md (local-only)",
       "raw_captures": "artifacts/rigol-ds1000z/raw/ with per-file SHA-256 and timing in session-log.json (local-only)"

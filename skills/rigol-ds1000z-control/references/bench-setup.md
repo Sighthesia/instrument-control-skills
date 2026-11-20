@@ -117,10 +117,17 @@ absolute input limit.
 - The RemoteIO menu selects USB Device or LAN; a connected USB Device
   (`USB Device → Computer`) takes precedence and disables LAN control, while a
   LAN-only connection enables the LAN interface by default (PDF page 236).
-- The evidence session used a direct cable to a dedicated host interface with the
-  scope as a DHCP client on `10.99.0.194`, raw TCP port 5555
+- The evidence session used a direct cable to a dedicated host interface. On the
+  first pass the scope was a DHCP client on `10.99.0.194`; after its LAN endpoint
+  was reset it came up on **auto-IP `169.254.1.5`** and answered the same way, so
+  both a DHCP lease and a link-local address work with raw TCP port 5555
   (`hardware-verified`). That address and the host profile belong to the bench,
-  not to the Skill; do not hard-code them.
+  not to the Skill; never hard-code them — read the address from the scope's
+  `Utility → IO Setting → LAN Conf.` page and pass `--host`.
+- If the instrument stops answering SYN on every TCP port while ICMP and the UDP
+  portmapper still work, its LAN endpoint has wedged: a panel LAN initialise did
+  not clear it on the evidence unit and only a power cycle did. Expect to ask the
+  operator for that; nothing in this Skill can recover it over the network.
 - `:LAN:DHCP?`, `:LAN:MAC?`, and `:LAN:STATus?` answered on the evidence unit but
   are absent from the Programming Guide. Read
   [remote-session.md](remote-session.md) before touching anything
