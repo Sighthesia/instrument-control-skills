@@ -1,15 +1,15 @@
 # Command Reference (Fallback Index)
 
 This is a fallback index, not a tutorial: read it only when the task-specific
-reference named in `SKILL.md` and the scripts cannot answer the question. Its
-scope is strictly the commands already recorded inside this Skill (`SKILL.md`,
-`references/*.md`, `scripts/*.py`). The authoritative complete command set is
-the *AFG-2225 Series User Manual* (GW Instek part no. 82RF-22250M01), which is
-not copied here. Anything absent from this table must be verified against the
-manual and labelled `documented` before use. Every command below remains
-`documented` only, and the safety rules in `SKILL.md` still apply: APPLy turns
-the output on; no routine `*RST`; no automatic save/recall/calibration;
-load-impedance and `|Voffset| < Vmax - Vpp/2` limits.
+reference named in `SKILL.md` and the scripts cannot answer the question. The
+authoritative complete command set is the *AFG-2225 Series User Manual* (GW
+Instek part no. 82RF-22250M01), which is not copied here. Its `Command List`
+(manual pp. 189-192) was enumerated on 2026-11-20: it holds 104 command forms
+and all of them are now in this table. Anything absent from this table must be
+verified against the manual and labelled `documented` before use. Every command
+below remains `documented` only, and the safety rules in `SKILL.md` still apply:
+APPLy turns the output on; no routine `*RST`; no automatic
+save/recall/calibration; load-impedance and `|Voffset| < Vmax - Vpp/2` limits.
 
 Short/long forms are printed exactly as the source records them. Where a source
 gives only a short form (for example `SWE:STAT`), only that form is written here;
@@ -194,8 +194,8 @@ gate, and trigger sources. Trigger IN is the rear-panel external trigger/gate.
 | `SOURce[1&#124;2]:PHASe` | set/query | -180..180 | Channel phase. | modulation-sweep-burst.md (manual pp. 267-268) |
 | `SOURce[1&#124;2]:PHASe:SYNChronize` | event | — | Phase synchronisation. | modulation-sweep-burst.md (manual pp. 267-268) |
 | `FREQuency:COUPle:MODE` | set/query | `{OFF&#124;OFFSet&#124;RATio}` | Frequency coupling mode. | modulation-sweep-burst.md (manual pp. 268-270) |
-| offset | set/query | — | Frequency-coupling offset. The reference gives the bare words "offset, ratio" after `FREQuency:COUPle:MODE`, with no full header; verify the header against the manual before use. | modulation-sweep-burst.md (manual pp. 268-270) |
-| ratio | set/query | — | Frequency-coupling ratio; same caveat as the offset row. | modulation-sweep-burst.md (manual pp. 268-270) |
+| `SOURce[1&#124;2]:FREQuency:COUPle:OFFSet` | set/query | `{frequency}` | 频率耦合的偏置量（CH2 减 CH1），例如 `SOUR1:FREQ:COUP:OFFS 2khz`；查询返回 `+2.0000E+03` 形式的 NR3。仅当 `MODE` 为 `OFFSet` 时生效（手册 p. 269）。 | manual p. 269 |
+| `SOURce[1&#124;2]:FREQuency:COUPle:RATio` | set/query | `{ratio}` | 频率耦合比例（CH2 比 CH1），例如 `SOUR1:FREQ:COUP:RAT 2`；查询返回 `+2.0000E+00` 形式的 NR3。仅当 `MODE` 为 `RATio` 时生效（手册 p. 269）。 | manual p. 269 |
 | `AMPLitude:COUPle:STATe` | set/query | `{ON&#124;OFF}` | 幅度耦合开关；开启后写 CH1 会同时改写 CH2 的幅度**和偏置**，此时读 CH2 得到的不是调用方设定的值。手册 pp. 268-270。 | modulation-sweep-burst.md (manual pp. 268-270) |
 | `TRACk` | set/query | `{ON&#124;OFF&#124;INVerted}` | 通道跟踪；`ON` 把 CH1 镜像到 CH2，`INVerted` 反相镜像。开启后 CH2 的读数不再独立。手册 pp. 268-270。 | modulation-sweep-burst.md (manual pp. 268-270) |
 
@@ -240,17 +240,30 @@ path, and waveform save/load is a panel/AWES operation in the manual.
 - **Real-device acceptance**: no command sequence in this table has been run on
   an AFG-2225; every row is `documented` only, not `hardware-verified` or
   `firmware-scoped`.
-- **No full command enumeration existed before this file**: this index was
-  assembled from the skill's own documents and scripts, so commands the manual
-  documents but the skill never recorded are missing here.
+- **No full command enumeration existed when the file was first written.** The
+  original table was assembled from the Skill's own documents and scripts; the
+  manual's `Command List` (pp. 189-192) was only enumerated on 2026-11-20, which
+  is why the last two rows of the COUPLE table carried no real header before
+  then. The two missing forms found in that pass were added and no others.
+- **Detail pages, not the list, decide syntax.** The `Command List` is a table of
+  contents; where it and a command page disagree (for example
+  `COUNTER:STATE` on p. 191 versus `COUNter:STATe` on p. 266), the command page
+  and the query/set syntax lines on it are what this table follows.
 - **Query forms not individually recorded**: `FUNC?`/`FREQ?`/`AMPL?`/`DCO?`/
   `OUTP<n>?`/`OUTP<n>:LOAD?` appear in the live helper, but the manual's
   per-command query pages were not cited for them; `*IDN?` and `SYSTem:ERRor?`
   are the only response formats the skill actually documents.
+- **Two provenance tiers.** Rows derived from `SKILL.md`, the task references,
+  and the scripts can carry values the Skill itself checked; rows marked only
+  `manual p. N` in the Source column were transcribed from the manual's command
+  page and are not cross-checked by any Skill document.
 - **Ranges the skill never recorded**: `*ESE`/`*SRE` values, `FSK:INT:RATE`,
-  `BURS:NCYC`, `BURS:INT:PER`, `BURS:TRIG:*`, trigger-source discretes, and the
-  coupling offset/ratio command headers — all show `—` above and must be read
-  from the manual before use.
+  `BURS:NCYC`, `BURS:INT:PER`, `BURS:TRIG:*`, and trigger-source discretes still
+  show `—` above because the Skill never recorded them; the manual pages that
+  hold them are cited on each row and must be read before use. The coupling
+  offset and ratio headers, previously recorded only as the bare words
+  "offset, ratio", are now written as `SOURce[1|2]:FREQuency:COUPle:OFFSet` and
+  `SOURce[1|2]:FREQuency:COUPle:RATio` (manual p. 269).
 - **Not covered by any skill document**: front-panel save/recall menus,
   firmware update, calibration, and AWES waveform transfer; the Skill
   deliberately does not automate them.

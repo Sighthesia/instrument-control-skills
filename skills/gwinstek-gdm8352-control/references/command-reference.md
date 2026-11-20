@@ -109,6 +109,12 @@
 | `SENS:AVER:STAT?` | `[SENSe:]AVERage:STATe?` | 返回 `0`（关闭）或 `1`（开启）。 | 123 | documented | no — refused by build_query |
 | `SENS:CONT:THR` | `[SENSe:]CONTinuity:THReshold <NRf>` | 设置通断阈值，范围 0–2000 Ω。 | 124 | documented | no — refused by build_query |
 | `SENS:CONT:THR?` | `[SENSe:]CONTinuity:THReshold?` | 返回通断阈值，手册列为 `<NR1>`，范围 0–2000。 | 124 | documented | no — refused by build_query |
+| `SENS:TEMP:TCO:TYPE` | `[SENSe:]TEMPerature:TCOuple:TYPE J \| K \| T` | 设置热电偶类型；类型的读写形式请用本命令，`CONF:TEMP:TCO` 只在设置测量功能时附带类型。 | 121 | documented | no — refused by build_query |
+| `SENS:TEMP:TCO:TYPE?` | `[SENSe:]TEMPerature:TCOuple:TYPE?` | 返回热电偶类型：`J`、`K` 或 `T`。 | 121 | documented | no — refused by build_query |
+| `SENS:FREQ:INP` | `[SENSe:]FREQuency:INPutjack (0 \| 1 \| 2)` | 指定频率测量的输入端子：`0`=VOLT、`1`=1A、`2`=10A。 | 123 | documented | no — refused by build_query |
+| `SENS:FREQ:INP?` | `[SENSe:]FREQuency:INPutjack?` | 返回频率测量所用的输入端子：`VOLT`、`1A` 或 `10A`。 | 123 | documented | no — refused by build_query |
+| `SENS:PER:INP` | `[SENSe:]PERiod:INPutjack (0 \| 1 \| 2)` | 指定周期测量的输入端子：`0`=VOLT、`1`=1A、`2`=10A。 | 124 | documented | no — refused by build_query |
+| `SENS:PER:INP?` | `[SENSe:]PERiod:INPutjack?` | 返回周期测量所用的输入端子：`VOLT`、`1A` 或 `10A`。 | 124 | documented | no — refused by build_query |
 
 ## CALCulate
 
@@ -170,6 +176,29 @@
 | `SYST:BEEP:ERR` | `SYSTem:BEEPer:ERRor ON \| OFF` | 设置 SCPI 出错时蜂鸣开关。 | 133 | documented | no — refused by build_query |
 | `SYST:BEEP:ERR?` | `SYSTem:BEEPer:ERRor?` | 返回 `0`（关闭）或 `1`（开启）。 | 133 | documented | no — refused by build_query |
 | `SYST:ERR?` | `SYSTem:ERRor?` | 手册说明返回当前系统错误（若有），未定义格式。真机返回自由文本 `Command error`。 | 133 | hardware-verified | yes |
+| `SYST:BEEP` | `SYSTem:BEEPer` | 无参数，发出一次蜂鸣。手册未给出返回或副作用说明。 | 133 | documented | no — refused by build_query |
+| `SYST:VERS?` | `SYSTem:VERSion?` | 返回系统版本，格式 `X.XX.`（手册原文带句点）。 | 134 | documented | no — refused by build_query |
+| `SYST:DISP` | `SYSTem:DISPlay ON \| OFF` | 关闭或打开前面板显示。 | 134 | documented | no — refused by build_query |
+| `SYST:DISP?` | `SYSTem:DISPlay?` | 返回显示状态，`0`=关闭、`1`=打开。 | 134 | documented | no — refused by build_query |
+| `SYST:SER?` | `SYSTem:SERial?` | 返回九个字符的序列号。手册未给响应示例，字段布局 `UNVERIFIED`。 | 134 | documented | no — refused by build_query |
+| `INP:IMP:AUTO` | `INPut:IMPedance:AUTO ON \| OFF` | 设置 DCV 模式（100 mV 与 1 V 量程）的输入阻抗：`ON`=10 GΩ、`OFF`=10 MΩ。 | 134 | documented | no — refused by build_query |
+| `INP:IMP:AUTO?` | `INPut:IMPedance:AUTO?` | 返回输入阻抗模式，`0`=OFF(10 MΩ)、`1`=ON(10 GΩ)。 | 134 | documented | no — refused by build_query |
+| `DISP:TEXT` | `DISPlay:TEXT "<string>"` | 在显示区写一条消息：字母数字加空格、`+`、`-`、`/`，最多 13 个字符。 | 135 | documented | no — refused by build_query |
+| `DISP:TEXT?` | `DISPlay:TEXT?` | 返回当前显示的消息。手册未列响应格式。 | 135 | documented | no — refused by build_query |
+| `DISP:TEXT:CLE` | `DISPlay:TEXT:CLEar` | 无参数，清除显示消息。 | 135 | documented | no — refused by build_query |
+| `DIG:MODE` | `DIGitalio:MODE NORM \| USER` | 设置 Digital I/O 口的模式；`USER` 模式下才可用 `DIGitalio[1\|2\|3\|4]:SETup`。 | 135 | documented | no — refused by build_query |
+| `DIG:MODE?` | `DIGitalio:MODE?` | 返回 Digital I/O 模式：`NORM` 或 `USER`。 | 135 | documented | no — refused by build_query |
+| `DIG[1\|2\|3\|4]:SET` | `DIGitalio[1\|2\|3\|4]:SETup ON \| OFF` | 在 `USER` 模式下设置所选引脚（1–4）的状态。 | 136 | documented | no — refused by build_query |
+| `DIG[1\|2\|3\|4]:SET?` | `DIGitalio[1\|2\|3\|4]:SETup?` | 返回所选引脚状态，`0`=OFF、`1`=ON。 | 136 | documented | no — refused by build_query |
+| `DIG0:SET` | `DIGitalio0:SETup <boolean>,<boolean>,<boolean>,<boolean>` | 在 `USER` 模式下一次设置四个引脚（CH1–CH4），`0`=OFF、`1`=ON。这一条只出现在命令详解（PDF p. 136），指令表（PDF pp. 99–106）未列。 | 136 | documented | no — refused by build_query |
+| `DIG0:SET?` | `DIGitalio0:SETup?` | 返回四个逗号分隔的布尔值，对应四个引脚。同样只出现在命令详解。 | 136 | documented | no — refused by build_query |
+| `STAT:QUES:ENAB` | `STATus:QUEStionable:ENABle` | 设置 Questionable Data Enable 寄存器。手册未列参数或范围。 | 137 | documented | no — refused by build_query |
+| `STAT:QUES:ENAB?` | `STATus:QUEStionable:ENABle?` | 返回 Questionable Data Enable 寄存器内容。 | 137 | documented | no — refused by build_query |
+| `STAT:QUES:EVEN?` | `STATus:QUEStionable:EVENt?` | 返回 Questionable Data Event 寄存器内容。 | 137 | documented | no — refused by build_query |
+| `STAT:PRES` | `STATus:PRESet` | 无参数，清除 Questionable Data Enable 寄存器。 | 137 | documented | no — refused by build_query |
+| `SYST:LOC` | `SYSTem:LOCal` | 启用前面板控制并关闭远程控制。 | 137 | documented | no — refused by build_query |
+| `SYST:REM` | `SYSTem:REMote` | 启用远程控制并关闭前面板控制；按 `2ND` 或 local 键可回到本地。 | 137 | documented | no — refused by build_query |
+| `SYST:RWL` | `SYSTem:RWLock` | 锁定前面板：此后面板键不再能回到本地，只能用 `SYSTem:LOCal` 解锁。 | 138 | documented | no — refused by build_query |
 
 ## IEEE 488.2 公共命令
 
@@ -187,6 +216,8 @@
 | `*SRE?` | `*SRE?` | 返回服务请求使能寄存器内容，手册未列响应示例。 | 140 | documented | no — refused by build_query |
 | `*STB?` | `*STB?` | 返回状态字节寄存器内容，响应例 `64`。 | 140 | documented | no — refused by build_query |
 | `*TRG` | `*TRG` | 手动触发 DMM。 | 140 | documented | no — refused by build_query |
+| `*PSC` | `*PSC <Boolean>` | 清除 Power On 状态：`0`=不清除、`1`=清除。 | 139 | documented | no — refused by build_query |
+| `*PSC?` | `*PSC?` | 返回 Power On Clear 状态，`0`=不清除、`1`=清除。 | 139 | documented | no — refused by build_query |
 
 手册公共命令表（PDF p. 106）及详解（PDF pp. 138–141）无 `*TST?` 或 `*WAI` 条目。两者均被 `build_query` 拒绝，语法、参数、响应及适用性无此手册依据。
 
