@@ -14,7 +14,7 @@ sys.path.insert(0, str(SCRIPTS))
 import diff_command_index as dci  # noqa: E402
 
 INDEX = ASSETS / "synthetic-index.md"
-MANUAL_TSV = ASSETS / "synthetic-manual.tsv"
+MANUAL_TSV = ASSETS / "synthetic-diff-manual.tsv"
 
 
 def run_main(*args: str) -> tuple[int, str, str]:

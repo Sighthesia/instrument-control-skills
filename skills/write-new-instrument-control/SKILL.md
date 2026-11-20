@@ -128,6 +128,10 @@ children and is not a sendable command. Never widen the matcher to lower the
 number. `--drift` reports commands the code sends but the index does not list, and
 (hint only) rows labelled `hardware-verified` that the code never sends.
 
+`assets/index-audit/` holds two deliberately separate synthetic fixtures: the
+extractor's input and a hand-maintained TSV for the diff tests (never output of
+the other). Neither contains vendor text.
+
 The tools cannot tell you that a command which answers on the instrument is
 missing from the manual; that class belongs in a `measured-only` section, labelled
 `UNVERIFIED` against the manual.
