@@ -1,7 +1,7 @@
 # Command Reference (Fallback Index)
 
 这是一份**兜底索引**：只有当按目标加载的任务参考文档和脚本仍无法回答某个命令问题时才加载它；日常应按 `SKILL.md` 的“Progressive Query Reference”优先读取对应任务页，不要一开始就全表通读。
-正文各表只记录本 Skill 内（`SKILL.md`、`references/*.md`、`scripts/*.py`）**已经用过或讨论过**的命令；手册里的其余命令集中列在文末「附录：手册命令清单」中（命令名与 PDF 页码取自手册，参数未抄录）。权威来源仍是厂商编程手册 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`（仓库内 `ref/`）。
+正文各表只记录本 Skill 内（`SKILL.md`、`references/*.md`、`scripts/*.py`）**已经用过或讨论过**的命令；手册里的其余命令集中列在文末「附录：手册命令清单」。附录的命令拼写与 PDF 页码取自手册，参数列转录自所引页面（`grep -c 'see p\.'` 应为 0）；但转录不是实机验证——附录每一行仍是 `documented`，没有一条因为抄了手册而升级为 `hardware-verified`。权威来源仍是厂商编程手册 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`（仓库内 `ref/`）。
 表中没有出现的任何命令，必须先对照手册核实并标注为 `documented` 后才能使用；`SKILL.md` 的安全规则（禁止 `ARM`、`Ready -> Stop`、Stop 后冻结命令集、二进制完整性）始终优先于本表。
 “Source”列给出记录该命令的文件；括号内页码只在原文明确给出时才有；原文未给出页码的条目在 Notes 中注明“手册未给出独立页码”或“需对手册核实”，使用前应回到手册核对。
 
@@ -302,7 +302,7 @@ Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCP
 
 ## Coverage gaps
 
-本文件之前，Skill 内没有任何完整命令枚举；现有文档只覆盖发现/连接、采集与传输、测量、解码、搜索/掩码、计数器/光标/历史、截图与 PDF 相关路径。以下子系统手册有覆盖但本 Skill **未记录**具体命令，使用时必须回查 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 并据此标注 `documented`：
+以下条目指的是**脚本未实现**，不是索引未收录：这些命令在文末附录里都能查到（拼写与页码来自手册），但 Skill 没有对应的封装、安全规则或实测证据。使用前必须回查 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 并据此标注 `documented`：
 
 - **IEEE 488.2 其余命令**：手册本身只列出 `*IDN`、`*OPC`、`*RST` 三条（印刷 pp. 13-14）；`*CLS`、`*ESE`、`*ESR?`、`*SRE`、`*STB?`、`*TRG`、`*TST?`、`*SAV`/`*RCL` **不在该手册中**，是否支持需按固件实测，不得假设。
 - **错误队列与状态寄存器**：手册未记录任何查询。**`SYSTem:ERRor?` 已在固件 `4.8.12.1.1.6.5` 上实测可用**（见“Write-Failure Modes”一节），因此写入后的探测不再属于未知项；但 `*ESR?`/`*STB?`/`*SRE`/`*CLS` 等仍不得假设支持。手册 pp. 13-14。

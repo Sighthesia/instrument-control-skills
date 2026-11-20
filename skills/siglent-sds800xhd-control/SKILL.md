@@ -5,7 +5,17 @@ description: Control and capture waveforms from a Siglent SDS800X HD series osci
 
 # Siglent SDS800X HD Control
 
-Use this skill whenever an AI needs to operate an SDS800X HD series oscilloscope, capture a stopped frame, download waveform data, decode it, or diagnose a mismatch between screen record length and downloaded files. The series shares one platform and command set; every behavior here was verified on an SDS824X HD. Capabilities that depend on channel count, bandwidth, or memory depth (2 vs 4 channels, 50 vs 100 Mpts) must be confirmed against the connected model.
+Use this skill whenever an AI needs to operate an SDS800X HD series oscilloscope, capture a stopped frame, download waveform data, decode it, or diagnose a mismatch between screen record length and downloaded files. The series shares one platform and command set. **What "verified" covers here is
+per claim, not per Skill**: the raw TCP session, the capture and waveform-download
+path, `:MEASure` readings, and the daily failure modes in *Write-Failure Modes*
+were exercised on an SDS824X HD (firmware `4.8.12.1.1.6.5`, SCPI TCP `5025`).
+The screenshot `:PRINt?` reader, `waveform_evidence.py`, the decode-list reader,
+and every voltage figure reconstructed from codes were **not** exercised on a
+physical instrument at the time of writing — each states its own limits where it
+appears (`:141`, `:256`, `:266`, and *Waveform Decode and Validation*). Do not read
+one verified path as covering another. Capabilities that depend on channel count,
+bandwidth, or memory depth (2 vs 4 channels, 50 vs 100 Mpts) must be confirmed
+against the connected model.
 
 ## Non-negotiable Safety Rules
 
@@ -139,6 +149,24 @@ Use `scripts/scope_protocol.py` for all byte parsing of **waveform** responses. 
 - A payload may contain `#`, NUL, CR, or LF; never split it on lines.
 - A timeout, missing marker, non-decimal length, or short payload fails closed.
 - **`:PRINt?` carries no IEEE 488.2 block header** on firmware `4.8.12.1.1.6.5`: it answers with a raw PNG stream closed by a single `LF`, so the rules above do not apply and `query_block()` legitimately fails with `invalid IEEE length-of-length`. Read bounded bytes until the `IEND` chunk plus that trailing `LF`, keep the SHA-256, and never `readline()` a screenshot. `scripts/screenshot_capture.py` is that reader: it validates the PNG signature, IHDR bounds and a legal bit-depth/colour-type pair, chunk order (IHDR first, contiguous `IDAT`, `PLTE` before `IDAT`, at most one `PLTE`, no unknown critical chunk), every chunk length and CRC, and the `IEND` plus one `LF` terminator under a total byte bound and a total elapsed-time bound. It keeps every received byte in the raw file even for a partial or invalid stream, refuses to replace an existing artifact, records a failed connect as JSON without creating a PNG, and passes the session timeout back on exit. `status`/`container_valid` describe PNG container structure only: no decoder runs, so `image_decode_status` is always `UNVERIFIED`, and an empty or random `IDAT` whose CRCs are correct still counts as a valid container while proving nothing about a viewable image or the frame it shows. The association with a downloaded waveform stays `UNVERIFIED`. Its framing is documented and offline-tested, not yet exercised against a physical instrument. See [Screenshot and waveform data](references/screenshot-and-waveform.md).
+
+## Integrity Statuses
+
+One structural status per artifact, and it never stands in for a different claim:
+
+| Status | Means exactly | Never means |
+|---|---|---|
+| `COMPLETE` | every applicable **structural and count** check passes for the stated claim: framing, required fields, point/row counts, terminator | the data is correct, covers what the caller wanted, or is within calibration |
+| `INCOMPLETE` | a required byte, terminator, field, point, segment, or status element is missing | — |
+| `INVALID` | framing, counts, or type constraints contradict the observed bytes | — |
+| `UNVERIFIED` | parsing found no contradiction, but the available evidence cannot prove completeness, units, calibration, or acquisition state | — |
+| `UNSUPPORTED` | this Skill does not implement that response shape or feature | — |
+
+No single status carries all four claims: **bytes complete**, **scale usable**,
+**same frame**, and **the number is a physical level**. A reader must ask for each
+separately, and `analysis_allowed` / `cannot_claim` must be driven by the level
+claim, not by `COMPLETE`. Derived values that only reproduce the instrument's own
+reading are `OBSERVED_UNVERIFIED`, never calibrated.
 
 ## Local AI Waveform Analysis
 

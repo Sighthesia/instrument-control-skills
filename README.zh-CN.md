@@ -21,13 +21,13 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 
 | Skill                          | 手册覆盖                             | 辅助能力                                                 |
 | ------------------------------ | ------------------------------------ | -------------------------------------------------------- |
-| `siglent-sds800xhd-control`    | 手册索引 873 行，参数已转录 | `waveform_analysis`、`waveform_scan` 等 11 个脚本        |
+| `siglent-sds800xhd-control`    | 手册索引 873 行（`grep -c '^|'`），参数已转录 | `waveform_analysis`、`waveform_scan` 等 11 个脚本        |
 | `keithley-2000-control`        | 11/11 面板功能；287 行索引，参数已转录 | `keithley2000_session`：试运行、原始捕获、串口锁         |
 | `gwinstek-gdm8352-control`     | 仅可读子集：122 条索引中 22 条       | `gdm8352_session`：试运行、白名单、sha256 fixtures       |
 | `gwinstek-afg2225-control`     | 部分：9 个构建/解析函数；13 个单位表 | `afg2225_protocol`：ARB/IEEE 块编解码、错误队列          |
 | `gwinstek-gpd4303s-control`    | 仅可读子集：18 条形式中 8 条         | `gpd4303s_protocol`/`_session`：`STATUS?` 位解码、试运行 |
 | `gwinstek-gds1000b-control`    | 部分：41 条测量命令；波形下载        | `gds1000b_protocol`：IEEE 块编解码、离线波形校验         |
-| `rigol-ds1000z-control`        | 手册命令全覆盖：500 行，参数已转录 | `ds1000z_protocol`/`_session`：IEEE 块、前导→电压、BMP 裁剪、游标读数、锁步 TCP |
+| `rigol-ds1000z-control`        | 手册索引 500 行（`grep -c '^|'`），参数已转录 | `ds1000z_protocol`/`_session`：IEEE 块、前导→电压、BMP 裁剪、游标读数、锁步 TCP |
 | `write-new-instrument-control` | —（无设备命令）                      | 解析器模板、响应分帧示例、完整性状态                     |
 
 ## 提示或已知问题
@@ -38,9 +38,10 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 
 ## 验证
 
-**设备 Skill 只有在真实仪器上实际运行过才算已验证。**
-
-各 Skill 的 `SKILL.md` / `SUPPORT.md` 是权威记录。
+**证据属于具体断言，不属于整个 Skill。** 上表 ✅ 表示该 Skill 存有该仪器的抓包，
+不等于其中每条命令、每个解析器、每个单位都在那台仪器上验证过。请读该 Skill
+`SUPPORT.md`（若存在）或 `SKILL.md` 里的逐条证据表；只有引用了原始回包的断言才能标
+`hardware-verified`。没有 `SUPPORT.md` 的 Skill 会在 `SKILL.md` 中说明。
 
 ## 安装
 

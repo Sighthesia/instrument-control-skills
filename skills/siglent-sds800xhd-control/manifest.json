@@ -1,0 +1,89 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "siglent-sds800xhd",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "SIGLENT",
+    "model": "SDS800X HD series (SDS802X HD / SDS804X HD / SDS810X HD / SDS814X HD / SDS824X HD)",
+    "verified_model": "SDS824X HD",
+    "firmware": "4.8.12.1.1.6.5",
+    "serial": null,
+    "channels": 4
+  },
+  "source": {
+    "operation": "raw TCP SCPI session, capture and waveform download, measurement readback, screenshot readback, decode list readback, offline waveform analysis and evidence reporting",
+    "transport": "raw TCP port 5025 (exercised on hardware); legacy shell port 5024 is not used",
+    "manual": {
+      "title": "SDS800XHD Series Programming Guide",
+      "part_number": "CN11G",
+      "revision": "CN11G (see the manual cover; the index cites PDF physical pages)",
+      "url": "https://www.siglent.com/",
+      "location": "local copy ref/SDS800XHD_Series_ProgrammingGuide_CN11G.pdf (git-ignored)"
+    },
+    "capture": {
+      "date": null,
+      "note": "capture manifests are produced per run; no single capture is committed with this Skill"
+    }
+  },
+  "data": {
+    "kind": "waveform",
+    "raw_path": null,
+    "raw_sha256": null,
+    "raw_provenance": "no fixture is committed: captures are produced by scripts/capture_scope.py and analysed offline; the analysis path is exercised by the bundled offline tests only"
+  },
+  "support": {
+    "level": "firmware-scoped",
+    "hardware_verified": true,
+    "scope_note": "hardware_verified covers the session, capture, waveform download and :MEASure paths only. The :PRINt? reader, waveform_evidence.py and the decode-list reader are documented and offline-tested, not exercised on a physical instrument.",
+    "hardware_evidence": {
+      "model": "SDS824X HD",
+      "serial": null,
+      "firmware": "4.8.12.1.1.6.5",
+      "interface": "raw TCP 5025",
+      "date": null,
+      "note": "the per-claim table is in SUPPORT.md; no single date covers every claim"
+    },
+    "known_limitations": [
+      "Voltage reconstructed from codes can be wrong while the structure status still reads VALID: a reply from another channel is accepted as this channel's V/div (scope_protocol.py query_ascii does not verify the echo prefix), an ampere scale is reported as volts (_UNIT_SCALES maps A to 1.0 and units are hardcoded), a legacy capture never reads the panel offset, and code_per_div is only checked for >0. Five paths reproduced offline in artifacts/check-waveform/report.md.",
+      "No cross-check against the instrument's own :MEASure PKPK/TOP/BASE existed at the time of this record, so 'the scale is usable' was conflated with 'the level is confirmed'.",
+      "Eleven silent-accept paths: unparseable WAV:STAR? readback does not block segment validation, legacy DAT2 writes a manifest and exits 0 without descriptor validation, validate_frame falls back to ACQ:POIN? in same_record mode, and the decode list reports likely_complete for a header-only reply. See artifacts/check-integrity/report.md.",
+      "Probe ratio is never read back (:CHANnel<n>:PROBe? is called nowhere), so vdiv_with_probe is unverified.",
+      "Offset sign and the offset*probe direction have no non-zero hardware reply, so they stay UNVERIFIED.",
+      "No voltage calibration was performed; derived levels are OBSERVED_UNVERIFIED at best.",
+      "The :PRINt? PNG reader and waveform_evidence.py are documented and offline-tested only.",
+      "Status words are reused across claims: VALID proves descriptor-versus-panel self-consistency, never an absolute voltage."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "fixture_origin",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no capture fixture is committed with this Skill"
+        }
+      },
+      {
+        "name": "voltage_cross_check",
+        "status": "fail",
+        "evidence": {
+          "reason": "no instrument-measurement cross-check was implemented; five wrong-level paths reproduced offline"
+        }
+      },
+      {
+        "name": "voltage_calibration",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no traceable reference was measured"
+        }
+      }
+    ],
+    "analysis_allowed": "code-domain-only",
+    "limitations": [
+      "Voltages, thresholds and levels are not confirmed against a traceable reference."
+    ]
+  }
+}
