@@ -74,7 +74,9 @@
       "RAW reads larger than 250000 points in BYTE format must be read in several windows; the scripts read one window per call and do not merge segments.",
       "Not verified on this firmware: *OPT?, :SYSTem:SETup?, :SYSTem:KEY?, :SYSTem:EXPANSion?, :INFO:MODEL?, :CHANnel1:POSition?, :WAVeform:WIDTh?, :DISPlay:BRIGhtness? all return 'command error' and are not implemented.",
       "VXI-11 over TCP 617 was probed through the UDP portmapper only; the scripts use the raw socket 5555 that was exercised.",
-      "The scripts never send *RST, *SAV, *RCL, :SAVE, :RECAll, :LAN: writes, :AUToscale or the panel lock, even with --allow-writes."
+      "The scripts never send *RST, *SAV, *RCL, :SAVE, :RECAll, :LAN: writes, :AUToscale or the panel lock, even with --allow-writes.",
+      "Cursor readback has three outcomes per reading: a number, 9.9E37 (no result) and 4294967295 (uint32 -1, cursor position not set). Both non-numeric outcomes are reported as null with a reason, never as numbers. Every :CURSor family answers in every mode, so the readout follows :CURSor:MODE?; the mode write is silent but slower than a normal command (>=0.8 s before the next query), and :CURSor:MODE XY is refused with -200 on this firmware.",
+      "A cursor y-axis value carries the channel's own unit (VUNit = SOUR); the readout leaves that unit null instead of assuming volts, and cursor values are display-layer readings, not calibrated metrology."
     ]
   },
   "integrity": {

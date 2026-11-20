@@ -22,6 +22,7 @@ from ds1000z_session import (  # noqa: E402
     SessionError,
     _encode_command,
     cmd_capture,
+    cmd_cursor,
     cmd_errors,
     cmd_identity,
     cmd_measurement,
@@ -694,6 +695,176 @@ def session_sha256(data: bytes) -> str:
     import hashlib
 
     return hashlib.sha256(data).hexdigest()
+
+
+def cursor_family_responses(family: str, fixture_name: str) -> dict[str, bytes]:
+    """Rebuild a {command: reply} map from one cursor replay container."""
+
+    from ds1000z_protocol import CURSOR_FAMILY_QUERIES, CURSOR_QUANTITIES
+
+    lines = fixture(fixture_name).splitlines(keepends=True)
+    keys = CURSOR_FAMILY_QUERIES[family]
+    return {CURSOR_QUANTITIES[key].command: raw for key, raw in zip(keys, lines)}
+
+
+class CursorSession(FakeSession):
+    """FakeSession whose :CURSor:MODE? replies follow a scripted sequence."""
+
+    def __init__(self, responses: dict[str, bytes], mode_sequence: list[bytes], *, allow_writes: bool = True) -> None:
+        super().__init__(responses, allow_writes=allow_writes)
+        self.mode_sequence = list(mode_sequence)
+        self.cursor_settle_delay = 0
+
+    def query_text(self, command: str) -> bytes:
+        self.send(command)
+        if command.strip() == ":CURSor:MODE?" and self.mode_sequence:
+            return self.mode_sequence.pop(0)
+        return self.responses.get(command.strip(), b"")
+
+
+class CursorCommandTests(unittest.TestCase):
+    def test_read_only_by_default(self):
+        responses = {":CURSor:MODE?": fixture("cursor-mode-man.txt")}
+        responses.update(cursor_family_responses("manual", "cursor-manual-values.txt"))
+        session = CursorSession(responses, [fixture("cursor-mode-man.txt")], allow_writes=False)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(cmd_cursor(session), 0)
+        result = json.loads(buffer.getvalue())
+        self.assertEqual(result["kind"], "cursor-readout")
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(result["family"], "manual")
+        self.assertEqual(result["positions"]["bx"], 500)
+        # Read-only path: every command is a query, no :CURSor:MODE write.
+        self.assertTrue(all(command.endswith("?") for command in session.commands))
+        self.assertNotIn(":CURSor:MODE MANual", session.commands)
+        self.assertEqual(session.commands[0], ":CURSor:MODE?")
+        self.assertEqual(len(session.commands), 16)
+
+    def test_mode_needs_allow_writes(self):
+        session = CursorSession({}, [], allow_writes=False)
+        with self.assertRaises(SessionError) as ctx:
+            cmd_cursor(session, mode="TRACk")
+        self.assertIn("--allow-writes", str(ctx.exception))
+        self.assertEqual(session.commands, [])
+
+    def test_mode_xy_is_refused(self):
+        for allow in (False, True):
+            session = CursorSession({}, [], allow_writes=allow)
+            with self.assertRaises(SessionError) as ctx:
+                cmd_cursor(session, mode="XY")
+            self.assertIn("Execution error", str(ctx.exception))
+            self.assertIn("model/firmware-dependent", str(ctx.exception))
+            self.assertEqual(session.commands, [])
+
+    def test_mode_switch_collects_then_restores(self):
+        responses = cursor_family_responses("track", "cursor-track-values.txt")
+        session = CursorSession(
+            responses,
+            [fixture("cursor-mode-man.txt"), fixture("cursor-mode-track.txt"),
+             fixture("cursor-mode-man.txt")],
+        )
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(cmd_cursor(session, mode="TRACk"), 0)
+        result = json.loads(buffer.getvalue())
+        self.assertEqual(result["family"], "track")
+        self.assertEqual(result["positions"]["ay"], 352)
+        self.assertEqual(result["mode_restore"]["status"], "pass")
+        self.assertEqual(result["mode_restore"]["prior_mode"], "MAN")
+        # Order: read mode, write it, read it back, collect, write back, confirm.
+        self.assertEqual(
+            session.commands[:3], [":CURSor:MODE?", ":CURSor:MODE TRACk", ":CURSor:MODE?"]
+        )
+        self.assertEqual(session.commands[-2:], [":CURSor:MODE MANual", ":CURSor:MODE?"])
+        self.assertLess(session.commands.index(":CURSor:TRACk:AX?"), len(session.commands) - 2)
+
+    def test_mode_switch_happens_before_family_queries(self):
+        responses = cursor_family_responses("track", "cursor-track-values.txt")
+        session = CursorSession(
+            responses,
+            [fixture("cursor-mode-man.txt"), fixture("cursor-mode-track.txt"),
+             fixture("cursor-mode-man.txt")],
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            cmd_cursor(session, mode="TRAC")
+        self.assertNotIn(":CURSor:MANual:AX?", session.commands)
+        self.assertIn(":CURSor:TRACk:IXDELTA?", session.commands)
+
+    def test_auto_mode_reports_incomplete(self):
+        responses = cursor_family_responses("auto", "cursor-auto-unset.txt")
+        session = CursorSession(
+            responses,
+            [fixture("cursor-mode-man.txt"), fixture("cursor-mode-auto.txt"),
+             fixture("cursor-mode-man.txt")],
+        )
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(cmd_cursor(session, mode="AUTO"), 1)
+        result = json.loads(buffer.getvalue())
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertIsNone(result["positions"]["ay"])
+        self.assertEqual(result["mode_restore"]["status"], "pass")
+
+    def test_out_raw_saves_and_refuses_overwrite(self):
+        responses = {":CURSor:MODE?": fixture("cursor-mode-man.txt")}
+        responses.update(cursor_family_responses("manual", "cursor-manual-values.txt"))
+        with tempfile.TemporaryDirectory() as tmp:
+            session = CursorSession(responses, [fixture("cursor-mode-man.txt")], allow_writes=False)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                self.assertEqual(cmd_cursor(session, out_raw=Path(tmp)), 0)
+            saved = json.loads(buffer.getvalue())["saved"]
+            self.assertEqual(Path(saved["manual_ax"]["path"]).read_bytes(), b"100\n")
+            with self.assertRaises(SessionError):
+                cmd_cursor(session, out_raw=Path(tmp))
+
+    def test_settle_delay_is_validated(self):
+        with self.assertRaises(SessionError):
+            Session(cursor_settle_delay=-1)
+
+    def test_discard_pending_drops_late_bytes(self):
+        # Measured: a silent :CURSor:MODE write can leave a late reply behind,
+        # which would then be read as the answer to the next query.
+        session = connected_session(b"MAN\n")
+        self.assertEqual(session.discard_pending(budget=0.01), 4)
+        self.assertEqual(session.discard_pending(budget=0.01), 0)
+
+
+class CursorCliTests(unittest.TestCase):
+    def test_dry_run_prints_the_family_queries_without_a_socket(self):
+        def forbidden(*args, **kwargs):  # pragma: no cover - only on failure
+            raise AssertionError("socket.create_connection must not be called in --dry-run")
+
+        original = socket.create_connection
+        socket.create_connection = forbidden
+        try:
+            code, out, _ = run_cli(["--dry-run", "--host", "169.254.1.5", "cursor"])
+        finally:
+            socket.create_connection = original
+        self.assertEqual(code, 0)
+        self.assertIn("b':CURSor:MODE?\\n'", out)
+        self.assertIn("b':CURSor:MANual:AX?\\n'", out)
+        self.assertIn("b':CURSor:XY:BYValue?\\n'", out)
+        self.assertIn("DRY-RUN NOTE", out)
+
+    def test_dry_run_with_mode_prints_write_and_restore(self):
+        code, out, _ = run_cli(["--dry-run", "--allow-writes", "cursor", "--mode", "TRACk"])
+        self.assertEqual(code, 0)
+        self.assertIn("b':CURSor:MODE TRACk\\n'", out)
+        self.assertIn("b':CURSor:TRACk:AY?\\n'", out)
+        self.assertIn("written back", out)
+        self.assertNotIn("b':CURSor:MANual:AX?\\n'", out)
+
+    def test_mode_without_allow_writes_exits_2(self):
+        code, _, err = run_cli(["--dry-run", "cursor", "--mode", "AUTO"])
+        self.assertEqual(code, 2)
+        self.assertIn("--allow-writes", err)
+
+    def test_xy_mode_exits_2(self):
+        code, _, err = run_cli(["--dry-run", "--allow-writes", "cursor", "--mode", "XY"])
+        self.assertEqual(code, 2)
+        self.assertIn("Execution error", err)
 
 
 class FileSafetyTests(unittest.TestCase):

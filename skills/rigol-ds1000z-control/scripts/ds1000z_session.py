@@ -32,10 +32,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ds1000z_protocol import (  # noqa: E402
     COMMAND_ERROR,
+    CURSOR_COMMANDS,
+    CURSOR_FAMILY_QUERIES,
+    CURSOR_MODE_FAMILIES,
     MAX_INLINE_RAW_BYTES,
     MEASUREMENT_COMMANDS,
     ProtocolError,
     is_command_error,
+    parse_cursor_readout,
     parse_error_queue,
     parse_identity,
     parse_ieee_block,
@@ -52,6 +56,20 @@ DEFAULT_BLOCK_TIMEOUT = 60.0
 # Measured: writes (:STOP, :WAVeform:MODE, ...) return nothing; 0.3-0.4 s is
 # enough for the instrument to be ready for the next command.
 DEFAULT_WRITE_DELAY = 0.35
+# Measured: :CURSor:MODE is a silent write that also lengthens the response
+# delay, so 0.4 s is not enough. A query sent after only 0.4 s can come back
+# empty and the late reply is then read as the answer to the next command.
+CURSOR_MODE_SETTLE_DELAY = 1.0
+# Write spellings for the cursor modes; the read-back is the short form (TRAC).
+CURSOR_MODE_WRITE_FORMS = {
+    "OFF": "OFF",
+    "MAN": "MANual",
+    "MANUAL": "MANual",
+    "TRAC": "TRACk",
+    "TRACK": "TRACk",
+    "AUTO": "AUTO",
+    "XY": "XY",
+}
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 # Documented trigger states that mean "the acquisition is running". Any other
@@ -152,6 +170,7 @@ class Session:
         idle_timeout: float = DEFAULT_IDLE_TIMEOUT,
         block_timeout: float = DEFAULT_BLOCK_TIMEOUT,
         write_delay: float = DEFAULT_WRITE_DELAY,
+        cursor_settle_delay: float = CURSOR_MODE_SETTLE_DELAY,
         dry_run: bool = False,
         allow_writes: bool = False,
         empty_retries: int = 1,
@@ -162,6 +181,8 @@ class Session:
             raise SessionError("timeouts must be positive")
         if write_delay < 0:
             raise SessionError("write delay must not be negative")
+        if cursor_settle_delay < 0:
+            raise SessionError("cursor settle delay must not be negative")
         if empty_retries < 0:
             raise SessionError("empty retry budget must not be negative")
         self.host = host
@@ -170,6 +191,7 @@ class Session:
         self.idle_timeout = idle_timeout
         self.block_timeout = block_timeout
         self.write_delay = write_delay
+        self.cursor_settle_delay = cursor_settle_delay
         self.dry_run = dry_run
         self.allow_writes = allow_writes
         self.empty_retries = empty_retries
@@ -283,6 +305,34 @@ class Session:
                 if self.write_delay:
                     time.sleep(self.write_delay)
         return b""
+
+    def discard_pending(self, *, budget: float = 0.05) -> int:
+        """Drop bytes that arrived without a query waiting for them.
+
+        Measured: :CURSor:MODE is a silent write whose reply can arrive late;
+        a reader that sends the next query too early then reads that late reply
+        as the answer to the new command. The cursor path settles, then clears
+        the socket, then queries. Returns the number of bytes discarded.
+        """
+
+        if self.dry_run or self._connection is None:
+            return 0
+        self._connection.settimeout(budget)
+        dropped = 0
+        try:
+            while True:
+                try:
+                    chunk = self._connection.recv(65536)
+                except socket.timeout:
+                    break
+                except OSError as exc:
+                    raise SessionError(f"read failed: {exc}") from exc
+                if not chunk:
+                    break
+                dropped += len(chunk)
+        finally:
+            self._connection.settimeout(self.idle_timeout)
+        return dropped
 
     def query_block(self, command: str) -> bytes:
         """Send one query and read a complete IEEE 488.2 block byte-exactly."""
@@ -430,6 +480,126 @@ def cmd_preamble(session: Session) -> int:
     result = parse_preamble(raw)
     _print_json(result)
     return 0 if result["status"] == "COMPLETE" else 1
+
+
+def _cursor_family(mode: str) -> str | None:
+    return CURSOR_MODE_FAMILIES.get(mode.strip().upper())
+
+
+def cmd_cursor(
+    session: Session,
+    *,
+    mode: str | None = None,
+    out_raw: Path | None = None,
+    overwrite: bool = False,
+) -> int:
+    """Read every cursor field of the active cursor family and report it.
+
+    Read-only by default: one ``:CURSor:MODE?`` query decides which family is
+    collected. ``--mode`` switches the family first, which needs
+    ``--allow-writes``, and the previous mode is always written back. ``XY`` is
+    refused because the bench firmware answers ``-200,"Execution error"`` and
+    stays in its previous mode. Writes are silent, so the switch settles and
+    then clears late bytes before the next query.
+    """
+
+    target: str | None = None
+    if mode is not None:
+        key = mode.strip().upper()
+        if key not in CURSOR_MODE_WRITE_FORMS:
+            raise SessionError(f"unknown cursor mode {mode!r}; use MAN, TRACk, or AUTO")
+        if key == "XY":
+            raise SessionError(
+                "refusing :CURSor:MODE XY: the bench unit answers -200,\"Execution error\" and stays "
+                "in its previous mode; XY cursors need :TIMebase:MODE XY and stay "
+                "model/firmware-dependent"
+            )
+        if not session.allow_writes:
+            raise SessionError(f"switching the cursor mode to {mode!r} needs --allow-writes")
+        target = CURSOR_MODE_WRITE_FORMS[key]
+
+    prior_raw = session.query_text(CURSOR_COMMANDS["mode"])
+    prior_mode = prior_raw.decode("ascii", "replace").strip()
+
+    if session.dry_run:
+        if target is not None:
+            session.write(f":CURSor:MODE {target}")
+            families = [_cursor_family(target) or "manual"]
+            print(
+                "DRY-RUN NOTE: the cursor mode write is silent and lengthens the response "
+                f"delay; the read waits {session.cursor_settle_delay:g} s and discards late bytes"
+            )
+        else:
+            families = ["manual", "track", "auto", "xy"]
+            print(
+                "DRY-RUN NOTE: the family is whichever :CURSor:MODE? names, so the bytes "
+                "below are the union of the four families; one family is sent live"
+            )
+        for family in families:
+            for quantity in CURSOR_FAMILY_QUERIES[family]:
+                session.send(CURSOR_COMMANDS[quantity])
+        if target is not None:
+            print(f"DRY-RUN NOTE: after the read :CURSor:MODE {prior_mode or '<read-back>'} is written back")
+        return 0
+
+    readings: dict[str, bytes] = {"mode": prior_raw}
+    observed_mode = prior_mode
+    switched = False
+    restored_mode: str | None = None
+    try:
+        if target is not None:
+            session.write(f":CURSor:MODE {target}")
+            switched = True
+            if session.cursor_settle_delay:
+                time.sleep(session.cursor_settle_delay)
+            session.discard_pending()
+            observed_mode = session.status(CURSOR_COMMANDS["mode"])
+        family = _cursor_family(observed_mode)
+        if family is not None:
+            for quantity in CURSOR_FAMILY_QUERIES[family]:
+                readings[quantity] = session.query_text(CURSOR_COMMANDS[quantity])
+    finally:
+        if switched:
+            _restore_cursor_mode(session, {"cursor_mode": prior_mode})
+            restored_mode = session.status(CURSOR_COMMANDS["mode"])
+
+    result = parse_cursor_readout(observed_mode, readings)
+    result["transport"] = {
+        "host": session.host,
+        "port": session.port,
+        "raw_tcp": True,
+        "captured_at": _utc_now(),
+        "commands": [payload.decode("ascii", "replace").strip() for payload in session.sent],
+        "empty_reply_retries": session.empty_reply_retries,
+    }
+    if switched:
+        result["mode_restore"] = {
+            "requested": target,
+            "prior_mode": prior_mode,
+            "observed_mode": observed_mode,
+            "restored_mode": restored_mode,
+            "status": "pass" if _cursor_family(restored_mode or "") == _cursor_family(prior_mode) else "fail",
+        }
+    if out_raw is not None:
+        saved = {
+            quantity: save_raw(Path(out_raw) / f"{quantity}.raw", raw, overwrite=overwrite)
+            for quantity, raw in readings.items()
+        }
+        result["saved"] = saved
+    _print_json(result)
+    return 0 if result["status"] == "COMPLETE" else 1
+
+
+def _restore_cursor_mode(session: Session, prior: dict) -> None:
+    """Write the previous cursor mode back; the write is silent, so settle first."""
+
+    mode = (prior.get("cursor_mode") or "").strip()
+    if session.dry_run or not mode:
+        return
+    session.write(f":CURSor:MODE {CURSOR_MODE_WRITE_FORMS.get(mode.upper(), mode)}")
+    if session.cursor_settle_delay:
+        time.sleep(session.cursor_settle_delay)
+    session.discard_pending()
 
 
 def cmd_waveform(
@@ -972,6 +1142,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_query = sub.add_parser("query", help="send one verbatim command")
     p_query.add_argument("command_text")
 
+    p_cursor = sub.add_parser("cursor", help="read every :CURSor field of the active cursor family")
+    p_cursor.add_argument("--mode", help="switch to MAN, TRACk, or AUTO first (needs --allow-writes); XY is refused")
+    p_cursor.add_argument("--out-raw", type=Path, help="save every raw reply as <dir>/<quantity>.raw")
+    p_cursor.add_argument("--overwrite", action="store_true")
+
     return parser
 
 
@@ -1025,6 +1200,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.subcommand == "query":
             return cmd_query(session, args.command_text)
+        if args.subcommand == "cursor":
+            return cmd_cursor(
+                session, mode=args.mode, out_raw=args.out_raw, overwrite=args.overwrite
+            )
     except (SessionError, ProtocolError, OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

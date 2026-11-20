@@ -125,7 +125,7 @@ manual supports.
 - **Primary data kinds**: `identity` (`*IDN?`, `*SYSTem:MODEL?`),
   `scalar-measurement` (`:MEASure:*?`), `status-record`
   (`:SYSTem:ERRor?`), `waveform` (`:WAVeform:PREamble?` + `:WAVeform:DATA?`),
-  and `screenshot` (`:DISPlay:DATA?`).
+  `screenshot` (`:DISPlay:DATA?`), and `cursor-readout` (`:CURSor:<family>:*?`).
 - **Not automatic**: calibration, firmware update, probe compensation,
   autoscale, panel lock/unlock, destructive reset, LAN reconfiguration.
 - **Firmware gaps**: `*OPT?`, `:SYSTem:SETup?`, `:SYSTem:KEY?`,
@@ -143,6 +143,7 @@ manual supports.
 | Channel, timebase, and trigger configuration and the measured constraints | [vertical-timebase-trigger.md](references/vertical-timebase-trigger.md) |
 | Run/stop, memory depth, preamble, deep-memory download, block format | [capture-and-waveform.md](references/capture-and-waveform.md) |
 | Individual measurements, the `9.9E37` sentinel, rejected measurement items | [measurements.md](references/measurements.md) |
+| Cursor modes, cursor query families, the three sentinel outcomes, mode-switch latency | [cursors.md](references/cursors.md) |
 | Screenshot capture, image format defects, storage/recall command families | [save-and-screenshot.md](references/save-and-screenshot.md) |
 | Parser stages, statuses, raw evidence, preamble-to-volts caveat | [response-and-evidence.md](references/response-and-evidence.md) |
 | Cross-check a command across subsystems, or answer a command question no task reference covers | [command-reference.md](references/command-reference.md) |
@@ -267,6 +268,7 @@ python3 scripts/ds1000z_protocol.py preamble assets/fixtures/preamble-norm.txt
 python3 scripts/ds1000z_protocol.py waveform assets/fixtures/waveform-norm-ch1.bin --csv-out wave.csv
 python3 scripts/ds1000z_protocol.py screenshot assets/fixtures/screenshot-compact.bin --out screen.bmp
 python3 scripts/ds1000z_protocol.py block assets/fixtures/waveform-norm-block.bin
+python3 scripts/ds1000z_protocol.py cursor assets/fixtures/cursor-manual-values.txt --mode MAN
 ```
 
 Stages: `read_frame` -> `parse_metadata` -> `extract_payload` -> `normalize` ->
@@ -279,7 +281,10 @@ results stay inspectable.
 lazy import): `--host --port 5555 --timeout`, `--dry-run` prints the exact bytes
 and opens nothing, writes require `--allow-writes`, raw bytes and their SHA-256
 are always saved, and it refuses `*RST`, `*SAV`, `*RCL`, `:SAVE`, `:RECAll`, and
-every writing `:LAN:` command unconditionally.
+every writing `:LAN:` command unconditionally. `cursor` reads one cursor-readout
+report for the mode the instrument is already in; `cursor --mode TRACk` needs
+`--allow-writes`, waits for the slow mode switch, and restores the previous mode
+with the observed before/after values in `mode_restore`.
 
 ## Integrity statuses
 
@@ -328,6 +333,16 @@ socket, so a passing run does not re-verify hardware behavior.
 - **Firmware below the manual**: the manual describes 00.04.03.SP2, the evidence
   unit runs 00.04.02.SP4. Several documented queries answer `command error`
   (list above and in [command-reference.md](references/command-reference.md)).
+- **Cursor reads have three outcomes, not two.** A cursor reading is a number,
+  `9.9E37` (no result) or `4294967295` (uint32 −1: the cursor position is not
+  set, seen on `:CURSor:TRACk:AY?`/`BY?`). Both non-numeric outcomes arrive as
+  `value`/`position` `null` with a reason, never as a number
+  (`hardware-verified`). Every `:CURSor` family answers in every mode, so the
+  readout follows `:CURSor:MODE?`; a y-axis value's unit is the channel's own
+  unit (`VUNit` = `SOUR`) and is left `null` rather than assumed to be volts.
+  `:CURSor:MODE XY` was refused with `-200,"Execution error"` on this firmware,
+  and the mode write is silent but slower than a normal command: allow ≥0.8 s
+  before the next query or the reply lands on the wrong command.
 - **`9.9E37` is a sentinel, not a measurement.** Any pipeline that parses with a
   float cast silently produces a 9.9e37 reading.
 - **Preamble can contradict the mode.** Leaving `STOP = 240001` and switching to

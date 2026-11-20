@@ -17,6 +17,7 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
 from ds1000z_protocol import (  # noqa: E402
+    CURSOR_FAMILY_QUERIES,
     MAX_BLOCK_BYTES,
     MAX_LINE_BYTES,
     NO_RESULT_SENTINEL,
@@ -32,6 +33,8 @@ from ds1000z_protocol import (  # noqa: E402
     normalize_preamble,
     parse_block,
     parse_bmp_header,
+    parse_cursor,
+    parse_cursor_readout,
     parse_error_queue,
     parse_identity,
     parse_ieee_block,
@@ -879,6 +882,238 @@ class ScreenshotTests(unittest.TestCase):
         self.assertEqual(real["status"], spec["real_frame"]["status"])
 
 
+def cursor_replies(name: str, family: str) -> dict[str, bytes]:
+    """Split one replay container into the family's replies, in query order."""
+
+    lines = fixture(name).splitlines(keepends=True)
+    keys = CURSOR_FAMILY_QUERIES[family]
+    if len(lines) != len(keys):
+        raise AssertionError(f"{name}: {len(lines)} replies for {len(keys)} queries")
+    return dict(zip(keys, lines))
+
+
+class CursorReadingTests(unittest.TestCase):
+    def test_manual_position_is_a_pixel(self):
+        result = parse_cursor(b"100\n", quantity="manual_ax")
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(result["value"], 100)
+        self.assertEqual(result["unit"], "pixel")
+        self.assertEqual(result["value_kind"], "pixel")
+        self.assertEqual(result["command"], ":CURSor:MANual:AX?")
+        self.assertEqual(result["integrity"]["raw_sha256"], hashlib.sha256(b"100\n").hexdigest())
+
+    def test_manual_value_is_physical(self):
+        result = parse_cursor(fixture("cursor-no-result.txt"), quantity="manual_ayvalue")
+        self.assertEqual(result["value_kind"], "nr3")
+        self.assertEqual(result["numeric_token"], "9.9E37")
+
+    def test_units_follow_the_unit_tokens(self):
+        value = parse_cursor(b"1.600000e-03\n", quantity="manual_xdelta", t_unit="S")
+        self.assertEqual(value["unit"], "s")
+        inverse = parse_cursor(b"6.250000e+02\n", quantity="manual_ixdelta", t_unit="S")
+        self.assertEqual(inverse["unit"], "Hz")
+        # VUNit SOUR means "whatever :CHANnel<n>:UNITs is", which is not queried.
+        volts = parse_cursor(b"2.520000e+00\n", quantity="manual_ayvalue", v_unit="SOUR")
+        self.assertIsNone(volts["unit"])
+        percent = parse_cursor(b"5.200000e+01\n", quantity="manual_ayvalue", v_unit="PERC")
+        self.assertEqual(percent["unit"], "%")
+
+    def test_no_result_sentinel_is_not_a_number(self):
+        result = parse_cursor(fixture("cursor-no-result.txt"), quantity="manual_ayvalue")
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertIsNone(result["value"])
+        self.assertEqual(result["sentinel"], "9.9E37")
+        self.assertEqual(result["integrity"]["reasons"], ["no_cursor_result"])
+
+    def test_position_unset_sentinel_is_not_a_number(self):
+        result = parse_cursor(fixture("cursor-position-unset.txt"), quantity="auto_ay")
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertIsNone(result["value"])
+        self.assertEqual(result["sentinel"], "4294967295")
+        self.assertEqual(result["integrity"]["reasons"], ["cursor_position_unset"])
+
+    def test_position_unset_sentinel_in_a_delta(self):
+        # Manual p. 2-23: :CURSor:MANual:YDELta? answers 4294967295 for an LA
+        # source. Same uint32 -1 sentinel, different meaning.
+        result = parse_cursor(b"4294967295\n", quantity="manual_ydelta")
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertIsNone(result["value"])
+        self.assertEqual(result["integrity"]["reasons"], ["cursor_value_unset"])
+
+    def test_command_error_is_unsupported(self):
+        result = parse_cursor(fixture("cursor-command-error.bin"), quantity="manual_ax")
+        self.assertEqual(result["status"], "UNSUPPORTED")
+        self.assertTrue(result["command_error"])
+        self.assertIsNone(result["value"])
+
+    def test_empty_and_blank_replies_are_incomplete(self):
+        self.assertEqual(parse_cursor(b"", quantity="manual_ax")["status"], "INCOMPLETE")
+        self.assertEqual(parse_cursor(b"\n", quantity="manual_ax")["status"], "INCOMPLETE")
+
+    def test_unknown_quantity(self):
+        result = parse_cursor(b"1\n", quantity="manual_nope")
+        self.assertEqual(result["status"], "INVALID")
+        self.assertEqual(result["integrity"]["reasons"], ["quantity_unknown"])
+
+    def test_pixel_and_value_never_cross(self):
+        # A physical value is not a pixel and a pixel is not a physical value.
+        self.assertEqual(parse_cursor(b"12.5\n", quantity="manual_ax")["status"], "INVALID")
+        self.assertEqual(parse_cursor(b"three\n", quantity="manual_axvalue")["status"], "INVALID")
+        self.assertEqual(parse_cursor(b"1,2\n", quantity="manual_ax")["status"], "INVALID")
+
+    def test_position_outside_documented_range(self):
+        result = parse_cursor(b"700\n", quantity="manual_ax")
+        self.assertEqual(result["status"], "UNVERIFIED")
+        self.assertEqual(result["integrity"]["reasons"], ["cursor_position_out_of_documented_range"])
+
+    def test_enum_setting(self):
+        self.assertEqual(parse_cursor(fixture("cursor-mode-track.txt"), quantity="mode")["value"], "TRAC")
+        self.assertEqual(parse_cursor(b"X\n", quantity="manual_type")["status"], "COMPLETE")
+        unexpected = parse_cursor(b"Z\n", quantity="manual_type")
+        self.assertEqual(unexpected["status"], "UNVERIFIED")
+        self.assertEqual(unexpected["integrity"]["reasons"], ["cursor_setting_unexpected"])
+
+
+class CursorReadoutTests(unittest.TestCase):
+    def test_manual_family(self):
+        replies = cursor_replies("cursor-manual-values.txt", "manual")
+        replies["mode"] = fixture("cursor-mode-man.txt")
+        result = parse_cursor_readout(replies["mode"], replies)
+        self.assertEqual(result["kind"], "cursor-readout")
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(result["mode"], "MAN")
+        self.assertEqual(result["family"], "manual")
+        self.assertEqual((result["type"], result["source"]), ("X", "CHAN1"))
+        self.assertEqual((result["t_unit"], result["v_unit"]), ("S", "SOUR"))
+        self.assertEqual(result["positions"], {"ax": 100, "bx": 500, "ay": 100, "by": 300})
+        self.assertEqual(result["deltas"]["ixdelta"], 625.0)
+        self.assertEqual(result["units"]["position"]["ax"], "pixel")
+        self.assertEqual(result["units"]["delta"]["ixdelta"], "Hz")
+        checks = {check["name"]: check["status"] for check in result["integrity"]["checks"]}
+        self.assertEqual(checks["cursor_mode"], "pass")
+        self.assertEqual(checks["cursor_field_count"], "pass")
+        self.assertEqual(checks["cursor_numeric"], "pass")
+        self.assertEqual(checks["cursor_result_present"], "pass")
+        self.assertEqual(checks["cursor_position_set"], "pass")
+        # Every reading keeps its own hash and repr.
+        for reading in result["readings"]:
+            self.assertEqual(len(reading["raw"]["sha256"]), 64)
+            self.assertIsNotNone(reading["raw"]["repr"])
+
+    def test_track_family(self):
+        replies = cursor_replies("cursor-track-values.txt", "track")
+        replies["mode"] = fixture("cursor-mode-track.txt")
+        result = parse_cursor_readout(fixture("cursor-mode-track.txt"), replies)
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(result["family"], "track")
+        self.assertEqual(result["sources"], {"a": "CHAN1", "b": "CHAN1"})
+        self.assertEqual(result["positions"], {"ax": 299, "bx": 301, "ay": 352, "by": 76})
+        self.assertEqual(result["units"]["value"]["ax"], "s")
+
+    def test_auto_family_reports_both_sentinels(self):
+        replies = cursor_replies("cursor-auto-unset.txt", "auto")
+        replies["mode"] = fixture("cursor-mode-auto.txt")
+        result = parse_cursor_readout(fixture("cursor-mode-auto.txt"), replies)
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertEqual(result["item"], "ITEM5")
+        self.assertEqual(result["positions"]["ax"], 50)
+        self.assertIsNone(result["positions"]["ay"])
+        self.assertIsNone(result["values"]["ay"])
+        self.assertEqual(
+            sorted(result["integrity"]["reasons"]), ["cursor_position_unset", "no_cursor_result"]
+        )
+        checks = {check["name"]: check["status"] for check in result["integrity"]["checks"]}
+        self.assertEqual(checks["cursor_position_set"], "fail")
+        self.assertEqual(checks["cursor_result_present"], "fail")
+
+    def test_xy_family_readings(self):
+        lines = fixture("cursor-xy-values.txt").splitlines(keepends=True)
+        keys = CURSOR_FAMILY_QUERIES["xy"]
+        replies = dict(zip(keys, lines))
+        self.assertEqual(parse_cursor(replies["xy_ax"], quantity="xy_ax")["value"], 100)
+        self.assertEqual(parse_cursor(replies["xy_by"], quantity="xy_by")["value"], 300)
+        self.assertEqual(
+            parse_cursor(replies["xy_axvalue"], quantity="xy_axvalue")["status"], "INCOMPLETE"
+        )
+
+    def test_missing_field_is_incomplete(self):
+        replies = cursor_replies("cursor-manual-values.txt", "manual")
+        replies.pop("manual_ydelta")
+        result = parse_cursor_readout("MAN", replies)
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertEqual(result["integrity"]["reasons"], ["cursor_field_missing"])
+        self.assertIsNone(result["deltas"]["ydelta"])
+        checks = {check["name"]: check for check in result["integrity"]["checks"]}
+        self.assertEqual(checks["cursor_field_count"]["evidence"]["missing"], ["manual_ydelta"])
+
+    def test_missing_mode(self):
+        result = parse_cursor_readout(None, {})
+        self.assertEqual(result["status"], "INCOMPLETE")
+        self.assertEqual(result["integrity"]["reasons"], ["cursor_mode_missing"])
+
+    def test_disabled_and_unknown_modes(self):
+        off = parse_cursor_readout("OFF", {})
+        self.assertEqual(off["status"], "INCOMPLETE")
+        self.assertEqual(off["integrity"]["reasons"], ["cursor_disabled"])
+        self.assertIsNone(off["family"])
+        unknown = parse_cursor_readout("BOGUS", {})
+        self.assertEqual(unknown["status"], "UNSUPPORTED")
+        self.assertEqual(unknown["integrity"]["reasons"], ["cursor_mode_unknown"])
+
+    def test_other_family_readings_are_listed_not_used(self):
+        replies = cursor_replies("cursor-manual-values.txt", "manual")
+        replies["auto_ax"] = b"50\n"
+        result = parse_cursor_readout("MAN", replies)
+        self.assertEqual(result["ignored_readings"], ["auto_ax"])
+        self.assertEqual(result["positions"]["ax"], 100)
+
+    def test_command_error_field_is_unsupported(self):
+        replies = cursor_replies("cursor-manual-values.txt", "manual")
+        replies["manual_ax"] = fixture("cursor-command-error.bin")
+        result = parse_cursor_readout("MAN", replies)
+        self.assertEqual(result["status"], "UNSUPPORTED")
+        self.assertIn("instrument_command_error", result["integrity"]["reasons"])
+
+    def test_expected_fixture(self):
+        spec = expected("expected-cursor.json")
+        containers = spec["replay_containers"]
+        manual = containers["manual"]
+        replies = cursor_replies(manual["fixture"], manual["family"])
+        replies["mode"] = fixture(manual["mode_fixture"])
+        result = parse_cursor_readout(replies["mode"], replies)
+        self.assertEqual(result["status"], manual["status"])
+        self.assertEqual(result["mode"], manual["mode"])
+        self.assertEqual(result["type"], manual["type"])
+        self.assertEqual(result["source"], manual["source"])
+        self.assertEqual(result["t_unit"], manual["t_unit"])
+        self.assertEqual(result["v_unit"], manual["v_unit"])
+        self.assertEqual(result["positions"], manual["positions"])
+        for key, value in manual["values"].items():
+            self.assertAlmostEqual(result["values"][key], value, places=12)
+        for key, value in manual["deltas"].items():
+            self.assertAlmostEqual(result["deltas"][key], value, places=12)
+
+        auto = containers["auto"]
+        replies = cursor_replies(auto["fixture"], auto["family"])
+        replies["mode"] = fixture(auto["mode_fixture"])
+        result = parse_cursor_readout(replies["mode"], replies)
+        self.assertEqual(result["status"], auto["status"])
+        self.assertEqual(result["positions"], auto["positions"])
+        self.assertEqual(sorted(result["integrity"]["reasons"]), sorted(auto["reasons"]))
+
+        for name in ("no_result", "position_unset", "command_error"):
+            single = spec["single_replies"][name]
+            result = parse_cursor(fixture(single["fixture"]), quantity=single["quantity"])
+            self.assertEqual(result["status"], single["status"], name)
+            self.assertIsNone(result["value"], name)
+            self.assertEqual(result["integrity"]["reasons"], single["reasons"], name)
+
+        empty = spec["single_replies"]["empty"]
+        result = parse_cursor(b"", quantity=empty["quantity"])
+        self.assertEqual(result["status"], empty["status"])
+        self.assertEqual(result["integrity"]["reasons"], empty["reasons"])
+
+
 class IsolationTests(unittest.TestCase):
     def test_no_socket_import(self):
         tree = ast.parse((SCRIPTS / "ds1000z_protocol.py").read_text())
@@ -910,6 +1145,36 @@ class CliTests(unittest.TestCase):
         code, result = self._run(["measurement", str(FIXTURES / "measurement-no-result.txt"), "--quantity", "vpp"])
         self.assertEqual(code, 1)
         self.assertIsNone(result["value"])
+
+    def test_cursor_bundle_manual(self):
+        code, result = self._run(["cursor", str(FIXTURES / "cursor-manual-values.txt"), "--mode", "MAN"])
+        self.assertEqual(code, 0)
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(result["positions"], {"ax": 100, "bx": 500, "ay": 100, "by": 300})
+        self.assertAlmostEqual(result["values"]["ax"], -8e-4)
+
+    def test_cursor_bundle_track(self):
+        code, result = self._run(["cursor", str(FIXTURES / "cursor-track-values.txt"), "--mode", "TRAC"])
+        self.assertEqual(code, 0)
+        self.assertEqual(result["family"], "track")
+        self.assertAlmostEqual(result["values"]["by"], 2.76)
+
+    def test_cursor_bundle_sentinels_are_incomplete(self):
+        code, result = self._run(["cursor", str(FIXTURES / "cursor-auto-unset.txt"), "--mode", "AUTO"])
+        self.assertEqual(code, 1)
+        self.assertIsNone(result["positions"]["ay"])
+        self.assertIsNone(result["values"]["ay"])
+        self.assertIn("cursor_position_unset", result["integrity"]["reasons"])
+
+    def test_cursor_bundle_length_mismatch_is_invalid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "short.txt"
+            path.write_bytes(b"X\nCHAN1\n")
+            buffer, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(err):
+                code = main(["cursor", str(path), "--mode", "MAN"])
+        self.assertEqual(code, 2)
+        self.assertIn("cursor_bundle_length", err.getvalue())
 
     def test_error_queue(self):
         code, result = self._run(["error-queue", str(FIXTURES / "error-queue-undefined.txt")])

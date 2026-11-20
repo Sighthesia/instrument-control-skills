@@ -28,7 +28,7 @@ evidence labels.
 | `gwinstek-afg2225-control` | Partial: 9 builder/parser functions; 13 unit tables | `afg2225_protocol`: ARB/IEEE block codec, error queue |
 | `gwinstek-gpd4303s-control` | Read-only subset: 8 of 18 command forms; writes refused | `gpd4303s_protocol`/`_session`: `STATUS?` decode, dry run |
 | `gwinstek-gds1000b-control` | Partial: 41 measurement commands; waveform download | `gds1000b_protocol`: IEEE block, offline waveform check |
-| `rigol-ds1000z-control` | Partial: 355 indexed commands; measured framing rules | `ds1000z_protocol`/`_session`: IEEE block, preamble-to-volts, BMP trim, lockstep TCP |
+| `rigol-ds1000z-control` | Complete manual index: 474 rows / 659 forms, implemented subset flagged | `ds1000z_protocol`/`_session`: IEEE block, preamble-to-volts, BMP trim, cursor readout, lockstep TCP |
 | `write-new-instrument-control` | n/a: no device commands | parser templates, framing examples, integrity statuses |
 
 ## Hints and known issues

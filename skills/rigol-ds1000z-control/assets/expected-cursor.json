@@ -1,0 +1,95 @@
+{
+  "instrument": {
+    "model": "DS1074Z",
+    "firmware": "00.04.02.SP4",
+    "captured_at": "bench probe of the cursor reference, raw TCP 5555"
+  },
+  "replay_containers": {
+    "note": "A cursor fixture holds the exact replies of one family, in the order of CURSOR_FAMILY_QUERIES, one LF-terminated reply per line. Nothing inside is rewritten.",
+    "manual": {
+      "fixture": "cursor-manual-values.txt",
+      "mode_fixture": "cursor-mode-man.txt",
+      "mode": "MAN",
+      "family": "manual",
+      "status": "COMPLETE",
+      "type": "X",
+      "source": "CHAN1",
+      "t_unit": "S",
+      "v_unit": "SOUR",
+      "positions": {"ax": 100, "bx": 500, "ay": 100, "by": 300},
+      "values": {"ax": -0.0008, "bx": 0.0008, "ay": 2.52, "by": 0.52},
+      "deltas": {"xdelta": 0.0016, "ixdelta": 625.0, "ydelta": -2.0}
+    },
+    "track": {
+      "fixture": "cursor-track-values.txt",
+      "mode_fixture": "cursor-mode-track.txt",
+      "mode": "TRAC",
+      "family": "track",
+      "status": "COMPLETE",
+      "sources": {"a": "CHAN1", "b": "CHAN1"},
+      "positions": {"ax": 299, "bx": 301, "ay": 352, "by": 76},
+      "values": {"ax": -4e-06, "bx": 4e-06, "ay": 0.0, "by": 2.76},
+      "deltas": {"xdelta": 8e-06, "ixdelta": 125000.0, "ydelta": 2.76}
+    },
+    "auto": {
+      "fixture": "cursor-auto-unset.txt",
+      "mode_fixture": "cursor-mode-auto.txt",
+      "mode": "AUTO",
+      "family": "auto",
+      "status": "INCOMPLETE",
+      "item": "ITEM5",
+      "positions": {"ax": 50, "bx": 175, "ay": null, "by": null},
+      "values": {"ax": -0.0009999999, "bx": -0.0005, "ay": null, "by": null},
+      "reasons": ["cursor_position_unset", "no_cursor_result"]
+    },
+    "xy": {
+      "fixture": "cursor-xy-values.txt",
+      "note": "Captured while the cursor mode was MAN: :CURSor:MODE XY is rejected by this firmware, so the XY family is only reachable through the panel. Y is 9.9E37 because no XY timebase was active.",
+      "family": "xy",
+      "consumed_as_readings_only": true
+    }
+  },
+  "single_replies": {
+    "no_result": {
+      "fixture": "cursor-no-result.txt",
+      "command": ":CURSor:AUTO:AYValue?",
+      "quantity": "manual_ayvalue",
+      "status": "INCOMPLETE",
+      "value": null,
+      "sentinel": "9.9E37",
+      "reasons": ["no_cursor_result"]
+    },
+    "position_unset": {
+      "fixture": "cursor-position-unset.txt",
+      "command": ":CURSor:AUTO:AY?",
+      "quantity": "auto_ay",
+      "status": "INCOMPLETE",
+      "value": null,
+      "sentinel": "4294967295",
+      "reasons": ["cursor_position_unset"]
+    },
+    "command_error": {
+      "fixture": "cursor-command-error.bin",
+      "command": ":CURSor:MANual:ZZTop?",
+      "quantity": "manual_ax",
+      "status": "UNSUPPORTED",
+      "value": null,
+      "reasons": ["instrument_command_error"]
+    },
+    "empty": {
+      "fixture": null,
+      "note": "An empty reply has no bytes to save; the earlier evidence log records the general transient.",
+      "quantity": "manual_ax",
+      "status": "INCOMPLETE",
+      "value": null,
+      "reasons": ["empty_response"]
+    }
+  },
+  "mode_families": {
+    "MAN": "manual",
+    "TRAC": "track",
+    "AUTO": "auto",
+    "XY": "xy",
+    "OFF": null
+  }
+}

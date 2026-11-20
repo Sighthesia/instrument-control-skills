@@ -4,7 +4,7 @@
 - Hardware verification: `true`
 - Verified model/firmware/interface: `RIGOL TECHNOLOGIES,DS1074Z,DS1ZA171004155,00.04.02.SP4`, 4-channel 70 MHz model, raw TCP socket port 5555, captured 2026-11-20
 - Manual source: *MSO1000Z/DS1000Z Programming Guide*, PGA19108-1110, Software Version 00.04.03.SP2, December 2015, and *DS1000Z Series User Guide*, UGA19115-1110, September 2020
-- Supported data kinds: `identity` (`*IDN?` / `*SYSTem:MODEL?`), `scalar-measurement` (`:MEASure:*?`), `status-record` (`:SYSTem:ERRor?`), `waveform` (`:WAVeform:PREamble?` + `:WAVeform:DATA?`, NORM/MAXimum/RAW), and `screenshot` (`:DISPlay:DATA?`, BMP)
+- Supported data kinds: `identity` (`*IDN?` / `*SYSTem:MODEL?`), `scalar-measurement` (`:MEASure:*?`), `status-record` (`:SYSTem:ERRor?`), `waveform` (`:WAVeform:PREamble?` + `:WAVeform:DATA?`, NORM/MAXimum/RAW), `screenshot` (`:DISPlay:DATA?`, BMP), and `cursor-readout` (`:CURSor:<family>:*?`, MAN/TRACk/AUTO)
 - Known limitations: waveform voltage calibration is unverified and NORM/RAW `yincrement` differ at the same V/div; the manual's software version (00.04.03.SP2) is newer than the verified firmware (00.04.02.SP4), so version-dependent behavior is `documented` only; the `:LAN:` query family answered on hardware but is absent from the Programming Guide and its write forms are refused; `*SAV`/`*RCL`/`:SAVE`/`:RECAll` are undocumented here and refused defensively; `:DISPlay:DATA?` returns three bytes past its declared length and needs trimming; MAXimum-mode bytes, VXI-11 RPC, `AVER`/`HRES` downloads, digital channels, and the `-S` source are unexercised
 
 The hardware evidence behind this record is

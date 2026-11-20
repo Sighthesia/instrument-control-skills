@@ -187,6 +187,41 @@ MEASUREMENT_ALIASES = {
     "freq": "frequency",
 }
 
+# :CURSor replies (manual PDF pp. 32-52 = sections 2-16..2-36). Measured: every
+# family answers in every cursor mode, so an inapplicable family replies with a
+# sentinel rather than with "command error". A readout is therefore built from
+# the family that :CURSor:MODE? names, never from which replies arrived.
+CURSOR_MODE_FAMILIES = {
+    "OFF": None,
+    "MAN": "manual",
+    "MANUAL": "manual",
+    "TRAC": "track",
+    "TRACK": "track",
+    "AUTO": "auto",
+    "XY": "xy",
+}
+
+# Measured: uint32 -1 (4294967295) is "this cursor position is not set" - the
+# reply of :CURSor:AUTO:AY?/:CURSor:TRACk:AY? when the cursor is not on the
+# screen. Manual p. 2-23 also documents it for :CURSor:MANual:YDELta? with an
+# LA source. It is never a pixel position and never a value.
+CURSOR_POSITION_UNSET = "4294967295"
+CURSOR_NO_RESULT = "9.9E37"
+
+# Manual p. 2-18/2-19: <unit> S|HZ|DEGRee|PERCent (echo S, HZ, DEGR, PERC) and
+# VUNit PERCent|SOURce (echo PERC, SOUR). SOUR means "whatever
+# :CHANnel<n>:UNITs is", which this readout does not query.
+CURSOR_T_UNITS = {"S": "s", "HZ": "Hz", "DEGR": "deg", "PERC": "%"}
+CURSOR_T_UNIT_INVERSES = {"S": "Hz", "HZ": "s"}
+CURSOR_V_UNITS = {"PERC": "%"}
+
+# The fields one cursor-readout artifact groups its readings into.
+CURSOR_READOUT_FIELDS = {
+    "position": ("ax", "bx", "ay", "by"),
+    "value": ("ax", "bx", "ay", "by"),
+    "delta": ("xdelta", "ixdelta", "ydelta"),
+}
+
 # IEEE 488.2 error classes; the queue reports the negative standard codes.
 ERROR_CLASSES = {
     "command": (-199, -100),
@@ -767,6 +802,610 @@ def parse_error_queue(raw: bytes, *, response_type: str = "auto") -> dict[str, A
             code=None,
             message=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Cursors
+# ---------------------------------------------------------------------------
+
+_UINT_RE = re.compile(r"^\d+$")
+
+
+@dataclass(frozen=True)
+class CursorQuantity:
+    """One :CURSor query: its family, its reply shape, and where it belongs.
+
+    ``role`` is ``setting`` (a token such as ``MAN`` or ``CHAN1``), ``position``
+    (a screen pixel coordinate), ``value`` (a physical reading) or ``delta``
+    (a difference of two readings). ``unit_source`` names where the unit would
+    come from, because the firmware never states a unit in the reply.
+    """
+
+    command: str
+    family: str
+    role: str
+    kind: str
+    field: str | None = None
+    unit_source: str = "pixel"
+    documented_range: tuple[int, int] | None = None
+    documented_values: tuple[str, ...] | None = None
+
+
+_cursor_quantity = CursorQuantity
+
+CURSOR_QUANTITIES: dict[str, CursorQuantity] = {
+    # Manual pp. 32, 33, 34, 34: mode and the manual-mode settings.
+    "mode": _cursor_quantity(
+        ":CURSor:MODE?", "any", "setting", "text", "mode",
+        documented_values=("OFF", "MAN", "TRAC", "AUTO", "XY"),
+    ),
+    "manual_type": _cursor_quantity(
+        ":CURSor:MANual:TYPE?", "manual", "setting", "text", "type",
+        documented_values=("X", "Y"),
+    ),
+    "manual_source": _cursor_quantity(":CURSor:MANual:SOURce?", "manual", "setting", "text", "source"),
+    "manual_tunit": _cursor_quantity(
+        ":CURSor:MANual:TUNit?", "manual", "setting", "text", "t_unit",
+        documented_values=("S", "HZ", "DEGR", "PERC"),
+    ),
+    "manual_vunit": _cursor_quantity(
+        ":CURSor:MANual:VUNit?", "manual", "setting", "text", "v_unit",
+        documented_values=("PERC", "SOUR"),
+    ),
+    # Manual pp. 35-37: pixel positions, ranges as printed in the manual.
+    "manual_ax": _cursor_quantity(":CURSor:MANual:AX?", "manual", "position", "pixel", "ax", documented_range=(5, 594)),
+    "manual_bx": _cursor_quantity(":CURSor:MANual:BX?", "manual", "position", "pixel", "bx", documented_range=(5, 594)),
+    "manual_ay": _cursor_quantity(":CURSor:MANual:AY?", "manual", "position", "pixel", "ay", documented_range=(5, 394)),
+    "manual_by": _cursor_quantity(":CURSor:MANual:BY?", "manual", "position", "pixel", "by", documented_range=(5, 394)),
+    # Manual pp. 37-39: physical readings and differences.
+    "manual_axvalue": _cursor_quantity(":CURSor:MANual:AXValue?", "manual", "value", "nr3", "ax", "t_unit"),
+    "manual_bxvalue": _cursor_quantity(":CURSor:MANual:BXValue?", "manual", "value", "nr3", "bx", "t_unit"),
+    "manual_ayvalue": _cursor_quantity(":CURSor:MANual:AYValue?", "manual", "value", "nr3", "ay", "v_unit"),
+    "manual_byvalue": _cursor_quantity(":CURSor:MANual:BYValue?", "manual", "value", "nr3", "by", "v_unit"),
+    "manual_xdelta": _cursor_quantity(":CURSor:MANual:XDELta?", "manual", "delta", "nr3", "xdelta", "t_unit"),
+    "manual_ixdelta": _cursor_quantity(":CURSor:MANual:IXDELta?", "manual", "delta", "nr3", "ixdelta", "inverse_t_unit"),
+    "manual_ydelta": _cursor_quantity(":CURSor:MANual:YDELta?", "manual", "delta", "nr3", "ydelta", "v_unit"),
+    # Manual pp. 40-44: track cursors. The X unit is documented as seconds and
+    # 1/|dX| as Hz (p. 2-27/2-28), so these do not need a unit token.
+    "track_source1": _cursor_quantity(":CURSor:TRACk:SOURce1?", "track", "setting", "text", "source1"),
+    "track_source2": _cursor_quantity(":CURSor:TRACk:SOURce2?", "track", "setting", "text", "source2"),
+    "track_ax": _cursor_quantity(":CURSor:TRACk:AX?", "track", "position", "pixel", "ax", documented_range=(5, 594)),
+    "track_bx": _cursor_quantity(":CURSor:TRACk:BX?", "track", "position", "pixel", "bx", documented_range=(5, 594)),
+    # Manual p. 2-26 prints "returns an integer" for the track Y positions.
+    "track_ay": _cursor_quantity(":CURSor:TRACk:AY?", "track", "position", "pixel", "ay"),
+    "track_by": _cursor_quantity(":CURSor:TRACk:BY?", "track", "position", "pixel", "by"),
+    "track_axvalue": _cursor_quantity(":CURSor:TRACk:AXValue?", "track", "value", "nr3", "ax", "seconds"),
+    "track_bxvalue": _cursor_quantity(":CURSor:TRACk:BXValue?", "track", "value", "nr3", "bx", "seconds"),
+    "track_ayvalue": _cursor_quantity(":CURSor:TRACk:AYValue?", "track", "value", "nr3", "ay", "channel_unit"),
+    "track_byvalue": _cursor_quantity(":CURSor:TRACk:BYValue?", "track", "value", "nr3", "by", "channel_unit"),
+    "track_xdelta": _cursor_quantity(":CURSor:TRACk:XDELta?", "track", "delta", "nr3", "xdelta", "seconds"),
+    "track_ydelta": _cursor_quantity(":CURSor:TRACk:YDELta?", "track", "delta", "nr3", "ydelta", "channel_unit"),
+    "track_ixdelta": _cursor_quantity(":CURSor:TRACk:IXDELTA?", "track", "delta", "nr3", "ixdelta", "hertz"),
+    # Manual pp. 45-48: auto cursors, one measuring slot per item.
+    "auto_item": _cursor_quantity(":CURSor:AUTO:ITEM?", "auto", "setting", "text", "item"),
+    "auto_ax": _cursor_quantity(":CURSor:AUTO:AX?", "auto", "position", "pixel", "ax", documented_range=(5, 594)),
+    "auto_bx": _cursor_quantity(":CURSor:AUTO:BX?", "auto", "position", "pixel", "bx", documented_range=(5, 594)),
+    "auto_ay": _cursor_quantity(":CURSor:AUTO:AY?", "auto", "position", "pixel", "ay", documented_range=(5, 394)),
+    "auto_by": _cursor_quantity(":CURSor:AUTO:BY?", "auto", "position", "pixel", "by", documented_range=(5, 394)),
+    "auto_axvalue": _cursor_quantity(":CURSor:AUTO:AXValue?", "auto", "value", "nr3", "ax", "t_unit"),
+    "auto_bxvalue": _cursor_quantity(":CURSor:AUTO:BXValue?", "auto", "value", "nr3", "bx", "t_unit"),
+    "auto_ayvalue": _cursor_quantity(":CURSor:AUTO:AYValue?", "auto", "value", "nr3", "ay", "v_unit"),
+    "auto_byvalue": _cursor_quantity(":CURSor:AUTO:BYValue?", "auto", "value", "nr3", "by", "v_unit"),
+    # Manual pp. 49-52: XY cursors, valid only while :TIMebase:MODE is XY. Both
+    # axes are channel amplitudes there, so no unit token does not apply.
+    "xy_ax": _cursor_quantity(":CURSor:XY:AX?", "xy", "position", "pixel", "ax", documented_range=(5, 394)),
+    "xy_bx": _cursor_quantity(":CURSor:XY:BX?", "xy", "position", "pixel", "bx", documented_range=(5, 394)),
+    "xy_ay": _cursor_quantity(":CURSor:XY:AY?", "xy", "position", "pixel", "ay", documented_range=(5, 394)),
+    "xy_by": _cursor_quantity(":CURSor:XY:BY?", "xy", "position", "pixel", "by", documented_range=(5, 394)),
+    "xy_axvalue": _cursor_quantity(":CURSor:XY:AXValue?", "xy", "value", "nr3", "ax", "channel_unit"),
+    "xy_bxvalue": _cursor_quantity(":CURSor:XY:BXValue?", "xy", "value", "nr3", "bx", "channel_unit"),
+    "xy_ayvalue": _cursor_quantity(":CURSor:XY:AYValue?", "xy", "value", "nr3", "ay", "channel_unit"),
+    "xy_byvalue": _cursor_quantity(":CURSor:XY:BYValue?", "xy", "value", "nr3", "by", "channel_unit"),
+}
+
+CURSOR_COMMANDS: dict[str, str] = {key: spec.command for key, spec in CURSOR_QUANTITIES.items()}
+
+# Every query a readout of one family issues, in the order it is issued.
+CURSOR_FAMILY_QUERIES: dict[str, tuple[str, ...]] = {
+    "manual": (
+        "manual_type", "manual_source", "manual_tunit", "manual_vunit",
+        "manual_ax", "manual_bx", "manual_ay", "manual_by",
+        "manual_axvalue", "manual_bxvalue", "manual_ayvalue", "manual_byvalue",
+        "manual_xdelta", "manual_ixdelta", "manual_ydelta",
+    ),
+    "track": (
+        "track_source1", "track_source2", "track_ax", "track_bx", "track_ay", "track_by",
+        "track_axvalue", "track_bxvalue", "track_ayvalue", "track_byvalue",
+        "track_xdelta", "track_ydelta", "track_ixdelta",
+    ),
+    "auto": (
+        "auto_item", "auto_ax", "auto_bx", "auto_ay", "auto_by",
+        "auto_axvalue", "auto_bxvalue", "auto_ayvalue", "auto_byvalue",
+    ),
+    "xy": (
+        "xy_ax", "xy_bx", "xy_ay", "xy_by",
+        "xy_axvalue", "xy_bxvalue", "xy_ayvalue", "xy_byvalue",
+    ),
+}
+
+CURSOR_READOUT_LIMITATIONS = (
+    "cursor values are display-layer readings, not calibrated metrology results",
+    "every :CURSor family answers in every mode, so the readout follows :CURSor:MODE? "
+    "rather than the set of replies that arrived",
+    "a y-axis cursor value carries the :CHANnel<n>:UNITs unit, which this readout does "
+    "not query, so its unit stays null instead of being assumed to be volts",
+    "XY cursors need :TIMebase:MODE XY and stay model/firmware-dependent; the bench "
+    "DS1074Z rejects :CURSor:MODE XY with -200,\"Execution error\"",
+)
+
+
+def _cursor_unit(spec: CursorQuantity, t_unit: str | None, v_unit: str | None) -> str | None:
+    """Resolve the unit a cursor reply does not carry; None means “not established”.
+
+    ``unit_source`` only applies to the value and delta roles; a setting has no
+    unit and a position is always a screen pixel.
+    """
+
+    if spec.role == "setting":
+        return None
+    if spec.role == "position":
+        return "pixel"
+    if spec.unit_source == "seconds":
+        return "s"
+    if spec.unit_source == "hertz":
+        return "Hz"
+    if spec.unit_source == "t_unit":
+        return CURSOR_T_UNITS.get((t_unit or "").upper())
+    if spec.unit_source == "inverse_t_unit":
+        return CURSOR_T_UNIT_INVERSES.get((t_unit or "").upper())
+    if spec.unit_source == "v_unit":
+        return CURSOR_V_UNITS.get((v_unit or "").upper())
+    # channel_unit: the reply is in :CHANnel<n>:UNITs, which is not queried here.
+    return None
+
+
+def _cursor_reading(
+    quantity_key: str,
+    spec: CursorQuantity,
+    frame: Frame,
+    *,
+    t_unit: str | None,
+    v_unit: str | None,
+) -> dict[str, Any]:
+    """Classify one cursor reply into a setting token, a pixel, or a number."""
+
+    token = _text(frame)
+    if not token:
+        raise ProtocolError("cursor reply is an empty line", "INCOMPLETE", "empty_response")
+
+    artifact: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "cursor-reading",
+        "quantity": quantity_key,
+        "command": spec.command,
+        "family": spec.family,
+        "role": spec.role,
+        "value_kind": spec.kind,
+        "field": spec.field,
+        "numeric_token": token,
+        "value": None,
+        "sentinel": None,
+        "unit": _cursor_unit(spec, t_unit, v_unit),
+        "unit_source": spec.unit_source,
+        "status": "COMPLETE",
+        "checks": [],
+        "reasons": [],
+    }
+
+    if spec.kind == "text":
+        checks = [_check("cursor_numeric", "not_checked", {"value_kind": "text", "token": token})]
+        if spec.documented_values is not None:
+            documented = list(spec.documented_values)
+            known = token.upper() in spec.documented_values
+            checks.append(
+                _check("cursor_setting_enum", "pass" if known else "fail",
+                       {"token": token, "documented": documented})
+            )
+            if not known:
+                # The shape is a token, so this is not a broken reply; it is a
+                # value this Skill has no evidence for.
+                artifact["status"] = "UNVERIFIED"
+                artifact["reasons"].append("cursor_setting_unexpected")
+        artifact["value"] = token
+        artifact["checks"] = checks
+        return artifact
+
+    if token == CURSOR_POSITION_UNSET:
+        # uint32 -1: the position is not set. Never a pixel and never a number.
+        artifact["sentinel"] = CURSOR_POSITION_UNSET
+        artifact["status"] = "INCOMPLETE"
+        artifact["reasons"] = [
+            "cursor_position_unset" if spec.kind == "pixel" else "cursor_value_unset"
+        ]
+        artifact["checks"] = [
+            _check("cursor_numeric", "pass", {"token": token, "sentinel": "uint32 -1"}),
+            _check(
+                "cursor_position_set" if spec.kind == "pixel" else "cursor_result_present",
+                "fail",
+                {
+                    "token": token,
+                    "meaning": (
+                        "position not set" if spec.kind == "pixel"
+                        else "no value for this cursor source"
+                    ),
+                },
+            ),
+        ]
+        return artifact
+
+    if spec.kind == "pixel":
+        if not _UINT_RE.fullmatch(token):
+            raise ProtocolError(
+                f"cursor position {token!r} is not an unsigned integer",
+                "INVALID",
+                "cursor_not_numeric",
+            )
+        position = int(token)
+        checks = [
+            _check("cursor_numeric", "pass", {"token": token, "value": position}),
+            _check("cursor_position_set", "pass", {"position": position}),
+        ]
+        if spec.documented_range is not None:
+            low, high = spec.documented_range
+            inside = low <= position <= high
+            checks.append(
+                _check("cursor_position_range", "pass" if inside else "fail",
+                       {"position": position, "documented_range": [low, high]})
+            )
+            if not inside:
+                artifact["status"] = "UNVERIFIED"
+                artifact["reasons"].append("cursor_position_out_of_documented_range")
+        artifact["value"] = position
+        artifact["checks"] = checks
+        return artifact
+
+    if not _NR3_RE.fullmatch(token):
+        raise ProtocolError(
+            f"cursor value {token!r} is not a number", "INVALID", "cursor_not_numeric"
+        )
+    try:
+        number = Decimal(token)
+    except (InvalidOperation, TypeError) as exc:  # pragma: no cover - regex already gated it
+        raise ProtocolError("cursor value is not valid", "INVALID", "cursor_not_numeric") from exc
+    if not number.is_finite():
+        raise ProtocolError("cursor value is not finite", "INVALID", "cursor_not_finite")
+    if number == NO_RESULT_SENTINEL:
+        # Measured: the same 9.9E37 no-result sentinel as the measurement
+        # queries. It is not a reading of 9.9e37.
+        artifact["sentinel"] = CURSOR_NO_RESULT
+        artifact["status"] = "INCOMPLETE"
+        artifact["reasons"] = ["no_cursor_result"]
+        artifact["checks"] = [
+            _check("cursor_numeric", "pass", {"token": token, "sentinel": CURSOR_NO_RESULT}),
+            _check(
+                "cursor_result_present",
+                "fail",
+                {"token": token, "sentinel": CURSOR_NO_RESULT, "meaning": "no cursor result"},
+            ),
+        ]
+        return artifact
+
+    value = float(number)
+    artifact["value"] = value
+    artifact["checks"] = [
+        _check("cursor_numeric", "pass", {"token": token, "value": value}),
+        _check("cursor_result_present", "pass", {"token": token}),
+    ]
+    return artifact
+
+
+def parse_cursor(
+    raw: bytes,
+    *,
+    quantity: str,
+    t_unit: str | None = None,
+    v_unit: str | None = None,
+) -> dict[str, Any]:
+    """Parse one saved :CURSor reply into a ``cursor-reading`` artifact.
+
+    ``quantity`` is a key of :data:`CURSOR_QUANTITIES` (``manual_ax``,
+    ``track_ayvalue``, ``auto_item``, ...). ``t_unit``/``v_unit`` are the
+    ``:CURSor:MANual:TUNit?``/``:CURSor:MANual:VUNit?`` tokens; without them an
+    x/y unit stays ``None``, because the firmware states no unit in the reply.
+
+    Measured mappings, in the order they are applied: an empty reply is
+    ``INCOMPLETE``; the literal ``command error`` is ``UNSUPPORTED``;
+    ``4294967295`` becomes ``value=None`` with ``cursor_position_unset``
+    (positions) or ``cursor_value_unset`` (values/deltas); ``9.9E37`` becomes
+    ``value=None`` with ``no_cursor_result``; anything else must be an unsigned
+    integer (pixel) or NR3 (value). Pixels and physical values are parsed by
+    different branches and are never converted into one another.
+    """
+
+    raw = bytes(raw)
+    key = quantity.lower().strip() if isinstance(quantity, str) else ""
+    spec = CURSOR_QUANTITIES.get(key)
+    if spec is None:
+        return _failure(
+            "cursor-reading",
+            raw,
+            "INVALID",
+            "quantity_unknown",
+            f"unsupported cursor quantity {quantity!r}",
+            quantity=quantity,
+            command=None,
+            family=None,
+            role=None,
+            value=None,
+            numeric_token=None,
+            sentinel=None,
+            unit=None,
+            command_error=False,
+            empty=False,
+        )
+    try:
+        frame = read_frame(raw)
+        artifact = _cursor_reading(key, spec, frame, t_unit=t_unit, v_unit=v_unit)
+        return validate(artifact, raw)
+    except ProtocolError as exc:
+        return _failure(
+            "cursor-reading",
+            raw,
+            exc.status,
+            exc.reason,
+            str(exc),
+            quantity=key,
+            command=spec.command,
+            family=spec.family,
+            role=spec.role,
+            value=None,
+            numeric_token=None,
+            sentinel=None,
+            unit=None,
+            command_error=exc.reason == "instrument_command_error",
+            empty=exc.reason == "empty_response",
+        )
+
+
+def _cursor_reading_summary(quantity_key: str, reading: dict[str, Any], raw: bytes) -> dict[str, Any]:
+    """The per-reading record a readout keeps: hash, repr, status and value."""
+
+    return {
+        "quantity": quantity_key,
+        "command": reading["command"],
+        "role": reading["role"],
+        "status": reading["status"],
+        "value_kind": reading.get("value_kind"),
+        "numeric_token": reading["numeric_token"],
+        "value": reading["value"],
+        "sentinel": reading["sentinel"],
+        "unit": reading["unit"],
+        "reasons": list(reading["integrity"]["reasons"]),
+        "raw": {
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "repr": repr(raw) if len(raw) <= MAX_INLINE_RAW_BYTES else None,
+        },
+    }
+
+
+def _reading_check(reading: dict[str, Any], name: str) -> dict[str, Any] | None:
+    for check in reading["integrity"]["checks"]:
+        if check["name"] == name:
+            return check
+    return None
+
+
+def parse_cursor_readout(
+    mode: str | bytes | None,
+    readings: dict[str, bytes] | None = None,
+) -> dict[str, Any]:
+    """Combine one family's raw cursor replies into a ``cursor-readout`` artifact.
+
+    ``mode`` is the decoded ``:CURSor:MODE?`` token (or its raw reply bytes);
+    ``readings`` maps :data:`CURSOR_QUANTITIES` keys to the raw replies that
+    were collected. The family is taken from ``mode``; the fields of any other
+    family are ignored and listed in ``ignored_readings`` rather than guessed at.
+    A missing reply for a field of that family is ``INCOMPLETE`` with
+    ``cursor_field_missing``, never a silent zero.
+    """
+
+    replies = dict(readings or {})
+    if isinstance(mode, (bytes, bytearray)):
+        mode_raw = bytes(mode)
+        mode_text = mode_raw.decode("ascii", "replace").strip()
+    elif mode is None:
+        mode_raw = replies.get("mode", b"")
+        mode_text = mode_raw.decode("ascii", "replace").strip()
+    else:
+        mode_raw = replies.get("mode", b"")
+        mode_text = str(mode).strip()
+
+    family = CURSOR_MODE_FAMILIES.get(mode_text.upper())
+    required = CURSOR_FAMILY_QUERIES.get(family, ()) if family else ()
+
+    positions: dict[str, int | None] = {name: None for name in CURSOR_READOUT_FIELDS["position"]}
+    values: dict[str, float | None] = {name: None for name in CURSOR_READOUT_FIELDS["value"]}
+    deltas: dict[str, float | None] = {name: None for name in CURSOR_READOUT_FIELDS["delta"]}
+    units: dict[str, dict[str, str | None]] = {
+        group: {name: None for name in fields} for group, fields in CURSOR_READOUT_FIELDS.items()
+    }
+    group_for_role = {"position": positions, "value": values, "delta": deltas}
+
+    cursor_type = cursor_source = item = t_unit = v_unit = None
+    sources: dict[str, Any] | None = None
+    reading_summaries: list[dict[str, Any]] = []
+    parsed: dict[str, dict[str, Any]] = {}
+    checks: list[dict[str, Any]] = []
+    reasons: list[str] = []
+    missing: list[str] = []
+    status = "COMPLETE"
+
+    if "mode" in replies:
+        mode_reading = parse_cursor(mode_raw, quantity="mode")
+        reading_summaries.append(_cursor_reading_summary("mode", mode_reading, mode_raw))
+        parsed["mode"] = mode_reading
+
+    if family is None:
+        if not mode_text:
+            status = "INCOMPLETE"
+            reasons = ["cursor_mode_missing"]
+            checks = [_check("cursor_mode", "fail", {"reason": "cursor_mode_missing", "raw_bytes": len(mode_raw)})]
+        elif mode_text.upper() == "OFF":
+            # OFF is a documented mode (manual p. 2-16), so there is no family
+            # to read; reporting an empty readout is the honest answer.
+            status = "INCOMPLETE"
+            reasons = ["cursor_disabled"]
+            checks = [_check("cursor_mode", "fail", {"token": mode_text, "meaning": "cursor measurement disabled"})]
+        else:
+            status = "UNSUPPORTED"
+            reasons = ["cursor_mode_unknown"]
+            checks = [_check("cursor_mode", "fail", {"token": mode_text})]
+    else:
+        checks.append(_check("cursor_mode", "pass", {"token": mode_text, "family": family}))
+        missing = [key for key in required if key not in replies]
+
+        # Settings first: the value readings need the TUNit/VUNit tokens to
+        # state a unit, and the reply itself never does.
+        for key in required:
+            if key not in replies or CURSOR_QUANTITIES[key].role != "setting":
+                continue
+            parsed[key] = parse_cursor(replies[key], quantity=key)
+        if "manual_type" in parsed:
+            cursor_type = parsed["manual_type"]["value"]
+        if "manual_source" in parsed:
+            cursor_source = parsed["manual_source"]["value"]
+        if "manual_tunit" in parsed:
+            t_unit = parsed["manual_tunit"]["value"]
+        if "manual_vunit" in parsed:
+            v_unit = parsed["manual_vunit"]["value"]
+        if "auto_item" in parsed:
+            item = parsed["auto_item"]["value"]
+        if "track_source1" in parsed or "track_source2" in parsed:
+            sources = {
+                "a": parsed.get("track_source1", {}).get("value"),
+                "b": parsed.get("track_source2", {}).get("value"),
+            }
+
+        for key in required:
+            if key not in replies or key in parsed:
+                continue
+            parsed[key] = parse_cursor(replies[key], quantity=key, t_unit=t_unit, v_unit=v_unit)
+
+        for key in required:
+            reading = parsed.get(key)
+            if reading is None:
+                continue
+            spec = CURSOR_QUANTITIES[key]
+            if spec.role in group_for_role and spec.field is not None:
+                group_for_role[spec.role][spec.field] = reading["value"]
+                units[spec.role][spec.field] = reading["unit"]
+            reading_summaries.append(_cursor_reading_summary(key, reading, replies[key]))
+
+        # Status follows the repo-wide order, so a malformed reply is never
+        # hidden behind a "no result" from another field.
+        for candidate in ("INVALID", "INCOMPLETE", "UNSUPPORTED", "UNVERIFIED"):
+            if any(reading["status"] == candidate for reading in parsed.values()):
+                status = candidate
+                break
+
+        checks.append(
+            _check(
+                "cursor_field_count",
+                "pass" if not missing else "fail",
+                {"family": family, "expected": len(required), "received": len(required) - len(missing),
+                 "missing": missing},
+            )
+        )
+        if missing:
+            reasons.append("cursor_field_missing")
+            if status == "COMPLETE":
+                status = "INCOMPLETE"
+
+        numeric_failures = [
+            key for key, reading in parsed.items()
+            if (_reading_check(reading, "cursor_numeric") or {}).get("status") == "fail"
+        ]
+        numeric_readings = [
+            key for key, reading in parsed.items()
+            if reading.get("value_kind") in {"pixel", "nr3"}
+        ]
+        checks.append(
+            _check(
+                "cursor_numeric",
+                "pass" if numeric_readings and not numeric_failures else
+                ("fail" if numeric_failures else "not_checked"),
+                {"numeric_readings": numeric_readings, "failures": numeric_failures},
+            )
+        )
+
+        no_result = [
+            key for key, reading in parsed.items()
+            if reading["sentinel"] in {CURSOR_NO_RESULT, CURSOR_POSITION_UNSET} and reading["role"] != "position"
+        ]
+        checks.append(
+            _check(
+                "cursor_result_present",
+                "pass" if not no_result else "fail",
+                {"without_result": no_result},
+            )
+        )
+
+        unset_positions = [
+            key for key, reading in parsed.items()
+            if reading["role"] == "position" and reading["sentinel"] == CURSOR_POSITION_UNSET
+        ]
+        checks.append(
+            _check(
+                "cursor_position_set",
+                "pass" if not unset_positions else "fail",
+                {"unset": unset_positions},
+            )
+        )
+
+        for reading in parsed.values():
+            for reason in reading["integrity"]["reasons"]:
+                if reason not in reasons:
+                    reasons.append(reason)
+
+    ignored = sorted(
+        key for key in replies
+        if key != "mode" and key not in required
+    )
+
+    raw_order = [key for key in ("mode",) + tuple(required) if key in replies]
+    aggregate_raw = b"".join(replies[key] for key in raw_order)
+
+    artifact: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "cursor-readout",
+        "command": CURSOR_COMMANDS["mode"],
+        "mode": mode_text or None,
+        "family": family,
+        "type": cursor_type,
+        "source": cursor_source,
+        "sources": sources,
+        "item": item,
+        "t_unit": t_unit,
+        "v_unit": v_unit,
+        "positions": positions,
+        "values": values,
+        "deltas": deltas,
+        "units": units,
+        "unit_status": "documented",
+        "readings": reading_summaries,
+        "ignored_readings": ignored,
+        "status": status,
+        "checks": checks,
+        "reasons": reasons,
+        "limitations": list(CURSOR_READOUT_LIMITATIONS),
+    }
+    if len(raw_order) > 1:
+        artifact["limitations"].append(
+            "raw_sha256 covers the per-reading replies concatenated in query order; "
+            "each reading carries its own hash in readings[]"
+        )
+    return validate(artifact, aggregate_raw)
 
 
 # ---------------------------------------------------------------------------
@@ -1777,6 +2416,44 @@ def _dump(value: Any) -> None:
     sys.stdout.write("\n")
 
 
+def parse_cursor_bundle(
+    raw: bytes,
+    *,
+    mode: str,
+    t_unit: str | None = None,
+    v_unit: str | None = None,
+) -> dict[str, Any]:
+    """Parse one family's replies from a bundle of one reply per line.
+
+    The line order is :data:`CURSOR_FAMILY_QUERIES` for the family that ``mode``
+    names, which is the order the session helper queries them in. A bundle with
+    more or fewer lines than the family needs is ``INVALID``: the mapping would
+    otherwise shift every reading by one.
+    """
+
+    family = CURSOR_MODE_FAMILIES.get(str(mode).strip().upper())
+    if family is None:
+        raise ProtocolError(
+            f"unknown cursor mode {mode!r}; use MAN, TRAC, AUTO, or XY", "INVALID", "cursor_mode"
+        )
+    lines = [line for line in raw.split(b"\n")]
+    while lines and lines[-1] == b"":
+        lines.pop()
+    keys = CURSOR_FAMILY_QUERIES[family]
+    if len(lines) != len(keys):
+        raise ProtocolError(
+            f"bundle has {len(lines)} replies but the {family} family needs {len(keys)}",
+            "INVALID",
+            "cursor_bundle_length",
+        )
+    replies = {key: line + b"\n" for key, line in zip(keys, lines)}
+    if t_unit:
+        replies["manual_tunit"] = t_unit.encode() + b"\n"
+    if v_unit:
+        replies["manual_vunit"] = v_unit.encode() + b"\n"
+    return parse_cursor_readout(mode, replies)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1809,6 +2486,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p_shot.add_argument("--out", type=Path, help="write the declared BMP bytes here")
     p_shot.add_argument("--overwrite", action="store_true")
 
+    p_cur = sub.add_parser(
+        "cursor",
+        help="parse one family's saved :CURSor replies (one reply per line)",
+    )
+    p_cur.add_argument("response", type=Path)
+    p_cur.add_argument(
+        "--mode",
+        required=True,
+        help="the :CURSor:MODE? token that was read first: MAN, TRAC, AUTO, or XY",
+    )
+    p_cur.add_argument(
+        "--t-unit", help=":CURSor:MANual:TUNit? token, e.g. S (defaults to the bundle)")
+    p_cur.add_argument(
+        "--v-unit", help=":CURSor:MANual:VUNit? token, e.g. PERC or SOUR")
+
     p_block = sub.add_parser("block", help="describe a generic IEEE 488.2 block")
     p_block.add_argument("response", type=Path)
     p_block.add_argument("--payload-out", type=Path)
@@ -1821,7 +2513,12 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         return _dispatch(args)
-    except (OSError, ProtocolError) as exc:
+    except ProtocolError as exc:
+        # Keep the machine-readable reason next to the human message: a caller
+        # that only reads stderr can still branch on it.
+        print(f"error [{exc.status} {exc.reason}]: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -1834,6 +2531,16 @@ def _dispatch(args: argparse.Namespace) -> int:
 
     if args.command == "measurement":
         result = parse_measurement(args.response.read_bytes(), quantity=args.quantity)
+        _dump(result)
+        return _status_exit_code(result["status"])
+
+    if args.command == "cursor":
+        result = parse_cursor_bundle(
+            args.response.read_bytes(),
+            mode=args.mode,
+            t_unit=args.t_unit,
+            v_unit=args.v_unit,
+        )
         _dump(result)
         return _status_exit_code(result["status"])
 
