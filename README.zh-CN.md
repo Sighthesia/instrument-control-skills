@@ -28,17 +28,14 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | `gwinstek-gds1000b-control`    | 部分：41 条测量命令；波形下载        | `gds1000b_protocol`：IEEE 块编解码、离线波形校验         |
 | `write-new-instrument-control` | —（无设备命令）                      | 解析器模板、响应分帧示例、完整性状态                     |
 
-## 备注
+## 提示或已知问题
 
-- GPD-4303S：验证机台处于串联跟踪（`SER/INDEP` 灯亮，与 `STATUS?` 解码一致），
-  CH1/CH2 接成一路 0-60 V，而非两个独立通道。
-- SDS824X HD：与通道数、带宽、存储深度相关的行为须在所连型号上重新确认。
-- Keithley Model 2000：仅直流电压与直流电流经 RS-232 验证，其余功能为
-  `documented`。
-- GDM-8352 与 GPD-4303S 的 `hardware-verified` 覆盖只读查询，另有 GDM-8352 一次静默的
-  `SYST:BEEP:STAT 0`（事后查询确认，Skill 仍拒绝发送）；其余写命令、量程/功能切换、跟踪与记忆类命令均
-  `documented`。
-- AFG-2225 与 GDS-1000B：仅 `documented`，未做任何实机验证。
+- GPD-4303S 的验证机台处于串联跟踪时，CH1/CH2 可能接成一路供电，而非两个独立通道。
+- 与通道数、带宽、存储深度相关的行为须在所连型号上重新确认。
+- 实机验证仅覆盖直流电压与直流电流，其余功能仍为 `documented`。
+- `hardware-verified` 仅覆盖只读查询，写命令、量程/功能切换、跟踪与记忆类命令均为 `documented`。
+- GDM-8352：存在一次静默的 `SYST:BEEP:STAT 0`（事后查询确认，Skill 仍拒绝发送）。
+- 部分 Skill 仅 `documented`，未做任何实机验证。
 - 不得把 `hardware-verified` 扩展到所记录的型号、固件、接口与功能之外。
 
 ## 验证
