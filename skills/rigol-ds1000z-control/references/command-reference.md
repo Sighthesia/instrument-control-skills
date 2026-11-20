@@ -424,6 +424,17 @@ Unsupported headers on this firmware despite a plausible shape
 `:MENU:MEASure?`. `*SYSTem:MODEL?` is accepted as an alias of `*IDN?`
 (`hardware-verified`) but is not in the manual.
 
+## Measured-only commands (answered on `00.04.02.SP4`, absent from the manual)
+
+These reply on the bench unit but the Programming Guide documents no such header.
+They are `UNVERIFIED` against the manual: do not cite a page for them, and do not
+treat them as portable to another firmware.
+
+| Syntax | Query | Parameters / range | Note | PDF page |
+|---|---|---|---|---|
+| `:WAVeform:POINts?` | query only | NR3 integer, points | Measured: equals `STOP - STARt + 1` (`1200`, `4000`, `240000` observed). Read it back instead of trusting a `:WAVeform:STOP` write. | — |
+| `:LAN:STATus?` / `:LAN:DHCP?` / `:LAN:IPADdress?` / `:LAN:SMASk?` / `:LAN:GATeway?` / `:LAN:MAC?` / `:LAN:MANual?` | query only | text / dotted quad / `ON\|OFF` | Measured; the manual has no `:LAN:` subsystem at all (only `:SYSTem:LANGuage`). Any `:LAN:` **write** is refused by the scripts. | — |
+
 ## Storage, reference, and mask (not implemented)
 
 Every command below is **`not implemented`**: each one replaces operator data or

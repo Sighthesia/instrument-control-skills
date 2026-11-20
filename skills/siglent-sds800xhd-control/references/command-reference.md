@@ -12,6 +12,8 @@
 | `*IDN?` | query | — | 返回厂商、型号、序列号、固件；任何型号相关命令之前必须先执行并保存结果。手册印刷 pp. 13-14；discovery 发送 `*IDN?\n`。 | signal-discovery-and-measurement.md (manual pp. 13-14)<br>connection-and-storage.md<br>SKILL.md<br>scripts/discover_scope.py<br>scripts/scope_protocol.py |
 | `*OPC?` | query | — | 挂起操作完成时返回 `1`；不能证明发生过触发。等待设置写入生效时可作为同步点。手册印刷 pp. 13-14。 | signal-discovery-and-measurement.md (manual pp. 13-14) |
 | `SYSTem:ERRor?` / `SYST:ERR?` | query | — | **手册未记录，但在固件 `4.8.12.1.1.6.5` 上实测可用**，返回 `0,"No error"` 或 `-113,"Undefined header;<原文>"`、`-224,"Illegal parameter value"`、`-350,"Queue overflow"`。**每次写入后的唯一静默失败探测器**；它不是万能的（采集上下文类写入被丢弃时不报错，见“写入失败模式”），但拒绝类失败全靠它。详见该节的读法与陷阱。 | `firmware-scoped` 实测（手册 pp. 13-14 未列） |
+| `*RST` | — | no parameter | 手册 pp. 13-14 只列出该命令，未描述复位后各项设置的具体状态。**破坏性写**：会恢复出厂设置，本 Skill 不发送。 | signal-discovery-and-measurement.md (manual pp. 13-14) |
+| `*OPC` | `*OPC?` | `*OPC?` 返回 `1` | 可作同步点，但**不能证明发生过触发**。 | signal-discovery-and-measurement.md (manual pp. 13-14) |
 
 ## Write-Failure Modes (read this before diagnosing any setting that "did not take")
 
@@ -290,6 +292,14 @@ Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCP
 | `:MTESt:TYPE` | set/query | `ALL_IN`、`ALL_OUT`、`ANY_IN`、`ANY_OUT` | `ALL_IN` 要求**所有**点都在模板内才 PASS，1 个点越界即 FAIL；不记录类型则 PASS/FAIL 不可解释。手册印刷 p. 223。 | anomaly-search-and-mask-testing.md (manual p. 223) |
 | `:MTESt:COUNt?` | query | — | 计数；`TOTAL=0` 表示未评估样本/帧，不等于通过；计数器单独不足以判定 PASS/FAIL。手册印刷 p. 218。 | anomaly-search-and-mask-testing.md (manual p. 218) |
 
+## 手册自身缺陷（记录，不复制）
+
+- **`DITMe` 与 `DTIMe`**：手册「新增命令」列表（印刷 p.29 附近）把 DeltaTime 的测量项写成
+  `:MEASure:DITMe<n>:EDGE1/EDGE2/SLOPe1/SLOPe2/THReshold1…`，而命令章节与目录用的是
+  `:MEASure:DTIMe<n>:…`（如 PDF p.176-177）。本索引只录 `DTIMe` 拼写；`DITMe` 是手册笔误，
+  不要当成第二条命令发送。若在固件上确认 `DITMe` 也可接受，再作为 `measured-only` 单列。
+- **`12C` 与 `I2C`**：部分表格把 I2C 印成 `12C`（数字 1 与 2），属排版缺陷，不是第二种协议。
+
 ## Coverage gaps
 
 本文件之前，Skill 内没有任何完整命令枚举；现有文档只覆盖发现/连接、采集与传输、测量、解码、搜索/掩码、计数器/光标/历史、截图与 PDF 相关路径。以下子系统手册有覆盖但本 Skill **未记录**具体命令，使用时必须回查 `SDS800XHD_Series_ProgrammingGuide_CN11G.pdf` 并据此标注 `documented`：
@@ -326,6 +336,10 @@ relying on it.
 
 | Syntax | Query | Parameters / range | Note | PDF page |
 |---|---|---|---|---|
+| `:DECode` | `:DECode?` | `<state>` = `{ON\|OFF}` | documented; 解码功能总开关（手册 p.96）。先把本开关打开，子命令才有意义；查询返回开关状态。 | 96 |
+| `:DIGital` | `:DIGital?` | `<state>` = `{ON\|OFF}` | documented; 数字通道总开关（手册 p.149）。依赖 MSO/Plus 的数字通道硬件。 | 149 |
+| `:DVM` | `:DVM?` | `<state>` = `{ON\|OFF}` | documented; 数字电压表（DVM）开关（手册 p.163）；DVM 读数只在开启后有效。 | 163 |
+| `:FUNCtion<x>` | `:FUNCtion<x>?` | `<x>` 数学函数序号 NR1；`<state>` = `{ON\|OFF}` | documented; 数学函数总开关（手册 p.167）。关掉后该函数的 `:FUNCtion<x>:*` 读数不可当有效值。 | 167 |
 | `:COUNter:STATistics:VALue` | `:COUNter:STATistics:VALue?` | see p.62 | documented; TOC/body-heading derived, parameters not transcribed | 62 |
 | `:CURSor:IXDelta` | `:CURSor:IXDelta?` | see p.68 | documented; TOC/body-heading derived, parameters not transcribed | 68 |
 | `:CURSor:MANual:X2` | `:CURSor:MANual:X2?` | see p.74 | documented; TOC/body-heading derived, parameters not transcribed | 74 |
@@ -656,6 +670,9 @@ relying on it.
 | `:FUNCtion1:FFT:POINts` | `:FUNCtion1:FFT:POINts?` | see p.172 | documented; TOC/body-heading derived, parameters not transcribed | 172 |
 | `:FUNCtion1:FFT:RLEVel` | `:FUNCtion1:FFT:RLEVel?` | see p.173 | documented; TOC/body-heading derived, parameters not transcribed | 173 |
 | `:FUNCtion1:FFT:SCALe` | `:FUNCtion1:FFT:SCALe?` | see p.174 | documented; TOC/body-heading derived, parameters not transcribed | 174 |
+| `:FUNCtion<x>:FFT:HSCale` | `:FUNCtion<x>:FFT:HSCale?` | query only; returns `<scale>` NR3 (Hz/div) | documented; FFT horizontal scale, manual writes the instance as `<x>` (body examples use `FUNC2:FFT:HSC?`) | 170 |
+| `:FUNCtion<x>:FFT:SEARch:RESult` | `:FUNCtion<x>:FFT:SEARch:RESult?` | query only; returns `<type>,<no>,<freq>,<ampl>` with `<type>` = `{Markers\|Peaks}` | documented; FFT search result list, one entry per query — preserve the raw text, it is not a single number | 177 |
+
 | `:FUNCtion1:FFT:SEARch` | `:FUNCtion1:FFT:SEARch?` | see p.174 | documented; TOC/body-heading derived, parameters not transcribed | 174 |
 | `:FUNCtion1:FFT:SEARch:EXCursion` | `:FUNCtion1:FFT:SEARch:EXCursion?` | see p.175 | documented; TOC/body-heading derived, parameters not transcribed | 175 |
 | `:FUNCtion1:FFT:SEARch:MARKer1` | `:FUNCtion1:FFT:SEARch:MARKer1?` | see p.175 | documented; TOC/body-heading derived, parameters not transcribed | 175 |
@@ -737,6 +754,8 @@ relying on it.
 | `:MEMory2:LABel` | `:MEMory2:LABel?` | see p.216 | documented; TOC/body-heading derived, parameters not transcribed | 216 |
 | `:MEMory2:LABel:TEXT` | `:MEMory2:LABel:TEXT?` | see p.216 | documented; TOC/body-heading derived, parameters not transcribed | 216 |
 | `:MEMory2:SWITch` | `:MEMory2:SWITch?` | see p.216 | documented; TOC/body-heading derived, parameters not transcribed | 216 |
+| `:MEMory<m>:IMPort` | — | `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|<path>}`, path is a quoted `.bin` | documented; imports a source waveform into memory waveform `<m>`; the query form returns the last source and is not documented as writable | 215 |
+
 | `:MEMory2:VERTical:POSition` | `:MEMory2:VERTical:POSition?` | see p.217 | documented; TOC/body-heading derived, parameters not transcribed | 217 |
 | `:MEMory2:VERTical:SCALe` | `:MEMory2:VERTical:SCALe?` | see p.217 | documented; TOC/body-heading derived, parameters not transcribed | 217 |
 | `:MTES:MASK:LOAD` | `:MTES:MASK:LOAD?` | see p.221 | documented; TOC/body-heading derived, parameters not transcribed | 221 |

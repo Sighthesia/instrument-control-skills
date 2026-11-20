@@ -345,6 +345,7 @@ in one row, the same convention the tables above use.
 
 | Command | Type | Parameters / range | Notes | Source |
 |---|---|---|---|---|
+| `:AUTOSet` | — | no parameter | Syntax `:AUTOSet`; runs autoset to fit horizontal scale, vertical scale and trigger to the input. **State-changing**: the index records it, the scripts never send it. | 47 |
 | `:AUTORSET:MODe` | set/query | FITScreen Fit Screen mode ACPriority AC priority mode | Syntax `:AUTORSET:MODe {FITScreen \| ACPriority \| ?}`; not exercised. | 47 |
 
 ### Math (manual pp. 54-62)
@@ -456,6 +457,8 @@ in one row, the same convention the tables above use.
 | `:TRIGger:BUS:B1:I2C:ADDRess:TYPe` | set/query | GENeralcall Set a general call address (0000 000 0). STARtbyte Set a start byte address. (0000 000 1) HSmode Set a high-speed mode address. (0000 1xx x) EEPROM Set an EEPROM address.… | Syntax `:TRIGger:BUS:B1:I2C:ADDRess:TYPe {GENeralcall \| STARtbyte \| HSmode \| EEPROM \| CBUS \| ?}`; not exercised. | 142 |
 | `:TRIGger:BUS:B1:I2C:ADDRess:VALue` | set/query | — | Syntax `:TRIGger:BUS:B1:I2C:ADDRess:VALue {<string> \| ? }`; not exercised. | 142 |
 | `:TRIGger:BUS:B1:I2C:ADDRess:DIRection` | set/query | READ Set read as the data direction. WRITE Set write as the data direction. NOCARE Set either as the data direction. Parameter Returns the direction (READ, WRITE, NOCARE). | Syntax `:TRIGger:BUS:B1:I2C:ADDRess:DIRection { READ \| WRITE \| NOCARE \| ? }`; not exercised. | 143 |
+| `:SEARCH:TRIGger:BUS:B1:I2C:ADDRess:DIRection` | set/query | READ Set read as the data direction. WRITE Set write as the data direction. NOCARE Set either as the data direction. | Syntax `:SEARCH:TRIGger:BUS:B1:I2C:ADDRess:DIRection {READ \| WRITE \| NOCARE \| ? }`; the search variant of the trigger row above; not exercised. | 200 |
+
 | `:TRIGger:BUS:B1:I2C:DATa:SIZe` | set/query | <NR1> Number of data bytes (1 to 5). <NR1> Returns the number of bytes. | Syntax `:TRIGger:BUS:B1:I2C:DATa:SIZe {<NR1> \| ? }`; not exercised. | 144 |
 | `:TRIGger:BUS:B1:I2C:DATa:VALue` | set/query | — | Syntax `:TRIGger:BUS:B1:I2C:DATa:VALue {<string> \| ? }`; not exercised. | 144 |
 | `:TRIGger:BUS:B1:UART:CONDition` | set/query | — | Syntax `:TRIGger:BUS:B1:UART:CONDition { RXSTArt \| RXDATA \| RXENDPacket \| TXSTArt \| TXDATA \| TXENDPacket \| TXPARItyerr \| RXPARItyerr \| ? }`; not exercised. | 145 |

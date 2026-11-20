@@ -96,6 +96,42 @@ framing and field names; do not claim that the example wire format is a vendor
 standard. Its synthetic protocol has no sentinel value; when adapting it, add the
 instrument's enumerated non-values before the first numeric conversion.
 
+## Coverage Audit Tooling
+
+`scripts/` ships two standard-library tools so a coverage claim can be re-run
+instead of re-implemented. Neither touches an instrument.
+
+```bash
+# manual -> paged text + a command/page TSV (authority from body headings and TOC)
+python3 scripts/extract_command_pages.py ref/<manual>.pdf \
+    --out-text /tmp/manual.txt --out-tsv /tmp/manual.tsv
+
+# TSV vs an index: gaps, subsystem table, and a classification per gap
+python3 scripts/diff_command_index.py --manual /tmp/manual.tsv \
+    --index skills/<skill>/references/command-reference.md --report /tmp/audit.md
+
+# index vs the commands the code actually sends
+python3 scripts/diff_command_index.py --drift \
+    --index skills/<skill>/references/command-reference.md --code skills/<skill>/scripts
+```
+
+Run with the default flags first. `--allow-indented` and `--table-mode` exist for
+manuals that print commands inside a table cell rather than as a heading followed
+by a syntax line; in that mode the extractor also picks up parameter-table rows
+and prose, so every residual must be triaged by hand. Set `--min-page` to the
+first page of the command chapter to bound it.
+
+The gap classification (`placeholder-variant`, `short-form`, `example-line`,
+`wrapped-heading`, `true-gap`) is a triage aid, not a verdict: only `true-gap` is
+a defect, and a `wrapped-heading` result means the manual's parent heading wraps
+children and is not a sendable command. Never widen the matcher to lower the
+number. `--drift` reports commands the code sends but the index does not list, and
+(hint only) rows labelled `hardware-verified` that the code never sends.
+
+The tools cannot tell you that a command which answers on the instrument is
+missing from the manual; that class belongs in a `measured-only` section, labelled
+`UNVERIFIED` against the manual.
+
 ## Integrity Method
 
 Treat data integrity as a set of claims, not one boolean:
