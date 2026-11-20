@@ -29,27 +29,28 @@ evidence labels.
 | `gwinstek-gds1000b-control` | Partial: 41 measurement commands; waveform download | `gds1000b_protocol`: IEEE block, offline waveform check |
 | `write-new-instrument-control` | n/a: no device commands | parser templates, framing examples, integrity statuses |
 
-## Bench notes
+## Hints and known issues
 
-- GPD-4303S: the verified bench was in series tracking (`SER/INDEP` LED on,
-  matching the `STATUS?` decode), so CH1/CH2 formed one 0-60 V supply, not two
-  independent channels.
-- SDS824X HD: channel-count-, bandwidth-, and memory-depth-dependent behavior
-  must be reconfirmed on the connected model.
-- Keithley Model 2000: only DC voltage and DC current were exercised, over
-  RS-232; every other function remains `documented`.
-- GDM-8352 and GPD-4303S: `hardware-verified` covers read-only queries, plus one
-  silent GDM-8352 `SYST:BEEP:STAT 0` confirmed by the follow-up query (the Skill
-  still refuses the setter); all other writes, function/range switching,
-  tracking, and memory commands remain `documented`.
-- AFG-2225 and GDS-1000B: `documented` only, never exercised on hardware.
-- Do not extend `hardware-verified` beyond the recorded model, firmware,
-  interface, and functions.
+- Bench and model differences
+  - GPD-4303S: the verified bench was in series tracking (`SER/INDEP` LED on,
+    matching the `STATUS?` decode), so CH1/CH2 formed one 0-60 V supply, not two
+    independent channels.
+  - SDS824X HD: channel-count-, bandwidth-, and memory-depth-dependent behavior
+    must be reconfirmed on the connected model.
+- Verification scope
+  - Keithley Model 2000: only DC voltage and DC current were exercised, over
+    RS-232; every other function remains `documented`.
+  - GDM-8352 and GPD-4303S: `hardware-verified` covers read-only queries; all
+    other writes, function/range switching, tracking, and memory commands remain
+    `documented`.
+  - AFG-2225 and GDS-1000B: `documented` only, never exercised on hardware.
+  - Do not extend `hardware-verified` beyond the recorded model, firmware,
+    interface, and functions.
+- Known behaviors
+  - GDM-8352: one silent `SYST:BEEP:STAT 0` was observed and confirmed by the
+    follow-up query; the Skill still refuses the setter.
 
-## Evidence labels
-
-`documented` < `hardware-verified` = `firmware-scoped`: labels describe evidence,
-not feature count.
+## Verification
 
 **A device Skill counts as verified only when exercised on a real instrument.**
 
