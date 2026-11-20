@@ -31,23 +31,11 @@ evidence labels.
 
 ## Hints and known issues
 
-- Bench and model differences
-  - GPD-4303S: when in series tracking, CH1/CH2 may be wired as one supply
-    instead of two independent channels.
-  - Oscilloscopes: behavior that depends on channel count, bandwidth, or memory
-    depth must be reconfirmed on the connected model.
-- Verification scope
-  - Some Skills are `documented` only and have never been exercised on hardware.
-  - Keithley Model 2000: only DC voltage and DC current were exercised, over
-    RS-232; every other function remains `documented`.
-  - GDM-8352 and GPD-4303S: `hardware-verified` covers read-only queries; all
-    other writes, function/range switching, tracking, and memory commands remain
-    `documented`.
-  - Do not extend `hardware-verified` beyond the recorded model, firmware,
-    interface, and functions.
-- Known behaviors
-  - GDM-8352: one silent `SYST:BEEP:STAT 0` was observed and confirmed by the
-    follow-up query; the Skill still refuses the setter.
+- GPD-4303S: when in series tracking, CH1/CH2 may be wired as one supply
+  instead of two independent channels.
+- Oscilloscopes: behavior that depends on channel count, bandwidth, or memory
+  depth must be reconfirmed on the connected model.
+- Some Skills are `documented` only and have never been exercised on hardware.
 
 ## Verification
 
