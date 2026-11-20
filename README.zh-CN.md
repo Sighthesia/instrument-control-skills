@@ -43,8 +43,6 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 
 ## 验证
 
-`documented` < `hardware-verified` = `firmware-scoped`：标签表示证据强度，而非功能数量。
-
 **设备 Skill 只有在真实仪器上实际运行过才算已验证。**
 
 各 Skill 的 `SKILL.md` / `SUPPORT.md` 是权威记录。
