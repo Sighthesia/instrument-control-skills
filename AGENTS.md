@@ -63,27 +63,35 @@ re-derive those rules from memory.
 ## Consistency checks (after every change)
 
 ```bash
-# 1. Validate every changed Skill (schema, frontmatter, layout)
+# 1. Always: validate every changed Skill (schema, frontmatter, layout)
 python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
 
-# 2. Run the Skill's offline unit tests; they never open a socket
-#    (skills without scripts/ run their bundled examples instead, if any)
-python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
-
-# 3. CLI discovery must list exactly the directories under skills/
+# 2. Always: CLI discovery must list exactly the directories under skills/
 npx skills@latest add . --list
+
+# 3. Only when that Skill's scripts/ changed: run its offline unit tests
+#    (they never open a socket; a documentation-only edit cannot break a parser)
+python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
 ```
 
+- Documentation edits (references, SKILL.md, README, an index row) are checked by
+  validation and discovery, not by the unit suite. Do not run 1000+ parser tests
+  to publish a corrected page number; do run them the moment a line under
+  `scripts/` moves.
 - Device Skills carry `scripts/test_*.py`; the authoring guide has no `scripts/`,
   so run its bundled examples:
   `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
+- The suite protects parsing, not prose. It catches a sentinel read as a number, a
+  block truncated at an idle gap, a voltage formula that drops a term, a retry that
+  hides a desynchronised reply (verified by injecting those four bugs: all caught).
+  It cannot catch a wrong page number, a mis-copied range, or a stale README
+  figure — those are review work.
 - A command count is a manual reading, not a script output: no extraction tool is
   shipped, because one heuristic cannot be right for a heading-per-command manual
   and a command-table manual. Count against the manual's own list, triage every
   residual by hand, and record the method and date with the number.
 - A passing offline test run is not hardware evidence and must not upgrade an
-  evidence label.
-- `README.md` and `README.zh-CN.md` must describe the same Skill set and rules
+  evidence label.- `README.md` and `README.zh-CN.md` must describe the same Skill set and rules
   in the same order; treat any divergence as a bug.
 - Capability-table numbers (index rows, command forms) are audit results: when an
   audit changes them, update both READMEs in the same change and derive the
