@@ -71,6 +71,20 @@ def connected_session(*chunks: bytes, **kwargs) -> Session:
     return session
 
 
+class GapConnection(FakeConnection):
+    """Delivers each chunk after an idle gap, like a throttled block transfer."""
+
+    def __init__(self, *chunks: bytes) -> None:
+        super().__init__(*chunks)
+        self.calls = 0
+
+    def recv(self, size: int) -> bytes:
+        self.calls += 1
+        if self.calls % 2 == 0 and self.chunks:
+            raise socket.timeout()
+        return super().recv(size)
+
+
 class FakeSession(Session):
     """A live-looking session whose responses come from a dictionary."""
 
@@ -357,6 +371,19 @@ class TransportTests(unittest.TestCase):
         session = connected_session(raw[:600])
         self.assertEqual(session.query_block(":WAVeform:DATA?"), raw[:600])
 
+    def test_block_read_survives_idle_gaps(self):
+        # Measured: a 1152054-byte screenshot stalled after 51200 bytes, so an
+        # idle gap must not end a definite-length block read.
+        raw = fixture("screenshot-compact.bin")
+        session = Session(host="127.0.0.1", port=DEFAULT_PORT, idle_timeout=0.01,
+                          timeout=0.05, block_timeout=5.0, write_delay=0)
+        session._connection = GapConnection(raw[:20], raw[20:40], raw[40:])
+        self.assertEqual(session.query_block(":DISPlay:DATA?"), raw)
+
+    def test_line_read_still_ends_on_idle(self):
+        session = connected_session(b"command error")
+        self.assertEqual(session.query_text(":MEASure:VPP?"), b"command error")
+
     def test_drain_stops_at_no_error(self):
         session = connected_session(
             fixture("error-queue-undefined.txt"),
@@ -463,6 +490,24 @@ class WaveformCommandTests(unittest.TestCase):
         self.assertLess(session.commands.index(":WAVeform:MODE RAW"), session.commands.index(":WAVeform:DATA?"))
         self.assertEqual(session.commands[-1], ":RUN")
         self.assertIn(":WAVeform:MODE NORM", session.commands)
+
+    def test_raw_mode_restores_window(self):
+        responses = healthy_responses()
+        responses[":WAVeform:DATA?"] = fixture("waveform-raw-block.bin")
+        responses[":WAVeform:PREamble?"] = fixture("preamble-raw.txt")
+        responses[":WAVeform:POINts?"] = b"4000\n"
+        responses[":WAVeform:STARt?"] = b"1\n"
+        responses[":WAVeform:STOP?"] = b"1200\n"
+        session = FakeSession(responses)
+        with tempfile.TemporaryDirectory() as tmp:
+            with contextlib.redirect_stdout(io.StringIO()):
+                cmd_waveform(session, out=Path(tmp) / "raw.bin", mode="RAW", start=1, stop=4000)
+        # The window is global: leaving STOP=4000 behind would make a later NORM
+        # read report 4000 points for a 1200-point screen record.
+        self.assertIn(":WAVeform:STOP 1200", session.commands)
+        self.assertLess(session.commands.index(":WAVeform:MODE NORM"),
+                        session.commands.index(":WAVeform:STOP 1200"))
+        self.assertEqual(session.commands[-1], ":RUN")
 
     def test_raw_mode_restores_stopped_state(self):
         responses = healthy_responses()

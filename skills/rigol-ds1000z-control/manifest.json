@@ -61,7 +61,7 @@
     },
     "known_limitations": [
       "yincrement differs between modes at the same vertical scale: 0.02 in NORM and 0.0209375 in RAW at 0.5 V/div. A NORM increment must never be applied to RAW bytes; the parser keeps them separate and reports the observed value.",
-      "RAW and MAX waveform reads require :STOP first; :WAVeform:STOP is rejected with -220 while the acquisition runs, and the scripts restore the previous run state afterwards.",
+      "RAW and MAX waveform reads require :STOP first; :WAVeform:STOP is rejected with -220 while the acquisition runs, and the scripts restore the previous mode, source, waveform window and run state afterwards.",
       ":ACQuire:MDEPth accepts a new depth only while running (a write while stopped returns -200 Execution error) and rejects K/M suffixes with -220; only bare integers and AUTO were accepted.",
       ":DISPlay:DATA? appends three bytes ';0\\n' after the declared BMP length (measured total 1152068 bytes for a declared 1152054-byte 800x480 24-bit image). The image is trimmed at the declared length; the trailing bytes are reported, never written into the .bmp.",
       ":DISPlay:DATA? format is fixed to BMP24 on this firmware: only bare, ON, OFF, ON,OFF and ON,ON were accepted; ON,OFF,BMP, ON,ON,BMP, OFF,OFF,PNG and OFF,OFF,JPEG returned command error or -220.",
