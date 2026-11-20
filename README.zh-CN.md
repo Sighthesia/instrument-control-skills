@@ -27,7 +27,7 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | `gwinstek-afg2225-control`     | 部分：9 个构建/解析函数；13 个单位表 | `afg2225_protocol`：ARB/IEEE 块编解码、错误队列          |
 | `gwinstek-gpd4303s-control`    | 仅可读子集：18 条形式中 8 条         | `gpd4303s_protocol`/`_session`：`STATUS?` 位解码、试运行 |
 | `gwinstek-gds1000b-control`    | 部分：41 条测量命令；波形下载        | `gds1000b_protocol`：IEEE 块编解码、离线波形校验         |
-| `rigol-ds1000z-control`        | 手册命令全覆盖：474 行 / 659 条形式，实现范围逐条标注 | `ds1000z_protocol`/`_session`：IEEE 块、前导→电压、BMP 裁剪、游标读数、锁步 TCP |
+| `rigol-ds1000z-control`        | 手册命令全覆盖：500 行；复核 0 真缺口 | `ds1000z_protocol`/`_session`：IEEE 块、前导→电压、BMP 裁剪、游标读数、锁步 TCP |
 | `write-new-instrument-control` | —（无设备命令）                      | 解析器模板、响应分帧示例、完整性状态                     |
 
 ## 提示或已知问题

@@ -94,9 +94,22 @@ class IndexData:
 
 @dataclass(frozen=True)
 class CodeCommand:
+    """A command-like string literal found in code.
+
+    ``role`` says what the literal is:
+
+    - ``command``: a full header the code can send as-is;
+    - ``template``: an f-string, so the literal is a header prefix plus a
+      placeholder and cannot be compared to an index row verbatim;
+    - ``fragment``: no leading ``:`` or ``*``, i.e. a suffix the code prefixes
+      elsewhere (``VOLT:AC`` as a ``CONF:`` argument);
+    - ``data``: not sent at all -- a dict key, a manual quotation, or prose.
+    """
+
     command: str
     path: str
     line: int
+    role: str = "command"
 
 
 @dataclass(frozen=True)
@@ -562,6 +575,49 @@ def _literal_from_node(node: ast.AST) -> str | None:
     return None
 
 
+PROSE_HINT_RE = re.compile(r"[()\[\]]|\b(?:should|shouldn't|e\.g\.|for example|returns?)\b", re.IGNORECASE)
+
+# A literal used only to test a string is not sent to the instrument.
+COMPARISON_ONLY_CALLS = {"endswith", "startswith", "find", "count", "replace", "split"}
+
+
+def _is_comparison_operand(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
+    child: ast.AST = node
+    parent = parents.get(child)
+    while parent is not None:
+        if isinstance(parent, ast.Compare):
+            return True
+        if isinstance(parent, ast.Call):
+            function = parent.func
+            name = getattr(function, "attr", None) or getattr(function, "id", None)
+            if name in COMPARISON_ONLY_CALLS or (
+                isinstance(function, ast.Attribute) and function.attr in COMPARISON_ONLY_CALLS
+            ):
+                return True
+            # Any other call (session.write, session.query, ...) does send its
+            # argument: stop here instead of walking into the enclosing scope.
+            return False
+        if isinstance(parent, (ast.If, ast.While, ast.For, ast.comprehension)):
+            return True
+        child, parent = parent, parents.get(parent)
+    return False
+
+
+def _literal_role(value: str, node: ast.AST) -> str:
+    """Classify a literal so a data table is not read as sent commands."""
+
+    if PROSE_HINT_RE.search(value):
+        return "data"
+    if isinstance(node, ast.JoinedStr):
+        return "template"
+    token = strip_command_token(value)
+    if not token:
+        return "data"
+    if not token.startswith((":", "[:")) and not token.startswith("*"):
+        return "fragment"
+    return "command"
+
+
 def _is_guard_assignment(node: ast.AST) -> bool:
     targets: list[ast.AST] = []
     if isinstance(node, ast.Assign):
@@ -600,7 +656,12 @@ def extract_code_commands(paths: Sequence[Path], *, include_tests: bool = False)
             print(f"warning: skipped {path}: {exc}", file=sys.stderr)
             continue
 
-        def visit(node: ast.AST, *, guarded: bool = False) -> None:
+        parents: dict[ast.AST, ast.AST] = {}
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                parents[child] = parent
+
+        def visit(node: ast.AST, *, guarded: bool = False, dict_key: bool = False) -> None:
             if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) and _is_guard_assignment(node):
                 guarded = True
             value = _literal_from_node(node)
@@ -610,9 +671,20 @@ def extract_code_commands(paths: Sequence[Path], *, include_tests: bool = False)
                     _looks_like_command_literal(command)
                     and not command.endswith(":")
                 ):
+                    if dict_key or _is_comparison_operand(node, parents):
+                        role = "data"
+                    else:
+                        role = _literal_role(value, node)
                     commands.append(
-                        CodeCommand(command, str(path), getattr(node, "lineno", 0))
+                        CodeCommand(command, str(path), getattr(node, "lineno", 0), role)
                     )
+                return
+            if isinstance(node, ast.Dict):
+                for key in node.keys:
+                    if key is not None:
+                        visit(key, guarded=guarded, dict_key=True)
+                for value_node in node.values:
+                    visit(value_node, guarded=guarded)
                 return
             for child in ast.iter_child_nodes(node):
                 visit(child, guarded=guarded)
@@ -633,6 +705,11 @@ def analyze_drift(
 
     unindexed: list[tuple[CodeCommand, IndexForm | None]] = []
     for code_command in code_commands:
+        if code_command.role != "command":
+            # A template, a suffix fragment or a data string cannot be compared
+            # to an index row verbatim; counting it as a gap would bury the real
+            # ones. They are reported separately and in the report.
+            continue
         count = len(command_components(code_command.command))
         exact = next(
             (
@@ -662,6 +739,10 @@ def analyze_drift(
                 ),
             )
         )
+
+    by_role: dict[str, list[CodeCommand]] = {}
+    for code_command in code_commands:
+        by_role.setdefault(code_command.role, []).append(code_command)
 
     verified_not_sent: list[IndexForm] = []
     for index_form in index.forms:
@@ -890,6 +971,18 @@ def print_drift(result: DriftResult) -> None:
     for index_form in result.verified_not_sent:
         print(f"  {index_form.command}")
     print()
+
+    roles: dict[str, list[CodeCommand]] = {}
+    for code_command in result.code_commands:
+        roles.setdefault(getattr(code_command, "role", "command"), []).append(code_command)
+    others = {role: items for role, items in roles.items() if role != "command"}
+    if others:
+        print("Not counted as gaps (compare by hand):")
+        for role, items in sorted(others.items()):
+            print(f"  {role}: {len(items)}")
+            for code_command in items:
+                print(f"    {code_command.command}  {code_command.path}:{code_command.line}")
+        print()
 
 
 def build_parser() -> argparse.ArgumentParser:
