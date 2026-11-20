@@ -208,3 +208,178 @@ command spelling; they are listed so their absence is visible, not to be sent.
 - **No full command enumeration existed before this file.** This index was
   assembled from `SKILL.md`, the six reference documents, and the bundled scripts;
   it is not a substitute for the manual's command tables.
+
+## Appendix: commands from the manual's command chapter (table derived)
+
+This appendix lists the commands the *Model 2000 User's Manual* (2000-900 J)
+documents, so the index misses none of them. Command spelling and PDF page come
+from the manual's own command tables; the parameter column does not (`see p.N`).
+Rows are `documented` only, and the curated tables above remain the place to
+look for behaviour, caveats and evidence labels.
+
+`161` commands below had no curated row. The `?` column names the query
+form the SCPI convention implies; confirm the spelling on the cited page first.
+
+| Syntax | Query | Parameters / range | Note | PDF page |
+|---|---|---|---|---|
+| `:BEEPer[:STATe]` | `:BEEPer[:STATe]?` | see p.192 | documented; manual-table derived, parameters not transcribed | 192 |
+| `:CALCulate2:DATA` | `:CALCulate2:DATA?` | see p.154 | documented; manual-table derived, parameters not transcribed | 154 |
+| `:CALCulate2:IMMediate` | `:CALCulate2:IMMediate?` | see p.154 | documented; manual-table derived, parameters not transcribed | 154 |
+| `:CALCulate2:STATe` | `:CALCulate2:STATe?` | see p.153 | documented; manual-table derived, parameters not transcribed | 153 |
+| `:CALCulate3:IMMediate` | `:CALCulate3:IMMediate?` | see p.156 | documented; manual-table derived, parameters not transcribed | 156 |
+| `:CALCulate3:LIMit` | `:CALCulate3:LIMit?` | see p.155 | documented; manual-table derived, parameters not transcribed | 155 |
+| `:CALCulate3:LIMit[1]:CLEar:AUTO` | `:CALCulate3:LIMit[1]:CLEar:AUTO?` | see p.156 | documented; manual-table derived, parameters not transcribed | 156 |
+| `:CALCulate3:LIMit[1]:CLEar[:IMMediate]` | `:CALCulate3:LIMit[1]:CLEar[:IMMediate]?` | see p.156 | documented; manual-table derived, parameters not transcribed | 156 |
+| `:CALCulate3:LIMit[1]:FAIL` | `:CALCulate3:LIMit[1]:FAIL?` | see p.155 | documented; manual-table derived, parameters not transcribed | 155 |
+| `:CALCulate3:LIMit[1]:STATE` | `:CALCulate3:LIMit[1]:STATE?` | see p.155 | documented; manual-table derived, parameters not transcribed | 155 |
+| `[:DATA]` | `[:DATA]?` | see p.139 | documented; manual-table derived, parameters not transcribed | 139 |
+| `:DISPlay:ENABle` | `:DISPlay:ENABle?` | see p.157 | documented; manual-table derived, parameters not transcribed | 157 |
+| `:DISPlay[:WINDow[1]]:TEXT:DATA` | `:DISPlay[:WINDow[1]]:TEXT:DATA?` | see p.157 | documented; manual-table derived, parameters not transcribed | 157 |
+| `:DISPlay[WINDow[1]]:TEXT:STATe` | `:DISPlay[WINDow[1]]:TEXT:STATe?` | see p.158 | documented; manual-table derived, parameters not transcribed | 158 |
+| `:FORMat:BORDer` | `:FORMat:BORDer?` | see p.161 | documented; manual-table derived, parameters not transcribed | 161 |
+| `:FORMat[:DATA]` | `:FORMat[:DATA]?` | see p.159 | documented; manual-table derived, parameters not transcribed | 159 |
+| `:INITiate[:IMMediate]` | `:INITiate[:IMMediate]?` | see p.201 | documented; manual-table derived, parameters not transcribed | 201 |
+| `:ROUTe:CLOSe:STATe` | `:ROUTe:CLOSe:STATe?` | see p.164 | documented; manual-table derived, parameters not transcribed | 164 |
+| `:ROUTe:MULTiple:CLOSe` | `:ROUTe:MULTiple:CLOSe?` | see p.164 | documented; manual-table derived, parameters not transcribed | 164 |
+| `:ROUTe:MULTiple:CLOSe:STATe` | `:ROUTe:MULTiple:CLOSe:STATe?` | see p.165 | documented; manual-table derived, parameters not transcribed | 165 |
+| `:ROUTe:MULTiple:OPEN` | `:ROUTe:MULTiple:OPEN?` | see p.165 | documented; manual-table derived, parameters not transcribed | 165 |
+| `:ROUTe:OPEN:ALL` | `:ROUTe:OPEN:ALL?` | see p.164 | documented; manual-table derived, parameters not transcribed | 164 |
+| `:ROUTe:SCAN:EXTernal` | `:ROUTe:SCAN:EXTernal?` | see p.166 | documented; manual-table derived, parameters not transcribed | 166 |
+| `:ROUTe:SCAN:LSELect` | `:ROUTe:SCAN:LSELect?` | see p.167 | documented; manual-table derived, parameters not transcribed | 167 |
+| `:ROUTe:SCAN[:INTernal]` | `:ROUTe:SCAN[:INTernal]?` | see p.166 | documented; manual-table derived, parameters not transcribed | 166 |
+| `:SENSe[1]]:CURRent:AC:AVERage:TCONtrol` | `:SENSe[1]]:CURRent:AC:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `:SENSe[1]]:VOLTage[:DC]:REFerence` | `:SENSe[1]]:VOLTage[:DC]:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]` | `[:SENSe[1]]?` | see p.141 | documented; manual-table derived, parameters not transcribed | 141 |
+| `[:SENSe[1]]:CURRen[:DC]:NPLCycles` | `[:SENSe[1]]:CURRen[:DC]:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:CURRent:AC:AVERage:COUNt` | `[:SENSe[1]]:CURRent:AC:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:CURRent:AC:AVERage:STATe` | `[:SENSe[1]]:CURRent:AC:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:CURRent:AC:DETector:BANDwidth` | `[:SENSe[1]]:CURRent:AC:DETector:BANDwidth?` | see p.179 | documented; manual-table derived, parameters not transcribed | 179 |
+| `[:SENSe[1]]:CURRent:AC:DIGits` | `[:SENSe[1]]:CURRent:AC:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:CURRent:AC:NPLCycles` | `[:SENSe[1]]:CURRent:AC:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:CURRent:AC:RANGe:AUTO` | `[:SENSe[1]]:CURRent:AC:RANGe:AUTO?` | see p.173 | documented; manual-table derived, parameters not transcribed | 173 |
+| `[:SENSe[1]]:CURRent:AC:RANGe[:UPPer]` | `[:SENSe[1]]:CURRent:AC:RANGe[:UPPer]?` | see p.172 | documented; manual-table derived, parameters not transcribed | 172 |
+| `[:SENSe[1]]:CURRent:AC:REFerence` | `[:SENSe[1]]:CURRent:AC:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:CURRent:AC:REFerence:ACQuire` | `[:SENSe[1]]:CURRent:AC:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:CURRent:AC:REFerence:STATe` | `[:SENSe[1]]:CURRent:AC:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:CURRent:DC:DIGits` | `[:SENSe[1]]:CURRent:DC:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:CURRent[:DC]:AVERage:COUNt` | `[:SENSe[1]]:CURRent[:DC]:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:CURRent[:DC]:AVERage:STATe` | `[:SENSe[1]]:CURRent[:DC]:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:CURRent[:DC]:AVERage:TCONtrol` | `[:SENSe[1]]:CURRent[:DC]:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:CURRent[:DC]:RANGe:AUTO` | `[:SENSe[1]]:CURRent[:DC]:RANGe:AUTO?` | see p.173 | documented; manual-table derived, parameters not transcribed | 173 |
+| `[:SENSe[1]]:CURRent[:DC]:RANGe[:UPPer]` | `[:SENSe[1]]:CURRent[:DC]:RANGe[:UPPer]?` | see p.172 | documented; manual-table derived, parameters not transcribed | 172 |
+| `[:SENSe[1]]:CURRent[:DC]:REFerence` | `[:SENSe[1]]:CURRent[:DC]:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:CURRent[:DC]:REFerence:ACQuire` | `[:SENSe[1]]:CURRent[:DC]:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:CURRent[:DC]:REFerence:STATe` | `[:SENSe[1]]:CURRent[:DC]:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:DATA` | `[:SENSe[1]]:DATA?` | see p.169 | documented; manual-table derived, parameters not transcribed | 169 |
+| `[:SENSe[1]]:DIODe:CURRent:RANGe[:UPPer]` | `[:SENSe[1]]:DIODe:CURRent:RANGe[:UPPer]?` | see p.182 | documented; manual-table derived, parameters not transcribed | 182 |
+| `[:SENSe[1]]:FREQuency:DIGits` | `[:SENSe[1]]:FREQuency:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:FREQuency:REFerence` | `[:SENSe[1]]:FREQuency:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:FREQuency:REFerence:ACQuire` | `[:SENSe[1]]:FREQuency:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:FREQuency:REFerence:STATe` | `[:SENSe[1]]:FREQuency:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:FREQuency:THReshold:VOLTage:RANGe` | `[:SENSe[1]]:FREQuency:THReshold:VOLTage:RANGe?` | see p.179 | documented; manual-table derived, parameters not transcribed | 179 |
+| `[:SENSe[1]]:FRESistance:AVERage:COUNt` | `[:SENSe[1]]:FRESistance:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:FRESistance:AVERage:STATe` | `[:SENSe[1]]:FRESistance:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:FRESistance:AVERage:TCONtrol` | `[:SENSe[1]]:FRESistance:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:FRESistance:DIGits` | `[:SENSe[1]]:FRESistance:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:FRESistance:NPLCycles` | `[:SENSe[1]]:FRESistance:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:FRESistance:RANGe:AUTO` | `[:SENSe[1]]:FRESistance:RANGe:AUTO?` | see p.173 | documented; manual-table derived, parameters not transcribed | 173 |
+| `[:SENSe[1]]:FRESistance:RANGe[:UPPer]` | `[:SENSe[1]]:FRESistance:RANGe[:UPPer]?` | see p.172 | documented; manual-table derived, parameters not transcribed | 172 |
+| `[:SENSe[1]]:FRESistance:REFerence` | `[:SENSe[1]]:FRESistance:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:FRESistance:REFerence:ACQuire` | `[:SENSe[1]]:FRESistance:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:FRESistance:REFerence:STATe` | `[:SENSe[1]]:FRESistance:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:FUNCtion` | `[:SENSe[1]]:FUNCtion?` | see p.168 | documented; manual-table derived, parameters not transcribed | 168 |
+| `[:SENSe[1]]:HOLD:COUNt` | `[:SENSe[1]]:HOLD:COUNt?` | see p.170 | documented; manual-table derived, parameters not transcribed | 170 |
+| `[:SENSe[1]]:HOLD:STATe` | `[:SENSe[1]]:HOLD:STATe?` | see p.170 | documented; manual-table derived, parameters not transcribed | 170 |
+| `[:SENSe[1]]:HOLD:WINDow` | `[:SENSe[1]]:HOLD:WINDow?` | see p.170 | documented; manual-table derived, parameters not transcribed | 170 |
+| `[:SENSe[1]]:PERiod:DIGits` | `[:SENSe[1]]:PERiod:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:PERiod:REFerence` | `[:SENSe[1]]:PERiod:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:PERiod:REFerence:ACQuire` | `[:SENSe[1]]:PERiod:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:PERiod:REFerence:STATe` | `[:SENSe[1]]:PERiod:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:PERiod:THReshold:VOLTage:RANGe` | `[:SENSe[1]]:PERiod:THReshold:VOLTage:RANGe?` | see p.179 | documented; manual-table derived, parameters not transcribed | 179 |
+| `[:SENSe[1]]:RESistance:AVERage:COUNt` | `[:SENSe[1]]:RESistance:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:RESistance:AVERage:STATe` | `[:SENSe[1]]:RESistance:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:RESistance:AVERage:TCONtrol` | `[:SENSe[1]]:RESistance:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:RESistance:DIGits` | `[:SENSe[1]]:RESistance:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:RESistance:NPLCycles` | `[:SENSe[1]]:RESistance:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:RESistance:RANGe:AUTO` | `[:SENSe[1]]:RESistance:RANGe:AUTO?` | see p.173 | documented; manual-table derived, parameters not transcribed | 173 |
+| `[:SENSe[1]]:RESistance:RANGe[:UPPer]` | `[:SENSe[1]]:RESistance:RANGe[:UPPer]?` | see p.172 | documented; manual-table derived, parameters not transcribed | 172 |
+| `[:SENSe[1]]:RESistance:REFerence` | `[:SENSe[1]]:RESistance:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:RESistance:REFerence:ACQuire` | `[:SENSe[1]]:RESistance:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:RESistance:REFerence:STATe` | `[:SENSe[1]]:RESistance:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:TEMPerature:AVERage:COUNt` | `[:SENSe[1]]:TEMPerature:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:TEMPerature:AVERage:STATe` | `[:SENSe[1]]:TEMPerature:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:TEMPerature:AVERage:TCONtrol` | `[:SENSe[1]]:TEMPerature:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:TEMPerature:DIGits` | `[:SENSe[1]]:TEMPerature:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:TEMPerature:NPLCycles` | `[:SENSe[1]]:TEMPerature:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:TEMPerature:REFerence` | `[:SENSe[1]]:TEMPerature:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:TEMPerature:REFerence:ACQuire` | `[:SENSe[1]]:TEMPerature:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:TEMPerature:REFerence:STATe` | `[:SENSe[1]]:TEMPerature:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]:REAL:OFFSET` | `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]:REAL:OFFSET?` | see p.182 | documented; manual-table derived, parameters not transcribed | 182 |
+| `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]:RSELect` | `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]:RSELect?` | see p.180 | documented; manual-table derived, parameters not transcribed | 180 |
+| `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]:SIMulated` | `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]:SIMulated?` | see p.181 | documented; manual-table derived, parameters not transcribed | 181 |
+| `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]]:REAL:TCoefficient` | `[:SENSe[1]]:TEMPerature:TCouple:RJUNction[1]]:REAL:TCoefficient?` | see p.181 | documented; manual-table derived, parameters not transcribed | 181 |
+| `[:SENSe[1]]:TEMPerature:TCouple:TYPE` | `[:SENSe[1]]:TEMPerature:TCouple:TYPE?` | see p.180 | documented; manual-table derived, parameters not transcribed | 180 |
+| `[:SENSe[1]]:VOLTage:AC:AVERage:COUNt` | `[:SENSe[1]]:VOLTage:AC:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:VOLTage:AC:AVERage:STATe` | `[:SENSe[1]]:VOLTage:AC:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:VOLTage:AC:AVERage:TCONtrol` | `[:SENSe[1]]:VOLTage:AC:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:VOLTage:AC:DETector:BANDwidth` | `[:SENSe[1]]:VOLTage:AC:DETector:BANDwidth?` | see p.179 | documented; manual-table derived, parameters not transcribed | 179 |
+| `[:SENSe[1]]:VOLTage:AC:DIGits` | `[:SENSe[1]]:VOLTage:AC:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:VOLTage:AC:NPLCycles` | `[:SENSe[1]]:VOLTage:AC:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:VOLTage:AC:RANGe:AUTO` | `[:SENSe[1]]:VOLTage:AC:RANGe:AUTO?` | see p.173 | documented; manual-table derived, parameters not transcribed | 173 |
+| `[:SENSe[1]]:VOLTage:AC:RANGe[:UPPer]` | `[:SENSe[1]]:VOLTage:AC:RANGe[:UPPer]?` | see p.172 | documented; manual-table derived, parameters not transcribed | 172 |
+| `[:SENSe[1]]:VOLTage:AC:REFerence` | `[:SENSe[1]]:VOLTage:AC:REFerence?` | see p.174 | documented; manual-table derived, parameters not transcribed | 174 |
+| `[:SENSe[1]]:VOLTage:AC:REFerence:ACQuire` | `[:SENSe[1]]:VOLTage:AC:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:VOLTage:AC:REFerence:STATe` | `[:SENSe[1]]:VOLTage:AC:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:VOLTage:DC:DIGits` | `[:SENSe[1]]:VOLTage:DC:DIGits?` | see p.176 | documented; manual-table derived, parameters not transcribed | 176 |
+| `[:SENSe[1]]:VOLTage[:DC]:AVERage:COUNt` | `[:SENSe[1]]:VOLTage[:DC]:AVERage:COUNt?` | see p.178 | documented; manual-table derived, parameters not transcribed | 178 |
+| `[:SENSe[1]]:VOLTage[:DC]:AVERage:STATe` | `[:SENSe[1]]:VOLTage[:DC]:AVERage:STATe?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:VOLTage[:DC]:AVERage:TCONtrol` | `[:SENSe[1]]:VOLTage[:DC]:AVERage:TCONtrol?` | see p.177 | documented; manual-table derived, parameters not transcribed | 177 |
+| `[:SENSe[1]]:VOLTage[:DC]:NPLCycles` | `[:SENSe[1]]:VOLTage[:DC]:NPLCycles?` | see p.171 | documented; manual-table derived, parameters not transcribed | 171 |
+| `[:SENSe[1]]:VOLTage[:DC]:RANGe:AUTO` | `[:SENSe[1]]:VOLTage[:DC]:RANGe:AUTO?` | see p.173 | documented; manual-table derived, parameters not transcribed | 173 |
+| `[:SENSe[1]]:VOLTage[:DC]:RANGe[:UPPer]` | `[:SENSe[1]]:VOLTage[:DC]:RANGe[:UPPer]?` | see p.172 | documented; manual-table derived, parameters not transcribed | 172 |
+| `[:SENSe[1]]:VOLTage[:DC]:REFerence:ACQuire` | `[:SENSe[1]]:VOLTage[:DC]:REFerence:ACQuire?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `[:SENSe[1]]:VOLTage[:DC]:REFerence:STATe` | `[:SENSe[1]]:VOLTage[:DC]:REFerence:STATe?` | see p.175 | documented; manual-table derived, parameters not transcribed | 175 |
+| `:STATUS:PRESET` | `:STATUS:PRESET?` | see p.189 | documented; manual-table derived, parameters not transcribed | 189 |
+| `:STATus:MEASurement:CONDition` | `:STATus:MEASurement:CONDition?` | see p.189 | documented; manual-table derived, parameters not transcribed | 189 |
+| `:STATus:MEASurement:ENABle` | `:STATus:MEASurement:ENABle?` | see p.187 | documented; manual-table derived, parameters not transcribed | 187 |
+| `:STATus:MEASurement[:EVENt]` | `:STATus:MEASurement[:EVENt]?` | see p.183 | documented; manual-table derived, parameters not transcribed | 183 |
+| `:STATus:OPERation:CONDition` | `:STATus:OPERation:CONDition?` | see p.189 | documented; manual-table derived, parameters not transcribed | 189 |
+| `:STATus:OPERation:ENABle` | `:STATus:OPERation:ENABle?` | see p.187 | documented; manual-table derived, parameters not transcribed | 187 |
+| `:STATus:OPERation[:EVENt]` | `:STATus:OPERation[:EVENt]?` | see p.183 | documented; manual-table derived, parameters not transcribed | 183 |
+| `:STATus:PRESet` | `:STATus:PRESet?` | see p.147 | documented; manual-table derived, parameters not transcribed | 147 |
+| `:STATus:QUEStionable:CONDition` | `:STATus:QUEStionable:CONDition?` | see p.189 | documented; manual-table derived, parameters not transcribed | 189 |
+| `:STATus:QUEStionable:ENABle` | `:STATus:QUEStionable:ENABle?` | see p.187 | documented; manual-table derived, parameters not transcribed | 187 |
+| `:STATus:QUEStionable[:EVENt]` | `:STATus:QUEStionable[:EVENt]?` | see p.183 | documented; manual-table derived, parameters not transcribed | 183 |
+| `:STATus:QUEue:CLEar` | `:STATus:QUEue:CLEar?` | see p.190 | documented; manual-table derived, parameters not transcribed | 190 |
+| `:STATus:QUEue:DISable` | `:STATus:QUEue:DISable?` | see p.191 | documented; manual-table derived, parameters not transcribed | 191 |
+| `:STATus:QUEue:ENABle` | `:STATus:QUEue:ENABle?` | see p.191 | documented; manual-table derived, parameters not transcribed | 191 |
+| `:STATus:QUEue[:NEXT]` | `:STATus:QUEue[:NEXT]?` | see p.190 | documented; manual-table derived, parameters not transcribed | 190 |
+| `:SYSTem:CLEar` | `:SYSTem:CLEar?` | see p.195 | documented; manual-table derived, parameters not transcribed | 195 |
+| `:SYSTem:ERRor` | `:SYSTem:ERRor?` | see p.194 | documented; manual-table derived, parameters not transcribed | 194 |
+| `:SYSTem:FRSWitch` | `:SYSTem:FRSWitch?` | see p.193 | documented; manual-table derived, parameters not transcribed | 193 |
+| `:SYSTem:KCLick` | `:SYSTem:KCLick?` | see p.192 | documented; manual-table derived, parameters not transcribed | 192 |
+| `:SYSTem:KEY` | `:SYSTem:KEY?` | see p.196 | documented; manual-table derived, parameters not transcribed | 196 |
+| `:SYSTem:LFRequency` | `:SYSTem:LFRequency?` | see p.198 | documented; manual-table derived, parameters not transcribed | 198 |
+| `:SYSTem:LOCal` | `:SYSTem:LOCal?` | see p.198 | documented; manual-table derived, parameters not transcribed | 198 |
+| `:SYSTem:POSetup` | `:SYSTem:POSetup?` | see p.193 | documented; manual-table derived, parameters not transcribed | 193 |
+| `:SYSTem:REMote` | `:SYSTem:REMote?` | see p.198 | documented; manual-table derived, parameters not transcribed | 198 |
+| `:SYSTem:RWLock` | `:SYSTem:RWLock?` | see p.198 | documented; manual-table derived, parameters not transcribed | 198 |
+| `:SYSTem:VERSion` | `:SYSTem:VERSion?` | see p.194 | documented; manual-table derived, parameters not transcribed | 194 |
+| `:TRACe:CLEar` | `:TRACe:CLEar?` | see p.199 | documented; manual-table derived, parameters not transcribed | 199 |
+| `:TRACe:DATA` | `:TRACe:DATA?` | see p.200 | documented; manual-table derived, parameters not transcribed | 200 |
+| `:TRACe:FEED` | `:TRACe:FEED?` | see p.200 | documented; manual-table derived, parameters not transcribed | 200 |
+| `:TRACe:FEED:CONTrol` | `:TRACe:FEED:CONTrol?` | see p.200 | documented; manual-table derived, parameters not transcribed | 200 |
+| `:TRACe:FREE` | `:TRACe:FREE?` | see p.199 | documented; manual-table derived, parameters not transcribed | 199 |
+| `:TRACe:POINts` | `:TRACe:POINts?` | see p.199 | documented; manual-table derived, parameters not transcribed | 199 |
+| `:TRIGger:[SEQuence[1]]:TIMer` | `:TRIGger:[SEQuence[1]]:TIMer?` | see p.204 | documented; manual-table derived, parameters not transcribed | 204 |
+| `:TRIGger[:SEQuence[1]]` | `:TRIGger[:SEQuence[1]]?` | see p.149 | documented; manual-table derived, parameters not transcribed | 149 |
+| `:TRIGger[:SEQuence[1]]:COUNt` | `:TRIGger[:SEQuence[1]]:COUNt?` | see p.202 | documented; manual-table derived, parameters not transcribed | 202 |
+| `:TRIGger[:SEQuence[1]]:DELay` | `:TRIGger[:SEQuence[1]]:DELay?` | see p.203 | documented; manual-table derived, parameters not transcribed | 203 |
+| `:TRIGger[:SEQuence[1]]:SIGNal` | `:TRIGger[:SEQuence[1]]:SIGNal?` | see p.204 | documented; manual-table derived, parameters not transcribed | 204 |
+| `:TRIGger[:SEQuence[1]]:SOURce` | `:TRIGger[:SEQuence[1]]:SOURce?` | see p.203 | documented; manual-table derived, parameters not transcribed | 203 |
+| `:UNIT:VOLTage:AC` | `:UNIT:VOLTage:AC?` | see p.205 | documented; manual-table derived, parameters not transcribed | 205 |
+| `:UNIT:VOLTage:AC:DB:REFerence` | `:UNIT:VOLTage:AC:DB:REFerence?` | see p.206 | documented; manual-table derived, parameters not transcribed | 206 |
+| `:UNIT:VOLTage:AC:DBM:IMPedance` | `:UNIT:VOLTage:AC:DBM:IMPedance?` | see p.206 | documented; manual-table derived, parameters not transcribed | 206 |
+| `:UNIT:VOLTage:DC` | `:UNIT:VOLTage:DC?` | see p.206 | documented; manual-table derived, parameters not transcribed | 206 |
+| `:UNIT:VOLTage[:DC]:DB:REFerence` | `:UNIT:VOLTage[:DC]:DB:REFerence?` | see p.206 | documented; manual-table derived, parameters not transcribed | 206 |
+| `:UNIT:VOLTage[:DC]:DBM:IMPedance` | `:UNIT:VOLTage[:DC]:DBM:IMPedance?` | see p.207 | documented; manual-table derived, parameters not transcribed | 207 |
