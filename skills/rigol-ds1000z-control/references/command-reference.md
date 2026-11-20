@@ -10,6 +10,12 @@ apply**: no routine `*RST`, no `*SAV`/`*RCL`/`:SAVE`/`:RECAll`, no writing
 `:LAN:` command, no `:AUToscale`, no reference/mask/calibration writes, and no
 overwrite of operator files on the instrument or on disk.
 
+`artifacts/rigol-ds1000z/command-pages.tsv` lists only command forms that begin
+with `:`; the optional-root subsystems `[:SOURce[<n>]]` (built-in signal source,
+PDF pp. 146-157) and `[:TRACe[<n>]]` (volatile memory of that source, PDF
+pp. 164-168) are therefore absent from it. Matching that file is not proof that
+the manual holds no further commands — check the optional-root sections below.
+
 Status in the `说明` column:
 
 - `hardware-verified` — an actual reply was captured from
@@ -62,6 +68,17 @@ command's default unit; a unit suffix such as `12K` is rejected with
 | `:ACQuire:MDEPth <mdep>` | `:ACQuire:MDEPth?` | pts; 1 ch `{AUTO\|12000\|120000\|1200000\|12000000\|24000000}`, 2 ch `{AUTO\|6000\|60000\|600000\|6000000\|12000000}`, 3-4 ch `{AUTO\|3000\|30000\|300000\|3000000\|6000000}`, default `AUTO` | Writable **only while running**; stopped = `-200 Execution error`; `12K`-style suffixes = `-220` (`hardware-verified`) | 21 |
 | `:ACQuire:AVERages <count>` | `:ACQuire:AVERages?` | Integer `2^n`, n = 1..10 (2 to 1024), default 2 | Applies only in `AVERages` mode | 20 |
 | `:ACQuire:SRATe?` | — | NR3, Sa/s | Read-only; answered `1.000000e+09` (`hardware-verified`) | 23 |
+
+## Calibration (`:CALibrate`, PDF p. 24): not implemented
+
+> **Not implemented.** Documented in the manual but not exercised by this Skill:
+> self-calibration can only be started by the operator from the front panel, and
+> this Skill never sends `:CALibrate:STARt` or `:CALibrate:QUIT`.
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:CALibrate:STARt` | — | none | Starts self-calibration; every input must be disconnected and most keys are disabled | 24 |
+| `:CALibrate:QUIT` | — | none | Exits self-calibration at any time, including a mis-started one | 24 |
 
 ## Vertical (`:CHANnel<n>`, PDF pp. 25-31)
 
@@ -458,8 +475,14 @@ No `*SAV`, `*RCL`, `:SAVE`, or `:RECAll` subsystem exists in this manual;
 
 ## Cursors (`:CURSor`, PDF pp. 32-52): not implemented
 
-68 commands exist. This Skill reads no cursor value and sets no cursor mode; the
-entries below are the entry points only.
+> **Not implemented.** Documented in the manual but not exercised by this Skill:
+> no cursor mode is set and no cursor value is read. Every row below is
+> `documented` and `not implemented`.
+
+68 commands exist. This Skill reads no cursor value and sets no cursor mode.
+Every documented query has its own row: the queries the earlier revision
+collapsed into `:AX? … :BYValue?` are now listed by name, so a read-only value
+can be looked up without guessing which of the group it belongs to.
 
 | 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
 |---|---|---|---|---|
@@ -485,16 +508,30 @@ entries below are the entry points only.
 | `:CURSor:TRACk:BX <x>` | `:CURSor:TRACk:BX?` | Integer 5 to 594, default 500 | not implemented | 42 |
 | `:CURSor:TRACk:AY?` | — | NR3 | Read-only | 42 |
 | `:CURSor:TRACk:BY?` | — | NR3 | Read-only | 42 |
-| `:CURSor:TRACk:AXValue?` / `AYValue?` | — | NR3 | Read-only | 43 |
-| `:CURSor:TRACk:BXValue?` / `BYValue?` | — | NR3 | Read-only | 43 |
-| `:CURSor:TRACk:XDELta?` / `YDELta?` / `IXDELTA?` | — | NR3 | Read-only | 44 |
+| `:CURSor:TRACk:AXValue?` | — | NR3, seconds | Read-only; X value of cursor A | 43 |
+| `:CURSor:TRACk:AYValue?` | — | NR3, `:CHANnel<n>:UNITs` | Read-only; Y value of cursor A | 43 |
+| `:CURSor:TRACk:BXValue?` | — | NR3, seconds | Read-only; X value of cursor B | 43 |
+| `:CURSor:TRACk:BYValue?` | — | NR3, `:CHANnel<n>:UNITs` | Read-only; Y value of cursor B | 43 |
+| `:CURSor:TRACk:XDELta?` | — | NR3, seconds | Read-only; BX - AX | 44 |
+| `:CURSor:TRACk:YDELta?` | — | NR3, `:CHANnel<n>:UNITs` | Read-only; BY - AY | 44 |
+| `:CURSor:TRACk:IXDELTA?` | — | NR3, Hz | Read-only; reciprocal of the absolute X difference | 44 |
 | `:CURSor:AUTO:ITEM <item>` | `:CURSor:AUTO:ITEM?` | `{OFF\|ITEM1\|ITEM2\|ITEM3\|ITEM4\|ITEM5}`, default `OFF` | not implemented | 45 |
-| `:CURSor:AUTO:AX?` … `:BYValue?` | — | NR3 | Read-only auto-cursor values | 46-48 |
+| `:CURSor:AUTO:AX?` | — | Integer 5 to 594; `4294967295` when the item needs no X cursor | Read-only, auto-cursor mode only | 46 |
+| `:CURSor:AUTO:BX?` | — | Integer 5 to 594; `4294967295` when unused | Read-only | 46 |
+| `:CURSor:AUTO:AY?` | — | Integer 5 to 394; `4294967295` when unused | Read-only | 46 |
+| `:CURSor:AUTO:BY?` | — | Integer 5 to 394; `4294967295` when unused | Read-only | 47 |
+| `:CURSor:AUTO:AXValue?` | — | NR3; `9.9E37` when the item needs no X cursor | Read-only | 47 |
+| `:CURSor:AUTO:AYValue?` | — | NR3; `9.9E37` when unused | Read-only | 47 |
+| `:CURSor:AUTO:BXValue?` | — | NR3; `9.9E37` when unused | Read-only | 47 |
+| `:CURSor:AUTO:BYValue?` | — | NR3; `9.9E37` when unused | Read-only | 48 |
 | `:CURSor:XY:AX <x>` | `:CURSor:XY:AX?` | Integer 5 to 394, default 100 | XY-mode cursor | 49 |
 | `:CURSor:XY:BX <x>` | `:CURSor:XY:BX?` | Integer 5 to 394, default 300 | XY-mode cursor | 50 |
 | `:CURSor:XY:AY <x>` | `:CURSor:XY:AY?` | Integer 5 to 394, default 100 | XY-mode cursor | 50 |
 | `:CURSor:XY:BY <x>` | `:CURSor:XY:BY?` | Integer 5 to 394, default 300 | XY-mode cursor | 51 |
-| `:CURSor:XY:AXValue?` … `:BYValue?` | — | NR3 | Read-only XY values | 51-52 |
+| `:CURSor:XY:AXValue?` | — | NR3, amplitude unit of the channel | Read-only; XY timebase mode only | 51 |
+| `:CURSor:XY:AYValue?` | — | NR3, amplitude unit of the channel | Read-only | 51 |
+| `:CURSor:XY:BXValue?` | — | NR3, amplitude unit of the channel | Read-only | 52 |
+| `:CURSor:XY:BYValue?` | — | NR3, amplitude unit of the channel | Read-only | 52 |
 
 ## Math (`:MATH`, PDF pp. 106-122): not implemented
 
@@ -536,7 +573,7 @@ would need the FFT or operator context recorded.
 | `:MATH:OPTion:FX:SOURce2 <src>` | `:MATH:OPTion:FX:SOURce2?` | `{CHANnel1..CHANnel4}`, default `CHANnel1` | not implemented | 122 |
 | `:MATH:OPTion:FX:OPERator <op>` | `:MATH:OPTion:FX:OPERator?` | `{ADD\|SUBTract\|MULTiply\|DIVision}`, default `ADD` | not implemented | 122 |
 
-## Digital channels and decoding: not implemented
+## Digital channels, decoding, recording, and signal source: not implemented
 
 - **Digital channels** (`:LA`, PDF pp. 98-104, 20 commands): `:LA:STATe` (default
   `0`), `:LA:ACTive <group>`, `:LA:AUTosort`, `:LA:DIGital<n>:DISPlay`,
@@ -544,28 +581,182 @@ would need the FFT or operator context recorded.
   `:LA:POD<n>:DISPlay`, `:LA:POD<n>:THReshold` (-15 V to +15 V, default 1.40 V),
   `:LA:SIZE`, `:LA:TCALibrate` (-100 ns to 100 ns). They apply only to MSO1000Z
   and DS1000Z Plus models with the MSO upgrade (PDF p. 17, note 2).
-- **Decoder** (`:DECoder<n>:`, PDF pp. 53-77, 94 commands): entry points only —
-  `:DECoder<n>:MODE`, `:DECoder<n>:DISPlay`, `:DECoder<n>:FORMat`,
-  `:DECoder<n>:POSition`, `:DECoder<n>:THREshold:<src>`,
-  `:DECoder<n>:UART:*`, `:DECoder<n>:SPI:*`, `:DECoder<n>:IIC:*`,
-  `:DECoder<n>:PARallel:*`, `:DECoder<n>:CONFig:*`, `:DECoder<n>:BUS<n>:*`.
-  There is **no CAN and no LIN decoder** in this manual.
-- **Event table** (`:ETABle<n>:`, PDF pp. 83-86): `:DISP`, `:FORMat`
-  (`{HEX|ASCii|DEC}`), `:VIEW` (`{PACKage|DETail|PAYLoad}`), `:COLumn`
-  (`{DATA|TX|RX|MISO|MOSI}`), `:ROW`, `:SORT` (`{ASCend|DESCend}`), `:DATA?`.
-  The event table only shows decoded bus data, so it needs a decoder first.
-- **Waveform record/playback** (`:FUNCtion:*`, PDF pp. 87-94, "(Option)", 26
-  commands): `:FUNCtion:WRECord:*` and `:FUNCtion:WREPlay:*` record and replay
-  frames into instrument memory. They are invalid while other acquisition
-  commands run (PDF p. 18). This is **not** the built-in signal source of the
-  `-S` models, which lives under `[:SOURce[<n>]]:*` (PDF pp. 146-157) and is also
-  not implemented.
+
+### Protocol decoding (`:DECoder<n>`, PDF pp. 53-77)
+
+> **Not implemented.** Documented in the manual but not exercised by this Skill:
+> `:DECoder` and `:ETABle` are decoder subsystems whose digital sources need MSO
+> channels (`UART`/`IIC`/`SPI` decoding are licensed options), `:FUNCtion` is the
+> waveform record/playback option (PDF p. 87), not the `-S` signal source.
+> Model/option dependent.
+
+`<n>` is `{1|2}` for every command below. 47 commands, 93 settable or
+queryable forms (the page index counts one more: the `:DECoder<n>:PARallel`
+sub-heading at PDF p. 72, which has no syntax of its own).
+Sources may be analog `CHANnel1..4` or digital `D0..D15`; only the digital
+sources need the MSO upgrade (PDF p. 17, note 2). Every row is `documented` and
+`not implemented`: read from the manual, never sent by this Skill. There is **no
+CAN and no LIN decoder** in this manual, and no `:DECoder<n>:BUS` command.
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:DECoder<n>:MODE <mode>` | `:DECoder<n>:MODE?` | `{PARallel\|UART\|SPI\|IIC}`, default `PARallel` | UART/IIC/SPI are licensed options; parallel decoding is standard | 53 |
+| `:DECoder<n>:DISPlay <bool>` | `:DECoder<n>:DISPlay?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Turns the decoder on; `:ETABle<n>:*` is only valid when this is on | 54 |
+| `:DECoder<n>:FORMat <fmt>` | `:DECoder<n>:FORMat?` | `{HEX\|ASCii\|DEC\|BIN\|LINE}`, default `ASCii` | `LINE` is valid only for serial buses with LSB/MSB endian | 54 |
+| `:DECoder<n>:POSition <pos>` | `:DECoder<n>:POSition?` | Integer 50 to 350, default 350 (decoder 1) / 300 (decoder 2) | Vertical position of the bus, 0 = top of the 400-part screen | 55 |
+| `:DECoder<n>:THREshold:CHANnel1 <thre>` | `:DECoder<n>:THREshold:CHANnel1?` | V; -4 x vertical scale - offset to 4 x vertical scale - offset; no default | Manual threshold of analog channel 1 | 56 |
+| `:DECoder<n>:THREshold:CHANnel2 <thre>` | `:DECoder<n>:THREshold:CHANnel2?` | as `:THREshold:CHANnel1` | Manual threshold of analog channel 2 | 56 |
+| `:DECoder<n>:THREshold:CHANnel3 <thre>` | `:DECoder<n>:THREshold:CHANnel3?` | as `:THREshold:CHANnel1` | Manual threshold of analog channel 3 | 56 |
+| `:DECoder<n>:THREshold:CHANnel4 <thre>` | `:DECoder<n>:THREshold:CHANnel4?` | as `:THREshold:CHANnel1` | Manual threshold of analog channel 4 | 56 |
+| `:DECoder<n>:THREshold:AUTO <bool>` | `:DECoder<n>:THREshold:AUTO?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Must be `OFF` before the per-channel thresholds take effect | 57 |
+| `:DECoder<n>:CONFig:LABel <bool>` | `:DECoder<n>:CONFig:LABel?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Show the bus label | 57 |
+| `:DECoder<n>:CONFig:LINE <bool>` | `:DECoder<n>:CONFig:LINE?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Show the bus line | 58 |
+| `:DECoder<n>:CONFig:FORMat <bool>` | `:DECoder<n>:CONFig:FORMat?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Show the display format | 58 |
+| `:DECoder<n>:CONFig:ENDian <bool>` | `:DECoder<n>:CONFig:ENDian?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Invalid in parallel decoding | 59 |
+| `:DECoder<n>:CONFig:WIDth <bool>` | `:DECoder<n>:CONFig:WIDth?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Show the width of every frame | 59 |
+| `:DECoder<n>:CONFig:SRATe?` | — | returns NR3, Sa/s | Sample rate of the decoded data; follows the timebase while the data source is `TRACe` | 59 |
+| `:DECoder<n>:UART:TX <tx>` | `:DECoder<n>:UART:TX?` | `{D0..D15\|CHANnel1..CHANnel4\|OFF}`, default `CHANnel1` | TX and RX cannot both be `OFF` | 60 |
+| `:DECoder<n>:UART:RX <rx>` | `:DECoder<n>:UART:RX?` | `{D0..D15\|CHANnel1..CHANnel4\|OFF}`, default `OFF` | TX and RX cannot both be `OFF` | 61 |
+| `:DECoder<n>:UART:POLarity <pol>` | `:DECoder<n>:UART:POLarity?` | `{NEGative\|POSitive}`, default `POSitive` | RS232 itself uses negative polarity | 61 |
+| `:DECoder<n>:UART:ENDian <endian>` | `:DECoder<n>:UART:ENDian?` | `{LSB\|MSB}`, default `LSB` | — | 62 |
+| `:DECoder<n>:UART:BAUD <baud>` | `:DECoder<n>:UART:BAUD?` | Integer 110 to 20M, bps, default 9600 | — | 62 |
+| `:DECoder<n>:UART:WIDTh <wid>` | `:DECoder<n>:UART:WIDTh?` | Integer 5 to 8, default 8 | Data bits per frame | 62 |
+| `:DECoder<n>:UART:STOP <stop>` | `:DECoder<n>:UART:STOP?` | `{1\|1.5\|2}`, default 1 | — | 63 |
+| `:DECoder<n>:UART:PARity <parity>` | `:DECoder<n>:UART:PARity?` | `{NONE\|EVEN\|ODD}`, default `NONE` | — | 63 |
+| `:DECoder<n>:IIC:CLK <clk>` | `:DECoder<n>:IIC:CLK?` | `{D0..D15\|CHANnel1..CHANnel4}`, default `CHANnel1` | SCL source | 64 |
+| `:DECoder<n>:IIC:DATA <dat>` | `:DECoder<n>:IIC:DATA?` | `{D0..D15\|CHANnel1..CHANnel4}`, default `CHANnel2` | SDA source | 64 |
+| `:DECoder<n>:IIC:ADDRess <addr>` | `:DECoder<n>:IIC:ADDRess?` | `{NORMal\|RW}`, default `NORMal` | Whether `:TRIGger:IIC:AWIDth` includes the R/W bit | 65 |
+| `:DECoder<n>:SPI:CLK <clk>` | `:DECoder<n>:SPI:CLK?` | `{D0..D15\|CHANnel1..CHANnel4}`, default `CHANnel1` | SCLK source | 66 |
+| `:DECoder<n>:SPI:MISO <miso>` | `:DECoder<n>:SPI:MISO?` | `{D0..D15\|CHANnel1..CHANnel4\|OFF}`, default `CHANnel2` | MISO and MOSI cannot both be `OFF` | 67 |
+| `:DECoder<n>:SPI:MOSI <mosi>` | `:DECoder<n>:SPI:MOSI?` | `{D0..D15\|CHANnel1..CHANnel4\|OFF}`, default `CHANnel2` | MISO and MOSI cannot both be `OFF` | 67 |
+| `:DECoder<n>:SPI:CS <cs>` | `:DECoder<n>:SPI:CS?` | `{D0..D15\|CHANnel1..CHANnel4}`, default `CHANnel3` | Valid only in `:DECoder<n>:SPI:MODE CS` | 68 |
+| `:DECoder<n>:SPI:SELect <CsNcs>` | `:DECoder<n>:SPI:SELect?` | `{NCS\|CS}`, default `NCS` | CS polarity; valid only in CS mode | 68 |
+| `:DECoder<n>:SPI:MODE <CsTmo>` | `:DECoder<n>:SPI:MODE?` | `{CS\|TIMeout}`, default `TIMeout` | Frame-synchronisation source; chooses which of `:CS`/`:TIMeout` applies | 69 |
+| `:DECoder<n>:SPI:TIMeout <tmo>` | `:DECoder<n>:SPI:TIMeout?` | Real, seconds, default `1.00us` | Must exceed the longest clock pulse and stay below the inter-frame idle time | 69 |
+| `:DECoder<n>:SPI:POLarity <pol>` | `:DECoder<n>:SPI:POLarity?` | `{NEGative\|POSitive}`, default `POSitive` | Polarity of the SDA data line | 70 |
+| `:DECoder<n>:SPI:EDGE <edge>` | `:DECoder<n>:SPI:EDGE?` | `{RISE\|FALL}`, default `RISE` | Clock edge that samples the data line | 70 |
+| `:DECoder<n>:SPI:ENDian <endian>` | `:DECoder<n>:SPI:ENDian?` | `{LSB\|MSB}`, default `MSB` | — | 70 |
+| `:DECoder<n>:SPI:WIDTh <wid>` | `:DECoder<n>:SPI:WIDTh?` | Integer 8 to 32, default 8 | Bits per frame | 71 |
+| `:DECoder<n>:PARallel:CLK <clk>` | `:DECoder<n>:PARallel:CLK?` | `{D0..D15\|CHANnel1..CHANnel4\|OFF}`, default `CHANnel1` | `OFF` means the instrument samples on data transitions | 72 |
+| `:DECoder<n>:PARallel:EDGE <edge>` | `:DECoder<n>:PARallel:EDGE?` | `{RISE\|FALL\|BOTH}`, default `RISE` | Sampling edge of the clock channel | 73 |
+| `:DECoder<n>:PARallel:WIDTh <wid>` | `:DECoder<n>:PARallel:WIDTh?` | Integer 1 to 16, default 8 | Data bits per frame; feed `:BITX`/`:SOURce` afterwards | 73 |
+| `:DECoder<n>:PARallel:BITX <bit>` | `:DECoder<n>:PARallel:BITX?` | Integer 0 to (data width - 1), default 0 | Selects the bit that `:DECoder<n>:PARallel:SOURce` addresses | 74 |
+| `:DECoder<n>:PARallel:SOURce <src>` | `:DECoder<n>:PARallel:SOURce?` | `{D0..D15\|CHANnel1..CHANnel4}`, default follows the selected bit | Channel source of the bit chosen by `:DECoder<n>:PARallel:BITX` | 74 |
+| `:DECoder<n>:PARallel:POLarity <pol>` | `:DECoder<n>:PARallel:POLarity?` | `{NEGative\|POSitive}`, default `POSitive` | Data polarity | 75 |
+| `:DECoder<n>:PARallel:NREJect <bool>` | `:DECoder<n>:PARallel:NREJect?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Drops pulses shorter than `:DECoder<n>:PARallel:NRTime` | 75 |
+| `:DECoder<n>:PARallel:NRTime <time>` | `:DECoder<n>:PARallel:NRTime?` | Real, seconds 0.00 to 100 ms, default 0.00 | Needs `:DECoder<n>:PARallel:NREJect ON` first | 76 |
+| `:DECoder<n>:PARallel:CCOMpensation <comp>` | `:DECoder<n>:PARallel:CCOMpensation?` | Real, seconds -100 ms to 100 ms, default 0.00 | Invalid when `:PARallel:CLK` is `OFF` | 76 |
+| `:DECoder<n>:PARallel:PLOT <bool>` | `:DECoder<n>:PARallel:PLOT?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Draws the bus data as a vector diagram | 77 |
+
+### Decoding event table (`:ETABle<n>`, PDF pp. 83-86)
+
+> **Not implemented.** Documented in the manual but not exercised by this Skill:
+> `:DECoder` and `:ETABle` are decoder subsystems whose digital sources need MSO
+> channels (`UART`/`IIC`/`SPI` decoding are licensed options), `:FUNCtion` is the
+> waveform record/playback option (PDF p. 87), not the `-S` signal source.
+> Model/option dependent.
+
+`<n>` is `{1|2}`. 7 commands, 13 command forms. Every row is `documented` and
+`not implemented`. The table only lists decoded bus data, so `:ETABle<n>:DISP`
+needs a decoder that is switched on (`:DECoder<n>:DISPlay`, PDF p. 83).
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:ETABle<n>:DISP <bool>` | `:ETABle<n>:DISP?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Valid only when `:DECoder<n>:DISPlay` is on | 83 |
+| `:ETABle<n>:FORMat <fmt>` | `:ETABle<n>:FORMat?` | `{HEX\|ASCii\|DEC}`, default `HEX` | — | 83 |
+| `:ETABle<n>:VIEW <view>` | `:ETABle<n>:VIEW?` | `{PACKage\|DETail\|PAYLoad}`, default `PACKage` | `DETail`/`PAYLoad` show the row/column selected by `:ROW`/`:COLumn` | 84 |
+| `:ETABle<n>:COLumn <col>` | `:ETABle<n>:COLumn?` | `{DATA\|TX\|RX\|MISO\|MOSI}`, no default | Which columns exist depends on `:DECoder<n>:MODE`; a source set to `OFF` cannot be selected | 84 |
+| `:ETABle<n>:ROW <row>` | `:ETABle<n>:ROW?` | Integer 1 to the number of rows in the current table, default 1 | The query returns `0` when the table is empty | 85 |
+| `:ETABle<n>:SORT <sort>` | `:ETABle<n>:SORT?` | `{ASCend\|DESCend}`, default `ASCend` | Order of the decoded events | 85 |
+| `:ETABle<n>:DATA?` | — | TMC block (`#900000dddd` + data) | Reads the table; the frame layout is a figure in the manual, not text | 86 |
+
+### Waveform record and playback (`:FUNCtion`, PDF pp. 87-94)
+
+> **Not implemented.** Documented in the manual but not exercised by this Skill:
+> `:DECoder` and `:ETABle` are decoder subsystems whose digital sources need MSO
+> channels (`UART`/`IIC`/`SPI` decoding are licensed options), `:FUNCtion` is the
+> waveform record/playback option (PDF p. 87), not the `-S` signal source.
+> Model/option dependent.
+
+14 commands, 26 command forms. The manual heads this section ":FUNCtion Commands
+(Option)" (PDF p. 87): it records frames into instrument memory and replays
+them. Every row is `documented` and `not implemented`. `:WRECord:ENABle` needs
+timebase mode `YT` and a timebase below 200 ms (PDF p. 89), and while recording
+is enabled or a recording is playing, `:AUToscale`, `:RUN` and `:STOP` are
+refused (PDF p. 18).
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `:FUNCtion:WRECord:FEND <frame>` | `:FUNCtion:WRECord:FEND?` | Integer 1 to the current maximum, default 5000 | End frame of the recording | 87 |
+| `:FUNCtion:WRECord:FMAX?` | — | returns integer, frames | Read-only; ceiling falls as the memory depth rises | 88 |
+| `:FUNCtion:WRECord:FINTerval <interval>` | `:FUNCtion:WRECord:FINTerval?` | Real, seconds 100 ns to 10 s, default 100 ns | Interval between recorded frames | 88 |
+| `:FUNCtion:WRECord:PROMpt <bool>` | `:FUNCtion:WRECord:PROMpt?` | `{{1\|ON}\|{0\|OFF}}`, default `1` | Sound when the recording finishes, independent of `:SYSTem:BEEPer` | 88 |
+| `:FUNCtion:WRECord:OPERate <opt>` | `:FUNCtion:WRECord:OPERate?` | `{RUN\|STOP}`, no default | Needs `:WRECord:ENABle ON` first | 89 |
+| `:FUNCtion:WRECord:ENABle <bool>` | `:FUNCtion:WRECord:ENABle?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Needs timebase mode `YT` and a timebase below 200 ms | 89 |
+| `:FUNCtion:WREPlay:FSTart <sta>` | `:FUNCtion:WREPlay:FSTart?` | Integer 1 to the frames recorded, default 1 | Cannot exceed `:WREPlay:FEND`; only while a recording exists and playback is idle | 90 |
+| `:FUNCtion:WREPlay:FEND <end>` | `:FUNCtion:WREPlay:FEND?` | Integer 1 to the frames recorded, default = frames recorded | Cannot be below `:WREPlay:FSTart` | 91 |
+| `:FUNCtion:WREPlay:FMAX?` | — | returns integer, frames | Read-only; equals the frames recorded | 91 |
+| `:FUNCtion:WREPlay:FINTerval <interval>` | `:FUNCtion:WREPlay:FINTerval?` | Real, seconds 100 ns to 10 s, default 100 ns | Interval between played frames | 92 |
+| `:FUNCtion:WREPlay:MODE <mode>` | `:FUNCtion:WREPlay:MODE?` | `{REPeat\|SINGle}`, default `SINGle` | Cycle or one-shot playback | 92 |
+| `:FUNCtion:WREPlay:DIRection <dir>` | `:FUNCtion:WREPlay:DIRection?` | `{FORWard\|BACKward}`, default `FORWard` | Playback direction | 93 |
+| `:FUNCtion:WREPlay:OPERate <opt>` | `:FUNCtion:WREPlay:OPERate?` | `{PLAY\|PAUSe\|STOP}`, default `STOP` | Only valid once a waveform has been recorded | 93 |
+| `:FUNCtion:WREPlay:FCURrent <cur>` | `:FUNCtion:WREPlay:FCURrent?` | Integer 1 to the frames recorded, default = frames recorded | Current frame during playback | 94 |
+
+### Signal source (`[:SOURce[<n>]]`, PDF pp. 146-157)
+
+> **Not implemented.** The built-in signal source exists only on `-S`/Plus
+> models (PDF p. 146: "only applicable to models with source channels of
+> MSO1000Z/DS1000Z series"); no command here was exercised on `DS1074Z`.
+> Model/option dependent.
+
+25 commands, 42 command forms. Every row is `documented` and `not implemented`.
+`[:SOURce[<n>]]` and both `[<n>]` arguments are optional and fall back to source
+1 (PDF p. 147). This subsystem does **not**
+appear in `artifacts/rigol-ds1000z/command-pages.tsv` (that file only lists
+forms beginning with `:`), so the rows below were read from the manual pages.
+`[:TRACe[<n>]]` (PDF pp. 164-168, 7 commands: `:DATA`, `:DATA:DAC16`,
+`:DATA:DAC`, `:DATA:POINts`, `:DATA:POINts:INTerpolate`, `:DATA:VALue`,
+`:DATA:LOAD?`) edits the volatile waveform memory of the same source and is not
+tabulated here.
+
+PDF p. 151 prints a stray space inside the offset command
+(`:VOLTage[:LEVel] [:IMMediate]:OFFSet`); the sent form carries none.
+
+| 语法 | 查询形式 | 参数/单位/范围 | 说明 | PDF 页 |
+|---|---|---|---|---|
+| `[:SOURce[<n>]]:OUTPut[<n>][:STATe] <bool>` | `[:SOURce[<n>]]:OUTPut[<n>][:STATe]?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | Output relay of the selected source channel | 147 |
+| `[:SOURce[<n>]]:OUTPut[<n>]:IMPedance <impedance>` | `[:SOURce[<n>]]:OUTPut[<n>]:IMPedance?` | `{OMEG\|FIFTy}`, default `OMEG` | `OMEG` = high-Z, `FIFTy` = 50 ohm | 147 |
+| `[:SOURce[<n>]]:FREQuency[:FIXed] <frequency>` | `[:SOURce[<n>]]:FREQuency[:FIXed]?` | Real, Hz, default 1 kHz; sine 0.1 Hz to 25 MHz, square to 15 MHz, pulse to 1 MHz, ramp to 100 kHz, arb to 10 MHz | Carrier frequency while modulation is on | 148 |
+| `[:SOURce[<n>]]:PHASe[:ADJust] <phase>` | `[:SOURce[<n>]]:PHASe[:ADJust]?` | Real, degrees 0 to 360, default 0 | — | 148 |
+| `[:SOURce[<n>]]:PHASe:INITiate` | — | none | Aligns the phase of the two source channels | 149 |
+| `[:SOURce[<n>]]:FUNCtion[:SHAPe] <wave>` | `[:SOURce[<n>]]:FUNCtion[:SHAPe]?` | `{SINusoid\|SQUare\|RAMP\|PULSe\|NOISe\|DC\|EXTernal\|SINC\|EXPRise\|EXPFall\|ECG\|GAUSs\|LORentz\|HAVersine}`, default `SINusoid` | `EXTernal` means arbitrary; selecting pulse/noise/DC turns modulation off | 149 |
+| `[:SOURce[<n>]]:FUNCtion:RAMP:SYMMetry <val>` | `[:SOURce[<n>]]:FUNCtion:RAMP:SYMMetry?` | Real, percent 0 to 100, default 10 | Rising-ramp share of the whole period | 150 |
+| `[:SOURce[<n>]]:VOLTage[:LEVel][:IMMediate][:AMPLitude] <Amplitude>` | `[:SOURce[<n>]]:VOLTage[:LEVel][:IMMediate][:AMPLitude]?` | Real, Vpp, default 5 Vpp; high-Z 20 mVpp to 5 Vpp, 50 ohm 10 mVpp to 2.5 Vpp | Range follows `:OUTPut<[n]>:IMPedance` | 150 |
+| `[:SOURce[<n>]]:VOLTage[:LEVel][:IMMediate]:OFFSet <offset>` | `[:SOURce[<n>]]:VOLTage[:LEVel][:IMMediate]:OFFSet?` | Real, VDC, default 0; high-Z (-2.5 V + amp/2) to (2.5 V - amp/2), 50 ohm half of that | Range follows the impedance and the current amplitude | 151 |
+| `[:SOURce[<n>]]:PULSe:DCYCle <percent>` | `[:SOURce[<n>]]:PULSe:DCYCle?` | Real, percent 10 to 90, default 20 | High-level share of the pulse period | 151 |
+| `[:SOURce[<n>]]:MOD[:STATe] <bool>` | `[:SOURce[<n>]]:MOD[:STATe]?` | `{{1\|ON}\|{0\|OFF}}`, default `0` | AM/FM modulation; carrier may not be noise or DC | 152 |
+| `[:SOURce[<n>]]:MOD:TYPe <type>` | `[:SOURce[<n>]]:MOD:TYPe?` | `{AM\|FM}`, default `AM` | — | 152 |
+| `[:SOURce[<n>]]:MOD:AM[:DEPTh] <depth>` | `[:SOURce[<n>]]:MOD:AM[:DEPTh]?` | Real, percent 0 to 120, default 100 | Above 100 % the envelope distorts | 153 |
+| `[:SOURce[<n>]]:MOD:AM:INTernal:FREQuency <frequency>` | `[:SOURce[<n>]]:MOD:AM:INTernal:FREQuency?` | Real, Hz 1 to 50 kHz, default 1 kHz | Modulating frequency | 153 |
+| `[:SOURce[<n>]]:MOD:FM:INTernal:FREQuency <frequency>` | `[:SOURce[<n>]]:MOD:FM:INTernal:FREQuency?` | Real, Hz 1 to 50 kHz, default 1 kHz | Modulating frequency | 153 |
+| `[:SOURce[<n>]]:MOD:AM:INTernal:FUNCtion <wave>` | `[:SOURce[<n>]]:MOD:AM:INTernal:FUNCtion?` | `{SINusoid\|SQUare\|TRIangle\|NOISe}`, default `SINusoid` | — | 154 |
+| `[:SOURce[<n>]]:MOD:FM:INTernal:FUNCtion <wave>` | `[:SOURce[<n>]]:MOD:FM:INTernal:FUNCtion?` | `{SINusoid\|SQUare\|TRIangle\|NOISe}`, default `SINusoid` | — | 154 |
+| `[:SOURce[<n>]]:MOD:FM[:DEVIation] <dev>` | `[:SOURce[<n>]]:MOD:FM[:DEVIation]?` | Real, Hz 0 to the carrier frequency, default 1 kHz | Only settable while `:MOD:TYPe` is `FM` | 155 |
+| `[:SOURce[<n>]]:APPLy?` | — | returns `<wave>,<freq>,<amp>,<offset>,<phase>` | Read-only snapshot; missing values come back as `DEF` | 155 |
+| `[:SOURce[<n>]]:APPLy:NOISe [<amp>[,<offset>]]` | — | Real; amp 20 mVpp to 5 Vpp high-Z, offset as `:VOLTage:OFFSet` | Configure and emit a noise waveform | 156 |
+| `[:SOURce[<n>]]:APPLy:PULSe [<freq>[,<amp>[,<offset>[,<phase>]]]]` | — | freq 0.1 Hz to 1 MHz, phase 0 to 360 deg | Configure and emit a pulse waveform | 156 |
+| `[:SOURce[<n>]]:APPLy:RAMP [<freq>[,<amp>[,<offset>[,<phase>]]]]` | — | freq 0.1 Hz to 100 kHz, phase 0 to 360 deg | Configure and emit a ramp waveform | 156 |
+| `[:SOURce[<n>]]:APPLy:SINusoid [<freq>[,<amp>[,<offset>[,<phase>]]]]` | — | freq 0.1 Hz to 25 MHz, phase 0 to 360 deg | Configure and emit a sine waveform | 156 |
+| `[:SOURce[<n>]]:APPLy:SQUare [<freq>[,<amp>[,<offset>[,<phase>]]]]` | — | freq 0.1 Hz to 15 MHz, phase 0 to 360 deg | Configure and emit a square waveform | 156 |
+| `[:SOURce[<n>]]:APPLy:USER [<freq>[,<amp>[,<offset>[,<phase>]]]]` | — | freq 0.1 Hz to 10 MHz, phase 0 to 360 deg | Configure and emit the arbitrary waveform in volatile memory | 156 |
 
 ## Verification note
 
 This index is generated from `artifacts/rigol-ds1000z/command-pages.tsv`, which
 maps each command to the PDF physical page it was found on, and from the page
-text of the *MSO1000Z/DS1000Z Programming Guide* (PGA19108-1110). A page number
-here is a starting point for a manual lookup, not proof that the firmware accepts
-the command: on `00.04.02.SP4` documented commands do answer `command error`
-(see the lists above), so check `:SYSTem:ERRor?` instead of trusting the manual.
+text of the *MSO1000Z/DS1000Z Programming Guide* (PGA19108-1110). The
+`[:SOURce[<n>]]` table was transcribed from PDF pp. 146-157 by hand because
+that index only carries forms that begin with `:`. A page number here is a
+starting point for a manual lookup, not proof that the firmware accepts the
+command: on `00.04.02.SP4` documented commands do answer `command error` (see
+the lists above), so check `:SYSTem:ERRor?` instead of trusting the manual.
