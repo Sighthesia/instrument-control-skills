@@ -154,6 +154,7 @@ class Session:
         write_delay: float = DEFAULT_WRITE_DELAY,
         dry_run: bool = False,
         allow_writes: bool = False,
+        empty_retries: int = 1,
     ) -> None:
         if isinstance(port, bool) or not 1 <= int(port) <= 65535:
             raise SessionError("TCP port must be in 1..65535")
@@ -161,6 +162,8 @@ class Session:
             raise SessionError("timeouts must be positive")
         if write_delay < 0:
             raise SessionError("write delay must not be negative")
+        if empty_retries < 0:
+            raise SessionError("empty retry budget must not be negative")
         self.host = host
         self.port = int(port)
         self.timeout = timeout
@@ -169,6 +172,8 @@ class Session:
         self.write_delay = write_delay
         self.dry_run = dry_run
         self.allow_writes = allow_writes
+        self.empty_retries = empty_retries
+        self.empty_reply_retries = 0
         self.sent: list[bytes] = []
         self._connection = None
 
@@ -258,10 +263,26 @@ class Session:
 
         ``command error`` has no terminator, so the idle timeout is the only
         terminator for that reply; the bytes are returned unmodified.
+
+        Measured: the instrument occasionally drops a query and answers with 0
+        bytes (seen on `:TRIGger:STATus?` right after `:RUN` and on
+        `:CHANnel1:SCALe?`). Queries are idempotent, so an empty reply is
+        re-sent up to ``empty_retries`` times before it is reported. Writes are
+        never retried.
         """
 
-        self.send(command)
-        return self._read(complete=lambda data: data.endswith(b"\n"), overall_timeout=self.timeout)
+        for attempt in range(self.empty_retries + 1):
+            self.send(command)
+            raw = self._read(
+                complete=lambda data: data.endswith(b"\n"), overall_timeout=self.timeout
+            )
+            if raw or self.dry_run:
+                return raw
+            if attempt < self.empty_retries:
+                self.empty_reply_retries += 1
+                if self.write_delay:
+                    time.sleep(self.write_delay)
+        return b""
 
     def query_block(self, command: str) -> bytes:
         """Send one query and read a complete IEEE 488.2 block byte-exactly."""

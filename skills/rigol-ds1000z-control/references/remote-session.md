@@ -66,6 +66,17 @@ a single idle gap.
 Latency observed: ordinary queries 1-150 ms; unsupported query ≈ full read
 timeout (because of rule 5); `:DISPlay:DATA?` 2.2-6.2 s.
 
+### Empty replies are retried once
+
+The instrument occasionally answers a query with **0 bytes and no terminator**:
+seen on `:TRIGger:STATus?` immediately after `:RUN` and on `:CHANnel1:SCALe?`
+repeatedly returning nothing while the same query answered
+`5.000000e-01` a moment later (`hardware-verified`). Queries are idempotent, so
+the session helper re-sends a query whose first read is empty, once, and records
+the attempt in the raw `sent` list. Writes are never retried — a lost write may
+or may not have been executed, and the error queue plus a readback is the only
+honest check.
+
 ## Identity
 
 ```text

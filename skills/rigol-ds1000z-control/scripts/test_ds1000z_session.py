@@ -384,6 +384,19 @@ class TransportTests(unittest.TestCase):
         session = connected_session(b"command error")
         self.assertEqual(session.query_text(":MEASure:VPP?"), b"command error")
 
+    def test_empty_reply_is_retried_once(self):
+        # Measured: the instrument occasionally answers a query with 0 bytes.
+        session = connected_session(b"", b"5.000000e-01\n")
+        self.assertEqual(session.query_text(":CHANnel1:SCALe?"), b"5.000000e-01\n")
+        self.assertEqual(session.sent, [b":CHANnel1:SCALe?\n", b":CHANnel1:SCALe?\n"])
+        self.assertEqual(session.empty_reply_retries, 1)
+
+    def test_empty_reply_after_budget_is_reported_empty(self):
+        session = connected_session(b"", b"")
+        self.assertEqual(session.query_text(":CHANnel1:SCALe?"), b"")
+        self.assertEqual(len(session.sent), 2)
+        self.assertEqual(session.empty_reply_retries, 1)
+
     def test_drain_stops_at_no_error(self):
         session = connected_session(
             fixture("error-queue-undefined.txt"),
