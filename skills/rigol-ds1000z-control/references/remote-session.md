@@ -56,6 +56,13 @@ Practical rule for the session helper: after each write, read with a short idle
 timeout; if only non-terminated bytes arrive, treat the frame as unterminated and
 report it. Never synthesise a terminator or prepend one to the next response.
 
+**Block reads are the exception.** A definite-length block arrives in bursts with
+gaps longer than the text idle timeout: a live 1 152 054-byte `:DISPlay:DATA?`
+capture stalled after exactly 51 200 bytes and a 0.3 s idle timeout truncated it
+at that point (`hardware-verified`). Read a block until the declared length plus
+its LF is present or an overall deadline expires, and never end a block read on
+a single idle gap.
+
 Latency observed: ordinary queries 1-150 ms; unsupported query ≈ full read
 timeout (because of rule 5); `:DISPlay:DATA?` 2.2-6.2 s.
 

@@ -222,7 +222,9 @@ class Session:
             raise SessionError(f"refusing write {command!r} without --allow-writes")
         self.send(command)
 
-    def _read(self, *, complete, overall_timeout: float) -> bytes:
+    def _read(
+        self, *, complete, overall_timeout: float, idle_ends_read: bool = True
+    ) -> bytes:
         self._open()
         if self.dry_run or self._connection is None:
             return b""
@@ -232,7 +234,14 @@ class Session:
             try:
                 chunk = self._connection.recv(65536)
             except socket.timeout:
-                break
+                # A definite-length block keeps arriving in bursts with gaps
+                # longer than the text idle timeout (the bench unit paused after
+                # about 50 KiB), so only an overall deadline ends a block read.
+                # A line reply has no length, so its idle timeout is the frame
+                # terminator.
+                if idle_ends_read:
+                    break
+                continue
             except OSError as exc:
                 raise SessionError(f"read failed: {exc}") from exc
             if not chunk:
@@ -263,7 +272,11 @@ class Session:
             total = _block_total(data)
             return total is not None and len(data) >= total and data.endswith(b"\n")
 
-        return self._read(complete=complete, overall_timeout=self.block_timeout)
+        return self._read(
+            complete=complete,
+            overall_timeout=self.block_timeout,
+            idle_ends_read=False,
+        )
 
     # -- instrument helpers ------------------------------------------------
 
@@ -519,6 +532,10 @@ def _acquire_context(session: Session) -> dict:
         "trigger_status": session.status(":TRIGger:STATus?"),
         "waveform_mode": session.status(":WAVeform:MODE?"),
         "waveform_source": session.status(":WAVeform:SOURce?"),
+        # The window is a global setting: leaving STOP behind after a RAW read
+        # makes a later NORM read report more points than the screen record.
+        "waveform_start": session.status(":WAVeform:STARt?"),
+        "waveform_stop": session.status(":WAVeform:STOP?"),
     }
 
 
@@ -557,6 +574,11 @@ def _restore_acquire_context(session: Session, prior: dict) -> None:
     mode = prior.get("waveform_mode")
     if mode:
         session.write(f":WAVeform:MODE {mode}")
+    start = prior.get("waveform_start")
+    stop = prior.get("waveform_stop")
+    if start and stop:
+        session.write(f":WAVeform:STARt {int(float(start))}")
+        session.write(f":WAVeform:STOP {int(float(stop))}")
     status = (prior.get("trigger_status") or "").upper()
     if status:
         session.write(":RUN" if status in RUNNING_TRIGGER_STATES else ":STOP")

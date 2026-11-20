@@ -48,7 +48,10 @@ firmware.
 | `STOP` | Acquisition stopped |
 
 Observed on the evidence unit: `TD` while running, `STOP` after `:SINGle` or
-`:STOP` (`hardware-verified`). `WAIT`, `RUN`, and `AUTO` are documented but were
+`:STOP` (`hardware-verified`). Immediately after `:RUN` the query can answer with
+nothing at all — 0 bytes, no terminator, re-tested as `TD` seconds later — so an
+empty status reply means "ask again", not "no trigger" or a framing failure
+(`hardware-verified`). `WAIT`, `RUN`, and `AUTO` are documented but were
 not seen, so a script must treat them as "not ready" rather than assume a
 meaning. Practical rule: poll until `TD` or `STOP`; never treat `AUTO` as proof
 of a trigger; in `:TRIGger:SWEep AUTO` a completed record proves only that the
