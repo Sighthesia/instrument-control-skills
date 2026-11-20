@@ -24,7 +24,8 @@ Apply only checks supported by the evidence:
    length.
 2. Segments cover the expected range exactly once, with no gaps or overlaps.
 3. Checksums, CRCs, or hashes match when supplied.
-4. Numeric fields are finite and units are recognized.
+4. Numeric fields match the enumerated non-value table before conversion, are
+   finite afterwards, and units are recognized.
 5. Time or frequency axes are monotonic when the format promises ordering.
 6. Configuration and status fields are compatible with the claimed operation.
 

@@ -21,9 +21,26 @@ before interpreting units, fields, or samples.
 
 Return `INVALID` for an impossible marker, non-numeric length, illegal field width,
 or malformed header. Return `INCOMPLETE` for a short body, missing segment, or
-truncated stream. Return `UNVERIFIED` when the format has no evidence that can
-prove completeness. Keep extra trailing bytes as evidence; do not silently discard
-them.
+truncated stream: as a status, or as a typed framing error that the caller maps to
+`INCOMPLETE` without inventing the missing bytes. A frame that cannot be delimited
+may raise; a frame that was delimited but contradicts its own counts should return
+`INCOMPLETE`. Return `UNVERIFIED` when the format has no evidence that can prove
+completeness. Keep extra trailing bytes as evidence; do not silently discard them.
+
+## Read completion
+
+Where a frame starts is only half the question. Record how each read ended, and
+give the three cases different names:
+
+- a line frame ends at the documented terminator; no terminator means an
+  unterminated frame, not a short value;
+- an empty read is no response at all, and is retried only for an idempotent
+  query;
+- a definite-length block ends at its declared length (plus the documented
+  terminator) or at an overall deadline, never at an idle gap.
+
+A read that ended on a timeout is `INCOMPLETE` evidence, not a short valid
+response. See [Transport rules](transport-rules.md).
 
 ## Resource limits
 

@@ -45,5 +45,7 @@ report is consumed by analysis. Examples:
 - `COMPLETE` structure with verified calibration: voltage analysis allowed.
 - `COMPLETE` structure with unknown calibration: code or relative analysis only.
 - `INCOMPLETE` waveform: no complete-record frequency or duration claims.
+- `INCOMPLETE` sentinel: report the field as `null` with the sentinel token and a
+  reason; never substitute `0`, `NaN`, or "no signal".
 - `UNVERIFIED` scalar sequence: report values, but do not claim acquisition
   completeness or stable timing.

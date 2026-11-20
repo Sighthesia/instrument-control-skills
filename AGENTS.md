@@ -38,18 +38,50 @@ re-derive those rules from memory.
    firmware, and interface exercised. Supporting evidence such as screenshots
    may be recorded in the Skill, but is not mandatory.
 
+## Command index completeness
+
+- The authority for a command index is the manual's own command list or body
+  headings, never a `grep` of syntax lines: forms that start with `[`
+  (`[:SOURce[<n>]]`) and every `<n>`/`<X>` placeholder spelling are commands and
+  must be listed.
+- An index of only the commands a Skill sends is not an index: list every form
+  the manual documents and say in the header which manual list the file covers.
+- State coverage as a fraction of the manual's command forms; the denominator is
+  the manual's form count, not the implemented subset. Report row count and form
+  count separately so the two are not conflated.
+- A row is `hardware-verified` only when a captured reply is cited; every other
+  row is `documented`. A subsystem the Skill never sends is marked
+  `not implemented` as a section, and manual-derived appendices stay separate
+  from the curated tables so `documented` is never read as `hardware-verified`.
+- Record manual defects instead of copying them: a wrong mnemonic in a heading
+  or a space spliced into a keyword is noted against the corrected form, not
+  reproduced as a command.
+- Keep the generated tab-separated form/page list under `artifacts/` so the audit
+  can be re-run; commit only the index, never extracted manual text.
+
 ## Consistency checks (after every change)
 
 ```bash
 # 1. Validate every changed Skill (schema, frontmatter, layout)
 python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
 
-# 2. CLI discovery must list exactly the directories under skills/
+# 2. Run the Skill's offline unit tests; they never open a socket
+python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
+
+# 3. CLI discovery must list exactly the directories under skills/
 npx skills@latest add . --list
 ```
 
+- `write-new-instrument-control` has no `scripts/` tests; run its bundled
+  examples instead:
+  `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
+- A passing offline test run is not hardware evidence and must not upgrade an
+  evidence label.
 - `README.md` and `README.zh-CN.md` must describe the same Skill set and rules
   in the same order; treat any divergence as a bug.
+- Capability-table numbers (index rows, command forms) are audit results: when an
+  audit changes them, update both READMEs in the same change and derive the
+  numbers from the committed index rather than from memory.
 - Evidence labels, integrity statuses, and safety rules must be worded the same
   way across Skills; copy phrasing from an existing Skill rather than rewriting.
 - Never commit complete vendor manuals; keep them only in `ref/` (git-ignored),

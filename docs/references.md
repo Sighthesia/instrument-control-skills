@@ -12,12 +12,14 @@ new device Skill. Its references are loaded per stage:
 | Area | Reference | Rules |
 |---|---|---|
 | Authoring stages | `references/authoring-workflow.md` | Instrument boundary, evidence table, the `read_frame → parse_metadata → extract_payload → normalize → validate` split, test-before-hardware, conservative publication |
+| Command index | `references/command-index.md` | Authority is the manual's own command list or headings, never a `grep` of syntax lines; what counts as a form; normalized set comparison; one status per row with documented-only sections kept apart; manual defects recorded not copied |
+| Transport rules | `references/transport-rules.md` | One command per write, where a line and a block response end, empty-reply retry only for idempotent queries, two read budgets, per-instrument bench checklist |
 | Instrument types | `references/instrument-types-and-examples.md` | Choosing an example by data claim and response format; five teaching formats and their main checks |
-| Response framing | `references/response-framing.md` | Line-oriented text, CSV, IEEE 488.2 definite-length blocks, length-prefixed binary, segmented/packetized records; failure mapping and allocation limits |
+| Response framing | `references/response-framing.md` | Line-oriented text, CSV, IEEE 488.2 definite-length blocks, length-prefixed binary, segmented/packetized records; read-completion cases; failure mapping and allocation limits |
 | Metadata and payload | `references/metadata-payload-validation.md` | Metadata versus payload, applicable length/segment/checksum/axis checks, normalization limited to evidenced semantics |
 | Integrity status | `references/status-and-reports.md` | `COMPLETE`/`INCOMPLETE`/`INVALID`/`UNVERIFIED`/`UNSUPPORTED`; per-check `pass`/`fail`/`not_checked`; report shape and analysis gates |
-| Data-specific checks | `references/waveform-checks.md`, `references/scalar-checks.md`, `references/axes-and-sequences.md` | Point and byte counts, segment coverage, axes and units, reading count and instrument status, ordering and duplicate records |
-| Evidence and provenance | `references/evidence-and-provenance.md` | Model, firmware, interface, command, raw response, SHA-256, parser version, manual citation, calibration binding |
+| Data-specific checks | `references/waveform-checks.md`, `references/scalar-checks.md`, `references/axes-and-sequences.md` | Point and byte counts, segment coverage, axes and units, reading count, non-values matched before numeric conversion, instrument status, ordering and duplicate records |
+| Evidence and provenance | `references/evidence-and-provenance.md` | Model, firmware, interface, command, raw response, SHA-256, parser version, manual citation, calibration binding, one label per claim |
 | Offline testing | `references/replay-testing.md` | Valid and negative fixtures, expected results, no sockets or VISA in tests |
 
 `references/integrity-and-provenance.md` is an earlier, shorter restatement of

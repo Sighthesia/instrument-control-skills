@@ -1,6 +1,6 @@
 ---
 name: write-new-instrument-control
-description: Guide the creation of a new instrument-control Skill from programming manuals, raw ASCII or binary responses, and metadata. Use when adding support for a new oscilloscope, multimeter, power supply, analyzer, or other instrument, especially when hardware is unavailable and communication, parsing, data integrity, and provenance must be explicit.
+description: Guide the creation of a new instrument-control Skill from programming manuals, raw ASCII or binary responses, and metadata. Use when adding support for a new oscilloscope, multimeter, power supply, analyzer, or other instrument, especially when hardware is unavailable and communication, parsing, data integrity, and provenance must be explicit, or when auditing command coverage and transport behavior.
 ---
 
 # Write New Instrument Control
@@ -12,6 +12,7 @@ guides the complete authoring path:
 
 ```text
 programming manual and evidence
+  -> command index and transport contract
   -> control workflow and raw response capture
   -> device-specific framing and parser
   -> normalized output
@@ -28,7 +29,9 @@ Keep commands and state rules inside the new device Skill.
    state changes. Keep the control workflow explicit and device-specific.
 2. **Collect evidence**: obtain the official programming manual and cite its URL,
    revision, page or section. Preserve raw responses as bytes. Keep inferred fields
-   separate from manual-documented fields and hardware observations.
+   separate from manual-documented fields and hardware observations. Enumerate the
+   manual's commands from its own list or headings, not from a search for syntax
+   lines, and keep documented-only rows separate from verified rows.
 3. **Classify response formats**: identify line-oriented text, CSV, IEEE 488.2
    binary, length-prefixed binary, packetized data, segmented records, or a custom
    format. Record the command or acquisition operation that produced each fixture.
@@ -42,10 +45,14 @@ Keep commands and state rules inside the new device Skill.
    segment ranges, checksums, timestamps, units, configuration, and source status
    where available. Return `COMPLETE`, `INCOMPLETE`, `INVALID`, `UNVERIFIED`, or
    `UNSUPPORTED`; never silently pad, truncate, interpolate, or infer.
-7. **Verify on hardware when available**: exercise the workflow on the real
+7. **Confirm the transport contract**: establish one command per write, the
+   response terminator, idle and total read budgets, empty-reply retry, and
+   definite-length block completion on the real interface. Record each rule as
+   verified or unconfirmed.
+8. **Verify on hardware when available**: exercise the workflow on the real
    instrument and record model, firmware, and interface, optionally with
    screenshots.
-8. **Declare support**: label manual-only (`documented`), hardware-verified, and
+9. **Declare support**: label manual-only (`documented`), hardware-verified, and
    firmware/interface-scoped claims separately. Include known limitations and the
    exact evidence used.
 
@@ -54,14 +61,16 @@ Read the matching reference before implementing a stage:
 | Task | Reference |
 |---|---|
 | Choose Skill stages and deliverables | [Authoring workflow](references/authoring-workflow.md) |
+| Enumerate the manual's commands and separate documented from verified rows | [Command index](references/command-index.md) |
 | Select an instrument type and matching example | [Instrument types and examples](references/instrument-types-and-examples.md) |
 | Handle response boundaries and binary framing | [Response framing](references/response-framing.md) |
+| Confirm terminators, retries, and block completion before trusting a read | [Transport rules](references/transport-rules.md) |
 | Separate metadata, payload, normalization, and validation | [Metadata and validation](references/metadata-payload-validation.md) |
 | Decide integrity status and report failures | [Status and reports](references/status-and-reports.md) |
 | Check waveforms and segmented samples | [Waveform checks](references/waveform-checks.md) |
 | Check scalar readings and measurement context | [Scalar checks](references/scalar-checks.md) |
 | Check spectra, axes, event logs, and sequences | [Axes and sequence checks](references/axes-and-sequences.md) |
-| Record evidence, provenance, and calibration | [Evidence and provenance](references/evidence-and-provenance.md) |
+| Record evidence, provenance, calibration, and one label per claim | [Evidence and provenance](references/evidence-and-provenance.md) |
 | Build offline fixtures and replay tests | [Replay testing](references/replay-testing.md) |
 
 ## Required Skill Shape
@@ -75,7 +84,8 @@ Start from `assets/parser-template/` and adapt only protocol-specific parts:
 |   |-- control and parser helpers
 |   `-- offline tests
 |-- references/
-|   `-- programming manual notes
+|   |-- workflow, transport, and measurement notes
+|   `-- command-reference.md   # coverage claim with a status per row
 |-- assets/          # optional: fixtures and expected results
 |-- manifest.json
 `-- SUPPORT.md
@@ -83,7 +93,8 @@ Start from `assets/parser-template/` and adapt only protocol-specific parts:
 
 The parser template is intentionally a small example protocol. Replace its
 framing and field names; do not claim that the example wire format is a vendor
-standard.
+standard. Its synthetic protocol has no sentinel value; when adapting it, add the
+instrument's enumerated non-values before the first numeric conversion.
 
 ## Integrity Method
 
@@ -113,6 +124,14 @@ continuity, check hashes/checksums, validate axes and status flags, and preserve
 extra trailing bytes. Do not infer missing samples, timestamps, units, or
 calibration. Bind external calibration to the exact raw or merged artifact hash.
 
+Before any numeric conversion, match each numeric field against the enumerated
+non-value table. A sentinel or unset value is `INCOMPLETE` with a `null` field and
+a reason, never `0` and never a finite reading.
+
+Record how each read ended: terminator, declared length, idle timeout, or overall
+deadline. A read that ended on a timeout is `INCOMPLETE` evidence, not a short
+valid response.
+
 Use `assets/integrity-report.json` as a starting point. Keep raw bytes, request,
 identity, interface, timestamp, parser version, manual citation, hashes, and known
 limitations beside the normalized artifact.
@@ -139,6 +158,32 @@ copy their stage boundaries and tests, not their synthetic field names.
 - Do not connect to real hardware from offline parser tests.
 - Distinguish “no anomaly found” from “analysis could not be trusted because the
   input was incomplete or unverified.”
+- Do not claim a command index is complete without a normalized difference against
+  the manual's own command list; keep documented-only rows separate from
+  hardware-verified rows.
+- Enumerate the instrument's non-values before parsing numbers; a sentinel or
+  unset value is `INCOMPLETE`, never a measurement.
+- Send one command per write and read before the next write; end a definite-length
+  block at its declared length or an overall deadline, never at an idle gap.
+- Never retry a write; retry an empty reply only for an idempotent query and keep
+  both attempts.
+- Record manual defects; do not copy them into sendable commands.
+
+## Pre-submission Checks
+
+A new Skill is not finished until its own offline tests pass. Run from the
+repository root:
+
+```bash
+python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
+python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
+npx skills@latest add . --list
+```
+
+The tests are offline. Nothing in the verification path opens a socket, enumerates
+VISA resources, or fetches a URL, so a passing run does not re-verify hardware
+behavior. If the Skill has a session or transport module, its fake-transport tests
+are part of the suite; see [Replay testing](references/replay-testing.md).
 
 ## Support Levels
 
@@ -152,3 +197,7 @@ Use the most conservative applicable label:
 
 These labels describe evidence, not feature breadth. A broad implementation can
 remain `documented`.
+
+The label belongs to one claim, not to the Skill: an index can be `documented` row
+by row while its identity query is `hardware-verified`. Apply the per-claim test in
+[Evidence and provenance](references/evidence-and-provenance.md#label-one-claim-at-a-time).

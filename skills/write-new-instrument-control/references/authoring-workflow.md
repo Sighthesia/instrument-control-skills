@@ -24,8 +24,9 @@ For each output field record:
 | `sample_interval_s` | programming manual | preamble field | float | seconds | positive and finite |
 | `value` | captured response | response token | float | instrument unit | parser and range |
 
-Mark each source as `documented`, `observed`, or `inferred`. An observed value
-does not prove that the interpretation is documented.
+Mark each source as `documented`, `hardware-verified`, or `inferred`. An inferred
+field carries no support level. An observed value does not prove that the
+interpretation is documented.
 
 ## 3. Implement in stages
 
