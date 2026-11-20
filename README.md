@@ -32,18 +32,17 @@ evidence labels.
 ## Hints and known issues
 
 - Bench and model differences
-  - GPD-4303S: the verified bench was in series tracking (`SER/INDEP` LED on,
-    matching the `STATUS?` decode), so CH1/CH2 formed one 0-60 V supply, not two
-    independent channels.
-  - SDS824X HD: channel-count-, bandwidth-, and memory-depth-dependent behavior
-    must be reconfirmed on the connected model.
+  - GPD-4303S: when in series tracking, CH1/CH2 may be wired as one supply
+    instead of two independent channels.
+  - Oscilloscopes: behavior that depends on channel count, bandwidth, or memory
+    depth must be reconfirmed on the connected model.
 - Verification scope
+  - Some Skills are `documented` only and have never been exercised on hardware.
   - Keithley Model 2000: only DC voltage and DC current were exercised, over
     RS-232; every other function remains `documented`.
   - GDM-8352 and GPD-4303S: `hardware-verified` covers read-only queries; all
     other writes, function/range switching, tracking, and memory commands remain
     `documented`.
-  - AFG-2225 and GDS-1000B: `documented` only, never exercised on hardware.
   - Do not extend `hardware-verified` beyond the recorded model, firmware,
     interface, and functions.
 - Known behaviors
