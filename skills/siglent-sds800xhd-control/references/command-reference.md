@@ -326,13 +326,19 @@ Evidence label: `firmware-scoped` — SDS824X HD, firmware `4.8.12.1.1.6.5`, SCP
 This appendix exists so the index misses no command the vendor manual documents.
 It was generated from the manual's own command headings
 (`SDS800XHD_Series_ProgrammingGuide_CN11G.pdf`, 495 pages): command spelling and
-PDF page come from the manual, the parameter column does not. Rows are
-`documented` only — nothing here was exercised on hardware, and the curated
-tables above remain the place to look for behaviour, caveats and evidence labels.
+PDF page come from the manual, and the parameter and note columns are
+transcribed from the cited PDF page. Where the manual makes a range depend on
+the model, the SDS800X HD row of its table is quoted. Rows are `documented`
+only — transcribing a page is not a hardware verification — and the curated
+tables above remain the place to look for behaviour, caveats and evidence
+labels.
 
 `780` commands below have no curated row above. The query column names the
 `?` form the SCPI convention implies; confirm it against the manual page before
-relying on it.
+relying on it. `—` in the parameter column means the cited page lists no input
+parameter (query-only or event command, or a section heading whose parameters
+live in its subcommands); "manual lists no range" means the page gives the type
+but no range, and nothing was filled in from outside the manual.
 
 | Syntax | Query | Parameters / range | Note | PDF page |
 |---|---|---|---|---|
@@ -340,788 +346,655 @@ relying on it.
 | `:DIGital` | `:DIGital?` | `<state>` = `{ON\|OFF}` | documented; 数字通道总开关（手册 p.149）。依赖 MSO/Plus 的数字通道硬件。 | 149 |
 | `:DVM` | `:DVM?` | `<state>` = `{ON\|OFF}` | documented; 数字电压表（DVM）开关（手册 p.163）；DVM 读数只在开启后有效。 | 163 |
 | `:FUNCtion<x>` | `:FUNCtion<x>?` | `<x>` 数学函数序号 NR1；`<state>` = `{ON\|OFF}` | documented; 数学函数总开关（手册 p.167）。关掉后该函数的 `:FUNCtion<x>:*` 读数不可当有效值。 | 167 |
-| `:COUNter:STATistics:VALue` | `:COUNter:STATistics:VALue?` | see p.62 | documented; TOC/body-heading derived, parameters not transcribed | 62 |
-| `:CURSor:IXDelta` | `:CURSor:IXDelta?` | see p.68 | documented; TOC/body-heading derived, parameters not transcribed | 68 |
-| `:CURSor:MANual:X2` | `:CURSor:MANual:X2?` | see p.74 | documented; TOC/body-heading derived, parameters not transcribed | 74 |
-| `:CURSor:MANual:X2:COLor` | `:CURSor:MANual:X2:COLor?` | see p.74 | documented; TOC/body-heading derived, parameters not transcribed | 74 |
-| `:CURSor:MANual:X2:DFOLlow` | `:CURSor:MANual:X2:DFOLlow?` | see p.75 | documented; TOC/body-heading derived, parameters not transcribed | 75 |
-| `:CURSor:MANual:X2:DTCursor` | `:CURSor:MANual:X2:DTCursor?` | see p.75 | documented; TOC/body-heading derived, parameters not transcribed | 75 |
-| `:CURSor:MANual:X2:DVALue` | `:CURSor:MANual:X2:DVALue?` | see p.76 | documented; TOC/body-heading derived, parameters not transcribed | 76 |
-| `:CURSor:MANual:X2:LABel` | `:CURSor:MANual:X2:LABel?` | see p.77 | documented; TOC/body-heading derived, parameters not transcribed | 77 |
-| `:CURSor:MANual:X2:POSition` | `:CURSor:MANual:X2:POSition?` | see p.77 | documented; TOC/body-heading derived, parameters not transcribed | 77 |
-| `:CURSor:MANual:X2:SOURce` | `:CURSor:MANual:X2:SOURce?` | see p.78 | documented; TOC/body-heading derived, parameters not transcribed | 78 |
-| `:CURSor:MANual:X<n>` | `:CURSor:MANual:X<n>?` | see p.74 | documented; TOC/body-heading derived, parameters not transcribed | 74 |
-| `:CURSor:MANual:X<n>:COLor` | `:CURSor:MANual:X<n>:COLor?` | see p.74 | documented; TOC/body-heading derived, parameters not transcribed | 74 |
-| `:CURSor:MANual:X<n>:DFOLlow` | `:CURSor:MANual:X<n>:DFOLlow?` | see p.75 | documented; TOC/body-heading derived, parameters not transcribed | 75 |
-| `:CURSor:MANual:X<n>:DTCursor` | `:CURSor:MANual:X<n>:DTCursor?` | see p.75 | documented; TOC/body-heading derived, parameters not transcribed | 75 |
-| `:CURSor:MANual:X<n>:DVALue` | `:CURSor:MANual:X<n>:DVALue?` | see p.76 | documented; TOC/body-heading derived, parameters not transcribed | 76 |
-| `:CURSor:MANual:X<n>:LABel` | `:CURSor:MANual:X<n>:LABel?` | see p.76 | documented; TOC/body-heading derived, parameters not transcribed | 76 |
-| `:CURSor:MANual:X<n>:POSition` | `:CURSor:MANual:X<n>:POSition?` | see p.77 | documented; TOC/body-heading derived, parameters not transcribed | 77 |
-| `:CURSor:MANual:X<n>:SOURce` | `:CURSor:MANual:X<n>:SOURce?` | see p.77 | documented; TOC/body-heading derived, parameters not transcribed | 77 |
-| `:CURSor:MANual:Y2` | `:CURSor:MANual:Y2?` | see p.78 | documented; TOC/body-heading derived, parameters not transcribed | 78 |
-| `:CURSor:MANual:Y2:COLor` | `:CURSor:MANual:Y2:COLor?` | see p.79 | documented; TOC/body-heading derived, parameters not transcribed | 79 |
-| `:CURSor:MANual:Y2:DFOLlow` | `:CURSor:MANual:Y2:DFOLlow?` | see p.79 | documented; TOC/body-heading derived, parameters not transcribed | 79 |
-| `:CURSor:MANual:Y2:DTCursor` | `:CURSor:MANual:Y2:DTCursor?` | see p.80 | documented; TOC/body-heading derived, parameters not transcribed | 80 |
-| `:CURSor:MANual:Y2:DVALue` | `:CURSor:MANual:Y2:DVALue?` | see p.80 | documented; TOC/body-heading derived, parameters not transcribed | 80 |
-| `:CURSor:MANual:Y2:LABel` | `:CURSor:MANual:Y2:LABel?` | see p.81 | documented; TOC/body-heading derived, parameters not transcribed | 81 |
-| `:CURSor:MANual:Y2:POSition` | `:CURSor:MANual:Y2:POSition?` | see p.81 | documented; TOC/body-heading derived, parameters not transcribed | 81 |
-| `:CURSor:MANual:Y2:SOURce` | `:CURSor:MANual:Y2:SOURce?` | see p.82 | documented; TOC/body-heading derived, parameters not transcribed | 82 |
-| `:CURSor:MANual:Y<n>` | `:CURSor:MANual:Y<n>?` | see p.78 | documented; TOC/body-heading derived, parameters not transcribed | 78 |
-| `:CURSor:MANual:Y<n>:COLor` | `:CURSor:MANual:Y<n>:COLor?` | see p.78 | documented; TOC/body-heading derived, parameters not transcribed | 78 |
-| `:CURSor:MANual:Y<n>:DFOLlow` | `:CURSor:MANual:Y<n>:DFOLlow?` | see p.79 | documented; TOC/body-heading derived, parameters not transcribed | 79 |
-| `:CURSor:MANual:Y<n>:DTCursor` | `:CURSor:MANual:Y<n>:DTCursor?` | see p.79 | documented; TOC/body-heading derived, parameters not transcribed | 79 |
-| `:CURSor:MANual:Y<n>:DVALue` | `:CURSor:MANual:Y<n>:DVALue?` | see p.80 | documented; TOC/body-heading derived, parameters not transcribed | 80 |
-| `:CURSor:MANual:Y<n>:LABel` | `:CURSor:MANual:Y<n>:LABel?` | see p.80 | documented; TOC/body-heading derived, parameters not transcribed | 80 |
-| `:CURSor:MANual:Y<n>:POSition` | `:CURSor:MANual:Y<n>:POSition?` | see p.81 | documented; TOC/body-heading derived, parameters not transcribed | 81 |
-| `:CURSor:MANual:Y<n>:SOURce` | `:CURSor:MANual:Y<n>:SOURce?` | see p.81 | documented; TOC/body-heading derived, parameters not transcribed | 81 |
-| `:CURSor:MEASure2` | `:CURSor:MEASure2?` | see p.82 | documented; TOC/body-heading derived, parameters not transcribed | 82 |
-| `:CURSor:MEASure2:COLor` | `:CURSor:MEASure2:COLor?` | see p.83 | documented; TOC/body-heading derived, parameters not transcribed | 83 |
-| `:CURSor:MEASure2:LABel` | `:CURSor:MEASure2:LABel?` | see p.83 | documented; TOC/body-heading derived, parameters not transcribed | 83 |
-| `:CURSor:MEASure2:MITem` | `:CURSor:MEASure2:MITem?` | see p.84 | documented; TOC/body-heading derived, parameters not transcribed | 84 |
-| `:CURSor:MEASure<n>` | `:CURSor:MEASure<n>?` | see p.82 | documented; TOC/body-heading derived, parameters not transcribed | 82 |
-| `:CURSor:MEASure<n>:COLor` | `:CURSor:MEASure<n>:COLor?` | see p.82 | documented; TOC/body-heading derived, parameters not transcribed | 82 |
-| `:CURSor:MEASure<n>:LABel` | `:CURSor:MEASure<n>:LABel?` | see p.83 | documented; TOC/body-heading derived, parameters not transcribed | 83 |
-| `:CURSor:MEASure<n>:MITem` | `:CURSor:MEASure<n>:MITem?` | see p.84 | documented; TOC/body-heading derived, parameters not transcribed | 84 |
-| `:CURSor:MITem` | `:CURSor:MITem?` | see p.68 | documented; TOC/body-heading derived, parameters not transcribed | 68 |
-| `:CURSor:TAGStyle` | `:CURSor:TAGStyle?` | see p.66 | documented; TOC/body-heading derived, parameters not transcribed | 66 |
-| `:CURSor:TRAC2:DTCursor` | `:CURSor:TRAC2:DTCursor?` | see p.86 | documented; TOC/body-heading derived, parameters not transcribed | 86 |
-| `:CURSor:TRACk2` | `:CURSor:TRACk2?` | see p.84 | documented; TOC/body-heading derived, parameters not transcribed | 84 |
-| `:CURSor:TRACk2:COLor` | `:CURSor:TRACk2:COLor?` | see p.85 | documented; TOC/body-heading derived, parameters not transcribed | 85 |
-| `:CURSor:TRACk2:DFOLlow` | `:CURSor:TRACk2:DFOLlow?` | see p.85 | documented; TOC/body-heading derived, parameters not transcribed | 85 |
-| `:CURSor:TRACk2:DVALue` | `:CURSor:TRACk2:DVALue?` | see p.86 | documented; TOC/body-heading derived, parameters not transcribed | 86 |
-| `:CURSor:TRACk2:LABel` | `:CURSor:TRACk2:LABel?` | see p.87 | documented; TOC/body-heading derived, parameters not transcribed | 87 |
-| `:CURSor:TRACk2:POSition` | `:CURSor:TRACk2:POSition?` | see p.88 | documented; TOC/body-heading derived, parameters not transcribed | 88 |
-| `:CURSor:TRACk2:SOURce` | `:CURSor:TRACk2:SOURce?` | see p.88 | documented; TOC/body-heading derived, parameters not transcribed | 88 |
-| `:CURSor:TRACk<n>` | `:CURSor:TRACk<n>?` | see p.76 | documented; TOC/body-heading derived, parameters not transcribed | 76 |
-| `:CURSor:TRACk<n>:COLor` | `:CURSor:TRACk<n>:COLor?` | see p.85 | documented; TOC/body-heading derived, parameters not transcribed | 85 |
-| `:CURSor:TRACk<n>:DFOLlow` | `:CURSor:TRACk<n>:DFOLlow?` | see p.85 | documented; TOC/body-heading derived, parameters not transcribed | 85 |
-| `:CURSor:TRACk<n>:DTCursor` | `:CURSor:TRACk<n>:DTCursor?` | see p.85 | documented; TOC/body-heading derived, parameters not transcribed | 85 |
-| `:CURSor:TRACk<n>:DVALue` | `:CURSor:TRACk<n>:DVALue?` | see p.86 | documented; TOC/body-heading derived, parameters not transcribed | 86 |
-| `:CURSor:TRACk<n>:LABel` | `:CURSor:TRACk<n>:LABel?` | see p.87 | documented; TOC/body-heading derived, parameters not transcribed | 87 |
-| `:CURSor:TRACk<n>:POSition` | `:CURSor:TRACk<n>:POSition?` | see p.87 | documented; TOC/body-heading derived, parameters not transcribed | 87 |
-| `:CURSor:TRACk<n>:SOURce` | `:CURSor:TRACk<n>:SOURce?` | see p.85 | documented; TOC/body-heading derived, parameters not transcribed | 85 |
-| `:CURSor:TRACk<n>:VALue` | `:CURSor:TRACk<n>:VALue?` | see p.88 | documented; TOC/body-heading derived, parameters not transcribed | 88 |
-| `:CURSor:XDELta` | `:CURSor:XDELta?` | see p.68 | documented; TOC/body-heading derived, parameters not transcribed | 68 |
-| `:CURSor:XREFerence` | `:CURSor:XREFerence?` | see p.67 | documented; TOC/body-heading derived, parameters not transcribed | 67 |
-| `:CURSor:XY:X2` | `:CURSor:XY:X2?` | see p.89 | documented; TOC/body-heading derived, parameters not transcribed | 89 |
-| `:CURSor:XY:X2:COLor` | `:CURSor:XY:X2:COLor?` | see p.89 | documented; TOC/body-heading derived, parameters not transcribed | 89 |
-| `:CURSor:XY:X2:DFOLlow` | `:CURSor:XY:X2:DFOLlow?` | see p.90 | documented; TOC/body-heading derived, parameters not transcribed | 90 |
-| `:CURSor:XY:X2:DTCursor` | `:CURSor:XY:X2:DTCursor?` | see p.90 | documented; TOC/body-heading derived, parameters not transcribed | 90 |
-| `:CURSor:XY:X2:DVALue` | `:CURSor:XY:X2:DVALue?` | see p.91 | documented; TOC/body-heading derived, parameters not transcribed | 91 |
-| `:CURSor:XY:X2:LABel` | `:CURSor:XY:X2:LABel?` | see p.92 | documented; TOC/body-heading derived, parameters not transcribed | 92 |
-| `:CURSor:XY:X2:POSition` | `:CURSor:XY:X2:POSition?` | see p.92 | documented; TOC/body-heading derived, parameters not transcribed | 92 |
-| `:CURSor:XY:X<n>` | `:CURSor:XY:X<n>?` | see p.89 | documented; TOC/body-heading derived, parameters not transcribed | 89 |
-| `:CURSor:XY:X<n>:COLor` | `:CURSor:XY:X<n>:COLor?` | see p.89 | documented; TOC/body-heading derived, parameters not transcribed | 89 |
-| `:CURSor:XY:X<n>:DFOLlow` | `:CURSor:XY:X<n>:DFOLlow?` | see p.90 | documented; TOC/body-heading derived, parameters not transcribed | 90 |
-| `:CURSor:XY:X<n>:DTCursor` | `:CURSor:XY:X<n>:DTCursor?` | see p.90 | documented; TOC/body-heading derived, parameters not transcribed | 90 |
-| `:CURSor:XY:X<n>:DVALue` | `:CURSor:XY:X<n>:DVALue?` | see p.91 | documented; TOC/body-heading derived, parameters not transcribed | 91 |
-| `:CURSor:XY:X<n>:LABel` | `:CURSor:XY:X<n>:LABel?` | see p.91 | documented; TOC/body-heading derived, parameters not transcribed | 91 |
-| `:CURSor:XY:X<n>:POSition` | `:CURSor:XY:X<n>:POSition?` | see p.92 | documented; TOC/body-heading derived, parameters not transcribed | 92 |
-| `:CURSor:XY:Y2` | `:CURSor:XY:Y2?` | see p.93 | documented; TOC/body-heading derived, parameters not transcribed | 93 |
-| `:CURSor:XY:Y2:COLor` | `:CURSor:XY:Y2:COLor?` | see p.93 | documented; TOC/body-heading derived, parameters not transcribed | 93 |
-| `:CURSor:XY:Y2:DFOLlow` | `:CURSor:XY:Y2:DFOLlow?` | see p.94 | documented; TOC/body-heading derived, parameters not transcribed | 94 |
-| `:CURSor:XY:Y2:DTCursor` | `:CURSor:XY:Y2:DTCursor?` | see p.94 | documented; TOC/body-heading derived, parameters not transcribed | 94 |
-| `:CURSor:XY:Y2:DVALue` | `:CURSor:XY:Y2:DVALue?` | see p.95 | documented; TOC/body-heading derived, parameters not transcribed | 95 |
-| `:CURSor:XY:Y2:LABel` | `:CURSor:XY:Y2:LABel?` | see p.95 | documented; TOC/body-heading derived, parameters not transcribed | 95 |
-| `:CURSor:XY:Y2:POSition` | `:CURSor:XY:Y2:POSition?` | see p.96 | documented; TOC/body-heading derived, parameters not transcribed | 96 |
-| `:CURSor:XY:Y<n>` | `:CURSor:XY:Y<n>?` | see p.92 | documented; TOC/body-heading derived, parameters not transcribed | 92 |
-| `:CURSor:XY:Y<n>:COLor` | `:CURSor:XY:Y<n>:COLor?` | see p.93 | documented; TOC/body-heading derived, parameters not transcribed | 93 |
-| `:CURSor:XY:Y<n>:DFOLlow` | `:CURSor:XY:Y<n>:DFOLlow?` | see p.93 | documented; TOC/body-heading derived, parameters not transcribed | 93 |
-| `:CURSor:XY:Y<n>:DTCursor` | `:CURSor:XY:Y<n>:DTCursor?` | see p.93 | documented; TOC/body-heading derived, parameters not transcribed | 93 |
-| `:CURSor:XY:Y<n>:DVALue` | `:CURSor:XY:Y<n>:DVALue?` | see p.94 | documented; TOC/body-heading derived, parameters not transcribed | 94 |
-| `:CURSor:XY:Y<n>:LABel` | `:CURSor:XY:Y<n>:LABel?` | see p.95 | documented; TOC/body-heading derived, parameters not transcribed | 95 |
-| `:CURSor:XY:Y<n>:POSition` | `:CURSor:XY:Y<n>:POSition?` | see p.95 | documented; TOC/body-heading derived, parameters not transcribed | 95 |
-| `:CURSor:YDELta` | `:CURSor:YDELta?` | see p.72 | documented; TOC/body-heading derived, parameters not transcribed | 72 |
-| `:CURSor:YREFerence` | `:CURSor:YREFerence?` | see p.67 | documented; TOC/body-heading derived, parameters not transcribed | 67 |
-| `:DECode:BUS1` | `:DECode:BUS1?` | see p.98 | documented; TOC/body-heading derived, parameters not transcribed | 98 |
-| `:DECode:BUS1:CAN:BAUD` | `:DECode:BUS1:CAN:BAUD?` | see p.119 | documented; TOC/body-heading derived, parameters not transcribed | 119 |
-| `:DECode:BUS1:CAN:SOURce` | `:DECode:BUS1:CAN:SOURce?` | see p.119 | documented; TOC/body-heading derived, parameters not transcribed | 119 |
-| `:DECode:BUS1:CAN:THReshold` | `:DECode:BUS1:CAN:THReshold?` | see p.120 | documented; TOC/body-heading derived, parameters not transcribed | 120 |
-| `:DECode:BUS1:CANFd:BAUDData` | `:DECode:BUS1:CANFd:BAUDData?` | see p.125 | documented; TOC/body-heading derived, parameters not transcribed | 125 |
-| `:DECode:BUS1:CANFd:BAUDNominal` | `:DECode:BUS1:CANFd:BAUDNominal?` | see p.125 | documented; TOC/body-heading derived, parameters not transcribed | 125 |
-| `:DECode:BUS1:CANFd:SOURce` | `:DECode:BUS1:CANFd:SOURce?` | see p.126 | documented; TOC/body-heading derived, parameters not transcribed | 126 |
-| `:DECode:BUS1:CANFd:THReshold` | `:DECode:BUS1:CANFd:THReshold?` | see p.127 | documented; TOC/body-heading derived, parameters not transcribed | 127 |
-| `:DECode:BUS1:COPY` | `:DECode:BUS1:COPY?` | see p.99 | documented; TOC/body-heading derived, parameters not transcribed | 99 |
-| `:DECode:BUS1:FLEXray:BAUD` | `:DECode:BUS1:FLEXray:BAUD?` | see p.123 | documented; TOC/body-heading derived, parameters not transcribed | 123 |
-| `:DECode:BUS1:FLEXray:SOURce` | `:DECode:BUS1:FLEXray:SOURce?` | see p.123 | documented; TOC/body-heading derived, parameters not transcribed | 123 |
-| `:DECode:BUS1:FLEXray:THReshold` | `:DECode:BUS1:FLEXray:THReshold?` | see p.124 | documented; TOC/body-heading derived, parameters not transcribed | 124 |
-| `:DECode:BUS1:FORMat` | `:DECode:BUS1:FORMat?` | see p.99 | documented; TOC/body-heading derived, parameters not transcribed | 99 |
-| `:DECode:BUS1:IIC:RWBit` | `:DECode:BUS1:IIC:RWBit?` | see p.101 | documented; TOC/body-heading derived, parameters not transcribed | 101 |
-| `:DECode:BUS1:IIC:SCLSource` | `:DECode:BUS1:IIC:SCLSource?` | see p.101 | documented; TOC/body-heading derived, parameters not transcribed | 101 |
-| `:DECode:BUS1:IIC:SCLThreshold` | `:DECode:BUS1:IIC:SCLThreshold?` | see p.102 | documented; TOC/body-heading derived, parameters not transcribed | 102 |
-| `:DECode:BUS1:IIC:SDASource` | `:DECode:BUS1:IIC:SDASource?` | see p.103 | documented; TOC/body-heading derived, parameters not transcribed | 103 |
-| `:DECode:BUS1:IIC:SDAThreshold` | `:DECode:BUS1:IIC:SDAThreshold?` | see p.103 | documented; TOC/body-heading derived, parameters not transcribed | 103 |
-| `:DECode:BUS1:IIS:ANNotate` | `:DECode:BUS1:IIS:ANNotate?` | see p.128 | documented; TOC/body-heading derived, parameters not transcribed | 128 |
-| `:DECode:BUS1:IIS:AVARiant` | `:DECode:BUS1:IIS:AVARiant?` | see p.128 | documented; TOC/body-heading derived, parameters not transcribed | 128 |
-| `:DECode:BUS1:IIS:BCLKSource` | `:DECode:BUS1:IIS:BCLKSource?` | see p.129 | documented; TOC/body-heading derived, parameters not transcribed | 129 |
-| `:DECode:BUS1:IIS:BCLKThreshold` | `:DECode:BUS1:IIS:BCLKThreshold?` | see p.130 | documented; TOC/body-heading derived, parameters not transcribed | 130 |
-| `:DECode:BUS1:IIS:BITorder` | `:DECode:BUS1:IIS:BITorder?` | see p.130 | documented; TOC/body-heading derived, parameters not transcribed | 130 |
-| `:DECode:BUS1:IIS:DLENgth` | `:DECode:BUS1:IIS:DLENgth?` | see p.130 | documented; TOC/body-heading derived, parameters not transcribed | 130 |
-| `:DECode:BUS1:IIS:DSource` | `:DECode:BUS1:IIS:DSource?` | see p.131 | documented; TOC/body-heading derived, parameters not transcribed | 131 |
-| `:DECode:BUS1:IIS:DTHReshold` | `:DECode:BUS1:IIS:DTHReshold?` | see p.132 | documented; TOC/body-heading derived, parameters not transcribed | 132 |
-| `:DECode:BUS1:IIS:LATChedge` | `:DECode:BUS1:IIS:LATChedge?` | see p.132 | documented; TOC/body-heading derived, parameters not transcribed | 132 |
-| `:DECode:BUS1:IIS:LCH` | `:DECode:BUS1:IIS:LCH?` | see p.133 | documented; TOC/body-heading derived, parameters not transcribed | 133 |
-| `:DECode:BUS1:IIS:SBIT` | `:DECode:BUS1:IIS:SBIT?` | see p.133 | documented; TOC/body-heading derived, parameters not transcribed | 133 |
-| `:DECode:BUS1:IIS:WSSource` | `:DECode:BUS1:IIS:WSSource?` | see p.134 | documented; TOC/body-heading derived, parameters not transcribed | 134 |
-| `:DECode:BUS1:IIS:WSTHreshold` | `:DECode:BUS1:IIS:WSTHreshold?` | see p.134 | documented; TOC/body-heading derived, parameters not transcribed | 134 |
-| `:DECode:BUS1:LIN:BAUD` | `:DECode:BUS1:LIN:BAUD?` | see p.121 | documented; TOC/body-heading derived, parameters not transcribed | 121 |
-| `:DECode:BUS1:LIN:SOURce` | `:DECode:BUS1:LIN:SOURce?` | see p.121 | documented; TOC/body-heading derived, parameters not transcribed | 121 |
-| `:DECode:BUS1:LIN:THReshold` | `:DECode:BUS1:LIN:THReshold?` | see p.122 | documented; TOC/body-heading derived, parameters not transcribed | 122 |
-| `:DECode:BUS1:M1553:LTHReshold` | `:DECode:BUS1:M1553:LTHReshold?` | see p.135 | documented; TOC/body-heading derived, parameters not transcribed | 135 |
-| `:DECode:BUS1:M1553:SOURce` | `:DECode:BUS1:M1553:SOURce?` | see p.136 | documented; TOC/body-heading derived, parameters not transcribed | 136 |
-| `:DECode:BUS1:M1553:UTHReshold` | `:DECode:BUS1:M1553:UTHReshold?` | see p.136 | documented; TOC/body-heading derived, parameters not transcribed | 136 |
-| `:DECode:BUS1:MANChester:BAUD` | `:DECode:BUS1:MANChester:BAUD?` | see p.143 | documented; TOC/body-heading derived, parameters not transcribed | 143 |
-| `:DECode:BUS1:MANChester:BITorder` | `:DECode:BUS1:MANChester:BITorder?` | see p.148 | documented; TOC/body-heading derived, parameters not transcribed | 148 |
-| `:DECode:BUS1:MANChester:DISPlay` | `:DECode:BUS1:MANChester:DISPlay?` | see p.147 | documented; TOC/body-heading derived, parameters not transcribed | 147 |
-| `:DECode:BUS1:MANChester:DSIZe` | `:DECode:BUS1:MANChester:DSIZe?` | see p.147 | documented; TOC/body-heading derived, parameters not transcribed | 147 |
-| `:DECode:BUS1:MANChester:HSIZe` | `:DECode:BUS1:MANChester:HSIZe?` | see p.146 | documented; TOC/body-heading derived, parameters not transcribed | 146 |
-| `:DECode:BUS1:MANChester:IBITs` | `:DECode:BUS1:MANChester:IBITs?` | see p.144 | documented; TOC/body-heading derived, parameters not transcribed | 144 |
-| `:DECode:BUS1:MANChester:IDLE` | `:DECode:BUS1:MANChester:IDLE?` | see p.144 | documented; TOC/body-heading derived, parameters not transcribed | 144 |
-| `:DECode:BUS1:MANChester:POLarity` | `:DECode:BUS1:MANChester:POLarity?` | see p.143 | documented; TOC/body-heading derived, parameters not transcribed | 143 |
-| `:DECode:BUS1:MANChester:SOURce` | `:DECode:BUS1:MANChester:SOURce?` | see p.142 | documented; TOC/body-heading derived, parameters not transcribed | 142 |
-| `:DECode:BUS1:MANChester:SSIZe` | `:DECode:BUS1:MANChester:SSIZe?` | see p.145 | documented; TOC/body-heading derived, parameters not transcribed | 145 |
-| `:DECode:BUS1:MANChester:STARt` | `:DECode:BUS1:MANChester:STARt?` | see p.145 | documented; TOC/body-heading derived, parameters not transcribed | 145 |
-| `:DECode:BUS1:MANChester:THReshold` | `:DECode:BUS1:MANChester:THReshold?` | see p.143 | documented; TOC/body-heading derived, parameters not transcribed | 143 |
-| `:DECode:BUS1:MANChester:TSIZe` | `:DECode:BUS1:MANChester:TSIZe?` | see p.146 | documented; TOC/body-heading derived, parameters not transcribed | 146 |
-| `:DECode:BUS1:MANChester:WSIZe` | `:DECode:BUS1:MANChester:WSIZe?` | see p.147 | documented; TOC/body-heading derived, parameters not transcribed | 147 |
-| `:DECode:BUS1:PROTocol` | `:DECode:BUS1:PROTocol?` | see p.100 | documented; TOC/body-heading derived, parameters not transcribed | 100 |
-| `:DECode:BUS1:SENT:CLOCk` | `:DECode:BUS1:SENT:CLOCk?` | see p.138 | documented; TOC/body-heading derived, parameters not transcribed | 138 |
-| `:DECode:BUS1:SENT:CRC` | `:DECode:BUS1:SENT:CRC?` | see p.140 | documented; TOC/body-heading derived, parameters not transcribed | 140 |
-| `:DECode:BUS1:SENT:FORMat` | `:DECode:BUS1:SENT:FORMat?` | see p.138 | documented; TOC/body-heading derived, parameters not transcribed | 138 |
-| `:DECode:BUS1:SENT:IDLE` | `:DECode:BUS1:SENT:IDLE?` | see p.139 | documented; TOC/body-heading derived, parameters not transcribed | 139 |
-| `:DECode:BUS1:SENT:LENGth` | `:DECode:BUS1:SENT:LENGth?` | see p.140 | documented; TOC/body-heading derived, parameters not transcribed | 140 |
-| `:DECode:BUS1:SENT:PPULse` | `:DECode:BUS1:SENT:PPULse?` | see p.141 | documented; TOC/body-heading derived, parameters not transcribed | 141 |
-| `:DECode:BUS1:SENT:SOURce` | `:DECode:BUS1:SENT:SOURce?` | see p.137 | documented; TOC/body-heading derived, parameters not transcribed | 137 |
-| `:DECode:BUS1:SENT:THReshold` | `:DECode:BUS1:SENT:THReshold?` | see p.138 | documented; TOC/body-heading derived, parameters not transcribed | 138 |
-| `:DECode:BUS1:SENT:TOLerance` | `:DECode:BUS1:SENT:TOLerance?` | see p.139 | documented; TOC/body-heading derived, parameters not transcribed | 139 |
-| `:DECode:BUS1:SPI:BITorder` | `:DECode:BUS1:SPI:BITorder?` | see p.104 | documented; TOC/body-heading derived, parameters not transcribed | 104 |
-| `:DECode:BUS1:SPI:CLKSource` | `:DECode:BUS1:SPI:CLKSource?` | see p.104 | documented; TOC/body-heading derived, parameters not transcribed | 104 |
-| `:DECode:BUS1:SPI:CLKThreshold` | `:DECode:BUS1:SPI:CLKThreshold?` | see p.105 | documented; TOC/body-heading derived, parameters not transcribed | 105 |
-| `:DECode:BUS1:SPI:CSSource` | `:DECode:BUS1:SPI:CSSource?` | see p.106 | documented; TOC/body-heading derived, parameters not transcribed | 106 |
-| `:DECode:BUS1:SPI:CSTYpe` | `:DECode:BUS1:SPI:CSTYpe?` | see p.107 | documented; TOC/body-heading derived, parameters not transcribed | 107 |
-| `:DECode:BUS1:SPI:CSThreshold` | `:DECode:BUS1:SPI:CSThreshold?` | see p.106 | documented; TOC/body-heading derived, parameters not transcribed | 106 |
-| `:DECode:BUS1:SPI:DLENgth` | `:DECode:BUS1:SPI:DLENgth?` | see p.107 | documented; TOC/body-heading derived, parameters not transcribed | 107 |
-| `:DECode:BUS1:SPI:LATChedge` | `:DECode:BUS1:SPI:LATChedge?` | see p.108 | documented; TOC/body-heading derived, parameters not transcribed | 108 |
-| `:DECode:BUS1:SPI:MISOSource` | `:DECode:BUS1:SPI:MISOSource?` | see p.108 | documented; TOC/body-heading derived, parameters not transcribed | 108 |
-| `:DECode:BUS1:SPI:MISOThreshold` | `:DECode:BUS1:SPI:MISOThreshold?` | see p.109 | documented; TOC/body-heading derived, parameters not transcribed | 109 |
-| `:DECode:BUS1:SPI:MOSISource` | `:DECode:BUS1:SPI:MOSISource?` | see p.110 | documented; TOC/body-heading derived, parameters not transcribed | 110 |
-| `:DECode:BUS1:SPI:MOSIThreshold` | `:DECode:BUS1:SPI:MOSIThreshold?` | see p.110 | documented; TOC/body-heading derived, parameters not transcribed | 110 |
-| `:DECode:BUS1:SPI:NCSSource` | `:DECode:BUS1:SPI:NCSSource?` | see p.111 | documented; TOC/body-heading derived, parameters not transcribed | 111 |
-| `:DECode:BUS1:SPI:NCSThreshold` | `:DECode:BUS1:SPI:NCSThreshold?` | see p.112 | documented; TOC/body-heading derived, parameters not transcribed | 112 |
-| `:DECode:BUS1:UART:BAUD` | `:DECode:BUS1:UART:BAUD?` | see p.113 | documented; TOC/body-heading derived, parameters not transcribed | 113 |
-| `:DECode:BUS1:UART:BITorder` | `:DECode:BUS1:UART:BITorder?` | see p.113 | documented; TOC/body-heading derived, parameters not transcribed | 113 |
-| `:DECode:BUS1:UART:DLENgth` | `:DECode:BUS1:UART:DLENgth?` | see p.114 | documented; TOC/body-heading derived, parameters not transcribed | 114 |
-| `:DECode:BUS1:UART:IDLE` | `:DECode:BUS1:UART:IDLE?` | see p.114 | documented; TOC/body-heading derived, parameters not transcribed | 114 |
-| `:DECode:BUS1:UART:PARity` | `:DECode:BUS1:UART:PARity?` | see p.115 | documented; TOC/body-heading derived, parameters not transcribed | 115 |
-| `:DECode:BUS1:UART:RXSource` | `:DECode:BUS1:UART:RXSource?` | see p.115 | documented; TOC/body-heading derived, parameters not transcribed | 115 |
-| `:DECode:BUS1:UART:RXTHreshold` | `:DECode:BUS1:UART:RXTHreshold?` | see p.116 | documented; TOC/body-heading derived, parameters not transcribed | 116 |
-| `:DECode:BUS1:UART:STOP` | `:DECode:BUS1:UART:STOP?` | see p.117 | documented; TOC/body-heading derived, parameters not transcribed | 117 |
-| `:DECode:BUS1:UART:TXSource` | `:DECode:BUS1:UART:TXSource?` | see p.117 | documented; TOC/body-heading derived, parameters not transcribed | 117 |
-| `:DECode:BUS1:UART:TXTHreshold` | `:DECode:BUS1:UART:TXTHreshold?` | see p.118 | documented; TOC/body-heading derived, parameters not transcribed | 118 |
-| `:DECode:BUS<n>` | `:DECode:BUS<n>?` | see p.98 | documented; TOC/body-heading derived, parameters not transcribed | 98 |
-| `:DECode:BUS<n>:CAN` | `:DECode:BUS<n>:CAN?` | see p.119 | documented; TOC/body-heading derived, parameters not transcribed | 119 |
-| `:DECode:BUS<n>:CAN:BAUD` | `:DECode:BUS<n>:CAN:BAUD?` | see p.119 | documented; TOC/body-heading derived, parameters not transcribed | 119 |
-| `:DECode:BUS<n>:CAN:SOURce` | `:DECode:BUS<n>:CAN:SOURce?` | see p.119 | documented; TOC/body-heading derived, parameters not transcribed | 119 |
-| `:DECode:BUS<n>:CAN:THReshold` | `:DECode:BUS<n>:CAN:THReshold?` | see p.120 | documented; TOC/body-heading derived, parameters not transcribed | 120 |
-| `:DECode:BUS<n>:CANFd` | `:DECode:BUS<n>:CANFd?` | see p.125 | documented; TOC/body-heading derived, parameters not transcribed | 125 |
-| `:DECode:BUS<n>:CANFd:BAUDData` | `:DECode:BUS<n>:CANFd:BAUDData?` | see p.125 | documented; TOC/body-heading derived, parameters not transcribed | 125 |
-| `:DECode:BUS<n>:CANFd:BAUDNominal` | `:DECode:BUS<n>:CANFd:BAUDNominal?` | see p.125 | documented; TOC/body-heading derived, parameters not transcribed | 125 |
-| `:DECode:BUS<n>:CANFd:SOURce` | `:DECode:BUS<n>:CANFd:SOURce?` | see p.126 | documented; TOC/body-heading derived, parameters not transcribed | 126 |
-| `:DECode:BUS<n>:CANFd:THReshold` | `:DECode:BUS<n>:CANFd:THReshold?` | see p.126 | documented; TOC/body-heading derived, parameters not transcribed | 126 |
-| `:DECode:BUS<n>:COPY` | `:DECode:BUS<n>:COPY?` | see p.99 | documented; TOC/body-heading derived, parameters not transcribed | 99 |
-| `:DECode:BUS<n>:FLEXray` | `:DECode:BUS<n>:FLEXray?` | see p.123 | documented; TOC/body-heading derived, parameters not transcribed | 123 |
-| `:DECode:BUS<n>:FLEXray:BAUD` | `:DECode:BUS<n>:FLEXray:BAUD?` | see p.123 | documented; TOC/body-heading derived, parameters not transcribed | 123 |
-| `:DECode:BUS<n>:FLEXray:SOURce` | `:DECode:BUS<n>:FLEXray:SOURce?` | see p.123 | documented; TOC/body-heading derived, parameters not transcribed | 123 |
-| `:DECode:BUS<n>:FLEXray:THReshold` | `:DECode:BUS<n>:FLEXray:THReshold?` | see p.124 | documented; TOC/body-heading derived, parameters not transcribed | 124 |
-| `:DECode:BUS<n>:FORMat` | `:DECode:BUS<n>:FORMat?` | see p.99 | documented; TOC/body-heading derived, parameters not transcribed | 99 |
-| `:DECode:BUS<n>:IIC` | `:DECode:BUS<n>:IIC?` | see p.101 | documented; TOC/body-heading derived, parameters not transcribed | 101 |
-| `:DECode:BUS<n>:IIC:RWBit` | `:DECode:BUS<n>:IIC:RWBit?` | see p.101 | documented; TOC/body-heading derived, parameters not transcribed | 101 |
-| `:DECode:BUS<n>:IIC:SCLSource` | `:DECode:BUS<n>:IIC:SCLSource?` | see p.101 | documented; TOC/body-heading derived, parameters not transcribed | 101 |
-| `:DECode:BUS<n>:IIC:SCLThreshold` | `:DECode:BUS<n>:IIC:SCLThreshold?` | see p.102 | documented; TOC/body-heading derived, parameters not transcribed | 102 |
-| `:DECode:BUS<n>:IIC:SDASource` | `:DECode:BUS<n>:IIC:SDASource?` | see p.101 | documented; TOC/body-heading derived, parameters not transcribed | 101 |
-| `:DECode:BUS<n>:IIC:SDAThreshold` | `:DECode:BUS<n>:IIC:SDAThreshold?` | see p.103 | documented; TOC/body-heading derived, parameters not transcribed | 103 |
-| `:DECode:BUS<n>:IIS` | `:DECode:BUS<n>:IIS?` | see p.128 | documented; TOC/body-heading derived, parameters not transcribed | 128 |
-| `:DECode:BUS<n>:IIS:ANNotate` | `:DECode:BUS<n>:IIS:ANNotate?` | see p.128 | documented; TOC/body-heading derived, parameters not transcribed | 128 |
-| `:DECode:BUS<n>:IIS:AVARiant` | `:DECode:BUS<n>:IIS:AVARiant?` | see p.128 | documented; TOC/body-heading derived, parameters not transcribed | 128 |
-| `:DECode:BUS<n>:IIS:BCLKSource` | `:DECode:BUS<n>:IIS:BCLKSource?` | see p.129 | documented; TOC/body-heading derived, parameters not transcribed | 129 |
-| `:DECode:BUS<n>:IIS:BCLKThreshold` | `:DECode:BUS<n>:IIS:BCLKThreshold?` | see p.129 | documented; TOC/body-heading derived, parameters not transcribed | 129 |
-| `:DECode:BUS<n>:IIS:BITorder` | `:DECode:BUS<n>:IIS:BITorder?` | see p.130 | documented; TOC/body-heading derived, parameters not transcribed | 130 |
-| `:DECode:BUS<n>:IIS:DLENgth` | `:DECode:BUS<n>:IIS:DLENgth?` | see p.130 | documented; TOC/body-heading derived, parameters not transcribed | 130 |
-| `:DECode:BUS<n>:IIS:DSource` | `:DECode:BUS<n>:IIS:DSource?` | see p.131 | documented; TOC/body-heading derived, parameters not transcribed | 131 |
-| `:DECode:BUS<n>:IIS:DTHReshold` | `:DECode:BUS<n>:IIS:DTHReshold?` | see p.131 | documented; TOC/body-heading derived, parameters not transcribed | 131 |
-| `:DECode:BUS<n>:IIS:LATChedge` | `:DECode:BUS<n>:IIS:LATChedge?` | see p.132 | documented; TOC/body-heading derived, parameters not transcribed | 132 |
-| `:DECode:BUS<n>:IIS:LCH` | `:DECode:BUS<n>:IIS:LCH?` | see p.132 | documented; TOC/body-heading derived, parameters not transcribed | 132 |
-| `:DECode:BUS<n>:IIS:SBIT` | `:DECode:BUS<n>:IIS:SBIT?` | see p.133 | documented; TOC/body-heading derived, parameters not transcribed | 133 |
-| `:DECode:BUS<n>:IIS:WSSource` | `:DECode:BUS<n>:IIS:WSSource?` | see p.133 | documented; TOC/body-heading derived, parameters not transcribed | 133 |
-| `:DECode:BUS<n>:IIS:WSTHreshold` | `:DECode:BUS<n>:IIS:WSTHreshold?` | see p.134 | documented; TOC/body-heading derived, parameters not transcribed | 134 |
-| `:DECode:BUS<n>:LIN` | `:DECode:BUS<n>:LIN?` | see p.121 | documented; TOC/body-heading derived, parameters not transcribed | 121 |
-| `:DECode:BUS<n>:LIN:BAUD` | `:DECode:BUS<n>:LIN:BAUD?` | see p.121 | documented; TOC/body-heading derived, parameters not transcribed | 121 |
-| `:DECode:BUS<n>:LIN:SOURce` | `:DECode:BUS<n>:LIN:SOURce?` | see p.121 | documented; TOC/body-heading derived, parameters not transcribed | 121 |
-| `:DECode:BUS<n>:LIN:THReshold` | `:DECode:BUS<n>:LIN:THReshold?` | see p.122 | documented; TOC/body-heading derived, parameters not transcribed | 122 |
-| `:DECode:BUS<n>:M1553` | `:DECode:BUS<n>:M1553?` | see p.135 | documented; TOC/body-heading derived, parameters not transcribed | 135 |
-| `:DECode:BUS<n>:M1553:LTHReshold` | `:DECode:BUS<n>:M1553:LTHReshold?` | see p.135 | documented; TOC/body-heading derived, parameters not transcribed | 135 |
-| `:DECode:BUS<n>:M1553:SOURce` | `:DECode:BUS<n>:M1553:SOURce?` | see p.135 | documented; TOC/body-heading derived, parameters not transcribed | 135 |
-| `:DECode:BUS<n>:M1553:UTHReshold` | `:DECode:BUS<n>:M1553:UTHReshold?` | see p.135 | documented; TOC/body-heading derived, parameters not transcribed | 135 |
-| `:DECode:BUS<n>:MANChester` | `:DECode:BUS<n>:MANChester?` | see p.142 | documented; TOC/body-heading derived, parameters not transcribed | 142 |
-| `:DECode:BUS<n>:MANChester:BAUD` | `:DECode:BUS<n>:MANChester:BAUD?` | see p.143 | documented; TOC/body-heading derived, parameters not transcribed | 143 |
-| `:DECode:BUS<n>:MANChester:BITorder` | `:DECode:BUS<n>:MANChester:BITorder?` | see p.148 | documented; TOC/body-heading derived, parameters not transcribed | 148 |
-| `:DECode:BUS<n>:MANChester:DISPlay` | `:DECode:BUS<n>:MANChester:DISPlay?` | see p.147 | documented; TOC/body-heading derived, parameters not transcribed | 147 |
-| `:DECode:BUS<n>:MANChester:DSIZe` | `:DECode:BUS<n>:MANChester:DSIZe?` | see p.147 | documented; TOC/body-heading derived, parameters not transcribed | 147 |
-| `:DECode:BUS<n>:MANChester:HSIZe` | `:DECode:BUS<n>:MANChester:HSIZe?` | see p.145 | documented; TOC/body-heading derived, parameters not transcribed | 145 |
-| `:DECode:BUS<n>:MANChester:IBITs` | `:DECode:BUS<n>:MANChester:IBITs?` | see p.144 | documented; TOC/body-heading derived, parameters not transcribed | 144 |
-| `:DECode:BUS<n>:MANChester:IDLE` | `:DECode:BUS<n>:MANChester:IDLE?` | see p.144 | documented; TOC/body-heading derived, parameters not transcribed | 144 |
-| `:DECode:BUS<n>:MANChester:POLarity` | `:DECode:BUS<n>:MANChester:POLarity?` | see p.143 | documented; TOC/body-heading derived, parameters not transcribed | 143 |
-| `:DECode:BUS<n>:MANChester:SOURce` | `:DECode:BUS<n>:MANChester:SOURce?` | see p.142 | documented; TOC/body-heading derived, parameters not transcribed | 142 |
-| `:DECode:BUS<n>:MANChester:SSIZe` | `:DECode:BUS<n>:MANChester:SSIZe?` | see p.145 | documented; TOC/body-heading derived, parameters not transcribed | 145 |
-| `:DECode:BUS<n>:MANChester:STARt` | `:DECode:BUS<n>:MANChester:STARt?` | see p.145 | documented; TOC/body-heading derived, parameters not transcribed | 145 |
-| `:DECode:BUS<n>:MANChester:THReshold` | `:DECode:BUS<n>:MANChester:THReshold?` | see p.142 | documented; TOC/body-heading derived, parameters not transcribed | 142 |
-| `:DECode:BUS<n>:MANChester:TSIZe` | `:DECode:BUS<n>:MANChester:TSIZe?` | see p.146 | documented; TOC/body-heading derived, parameters not transcribed | 146 |
-| `:DECode:BUS<n>:MANChester:WSIZe` | `:DECode:BUS<n>:MANChester:WSIZe?` | see p.146 | documented; TOC/body-heading derived, parameters not transcribed | 146 |
-| `:DECode:BUS<n>:PROTocol` | `:DECode:BUS<n>:PROTocol?` | see p.99 | documented; TOC/body-heading derived, parameters not transcribed | 99 |
-| `:DECode:BUS<n>:RESult` | `:DECode:BUS<n>:RESult?` | see p.100 | documented; TOC/body-heading derived, parameters not transcribed | 100 |
-| `:DECode:BUS<n>:SENT` | `:DECode:BUS<n>:SENT?` | see p.137 | documented; TOC/body-heading derived, parameters not transcribed | 137 |
-| `:DECode:BUS<n>:SENT:CLOCk` | `:DECode:BUS<n>:SENT:CLOCk?` | see p.138 | documented; TOC/body-heading derived, parameters not transcribed | 138 |
-| `:DECode:BUS<n>:SENT:CRC` | `:DECode:BUS<n>:SENT:CRC?` | see p.140 | documented; TOC/body-heading derived, parameters not transcribed | 140 |
-| `:DECode:BUS<n>:SENT:FORMat` | `:DECode:BUS<n>:SENT:FORMat?` | see p.138 | documented; TOC/body-heading derived, parameters not transcribed | 138 |
-| `:DECode:BUS<n>:SENT:IDLE` | `:DECode:BUS<n>:SENT:IDLE?` | see p.139 | documented; TOC/body-heading derived, parameters not transcribed | 139 |
-| `:DECode:BUS<n>:SENT:LENGth` | `:DECode:BUS<n>:SENT:LENGth?` | see p.140 | documented; TOC/body-heading derived, parameters not transcribed | 140 |
-| `:DECode:BUS<n>:SENT:PPULse` | `:DECode:BUS<n>:SENT:PPULse?` | see p.141 | documented; TOC/body-heading derived, parameters not transcribed | 141 |
-| `:DECode:BUS<n>:SENT:SOURce` | `:DECode:BUS<n>:SENT:SOURce?` | see p.137 | documented; TOC/body-heading derived, parameters not transcribed | 137 |
-| `:DECode:BUS<n>:SENT:THReshold` | `:DECode:BUS<n>:SENT:THReshold?` | see p.137 | documented; TOC/body-heading derived, parameters not transcribed | 137 |
-| `:DECode:BUS<n>:SENT:TOLerance` | `:DECode:BUS<n>:SENT:TOLerance?` | see p.139 | documented; TOC/body-heading derived, parameters not transcribed | 139 |
-| `:DECode:BUS<n>:SPI` | `:DECode:BUS<n>:SPI?` | see p.104 | documented; TOC/body-heading derived, parameters not transcribed | 104 |
-| `:DECode:BUS<n>:SPI:BITorder` | `:DECode:BUS<n>:SPI:BITorder?` | see p.104 | documented; TOC/body-heading derived, parameters not transcribed | 104 |
-| `:DECode:BUS<n>:SPI:CLKSource` | `:DECode:BUS<n>:SPI:CLKSource?` | see p.104 | documented; TOC/body-heading derived, parameters not transcribed | 104 |
-| `:DECode:BUS<n>:SPI:CLKThreshold` | `:DECode:BUS<n>:SPI:CLKThreshold?` | see p.105 | documented; TOC/body-heading derived, parameters not transcribed | 105 |
-| `:DECode:BUS<n>:SPI:CSSource` | `:DECode:BUS<n>:SPI:CSSource?` | see p.105 | documented; TOC/body-heading derived, parameters not transcribed | 105 |
-| `:DECode:BUS<n>:SPI:CSTYpe` | `:DECode:BUS<n>:SPI:CSTYpe?` | see p.107 | documented; TOC/body-heading derived, parameters not transcribed | 107 |
-| `:DECode:BUS<n>:SPI:CSThreshold` | `:DECode:BUS<n>:SPI:CSThreshold?` | see p.106 | documented; TOC/body-heading derived, parameters not transcribed | 106 |
-| `:DECode:BUS<n>:SPI:DLENgth` | `:DECode:BUS<n>:SPI:DLENgth?` | see p.107 | documented; TOC/body-heading derived, parameters not transcribed | 107 |
-| `:DECode:BUS<n>:SPI:LATChedge` | `:DECode:BUS<n>:SPI:LATChedge?` | see p.108 | documented; TOC/body-heading derived, parameters not transcribed | 108 |
-| `:DECode:BUS<n>:SPI:MISOSource` | `:DECode:BUS<n>:SPI:MISOSource?` | see p.108 | documented; TOC/body-heading derived, parameters not transcribed | 108 |
-| `:DECode:BUS<n>:SPI:MISOThreshold` | `:DECode:BUS<n>:SPI:MISOThreshold?` | see p.109 | documented; TOC/body-heading derived, parameters not transcribed | 109 |
-| `:DECode:BUS<n>:SPI:MOSISource` | `:DECode:BUS<n>:SPI:MOSISource?` | see p.109 | documented; TOC/body-heading derived, parameters not transcribed | 109 |
-| `:DECode:BUS<n>:SPI:MOSIThreshold` | `:DECode:BUS<n>:SPI:MOSIThreshold?` | see p.110 | documented; TOC/body-heading derived, parameters not transcribed | 110 |
-| `:DECode:BUS<n>:SPI:NCSSource` | `:DECode:BUS<n>:SPI:NCSSource?` | see p.111 | documented; TOC/body-heading derived, parameters not transcribed | 111 |
-| `:DECode:BUS<n>:SPI:NCSThreshold` | `:DECode:BUS<n>:SPI:NCSThreshold?` | see p.111 | documented; TOC/body-heading derived, parameters not transcribed | 111 |
-| `:DECode:BUS<n>:UART` | `:DECode:BUS<n>:UART?` | see p.113 | documented; TOC/body-heading derived, parameters not transcribed | 113 |
-| `:DECode:BUS<n>:UART:BAUD` | `:DECode:BUS<n>:UART:BAUD?` | see p.113 | documented; TOC/body-heading derived, parameters not transcribed | 113 |
-| `:DECode:BUS<n>:UART:BITorder` | `:DECode:BUS<n>:UART:BITorder?` | see p.113 | documented; TOC/body-heading derived, parameters not transcribed | 113 |
-| `:DECode:BUS<n>:UART:DLENgth` | `:DECode:BUS<n>:UART:DLENgth?` | see p.114 | documented; TOC/body-heading derived, parameters not transcribed | 114 |
-| `:DECode:BUS<n>:UART:IDLE` | `:DECode:BUS<n>:UART:IDLE?` | see p.114 | documented; TOC/body-heading derived, parameters not transcribed | 114 |
-| `:DECode:BUS<n>:UART:PARity` | `:DECode:BUS<n>:UART:PARity?` | see p.115 | documented; TOC/body-heading derived, parameters not transcribed | 115 |
-| `:DECode:BUS<n>:UART:RXSource` | `:DECode:BUS<n>:UART:RXSource?` | see p.115 | documented; TOC/body-heading derived, parameters not transcribed | 115 |
-| `:DECode:BUS<n>:UART:RXTHreshold` | `:DECode:BUS<n>:UART:RXTHreshold?` | see p.116 | documented; TOC/body-heading derived, parameters not transcribed | 116 |
-| `:DECode:BUS<n>:UART:STOP` | `:DECode:BUS<n>:UART:STOP?` | see p.116 | documented; TOC/body-heading derived, parameters not transcribed | 116 |
-| `:DECode:BUS<n>:UART:TXSource` | `:DECode:BUS<n>:UART:TXSource?` | see p.117 | documented; TOC/body-heading derived, parameters not transcribed | 117 |
-| `:DECode:BUS<n>:UART:TXTHreshold` | `:DECode:BUS<n>:UART:TXTHreshold?` | see p.117 | documented; TOC/body-heading derived, parameters not transcribed | 117 |
-| `:DECode:LIST` | `:DECode:LIST?` | see p.96 | documented; TOC/body-heading derived, parameters not transcribed | 96 |
-| `:DECode:LIST:LINE` | `:DECode:LIST:LINE?` | see p.97 | documented; TOC/body-heading derived, parameters not transcribed | 97 |
-| `:DECode:LIST:SCRoll` | `:DECode:LIST:SCRoll?` | see p.97 | documented; TOC/body-heading derived, parameters not transcribed | 97 |
-| `:DECode:LIST<n>:RESult` | `:DECode:LIST<n>:RESult?` | see p.98 | documented; TOC/body-heading derived, parameters not transcribed | 98 |
-| `:DIGital:ACTive` | `:DIGital:ACTive?` | see p.149 | documented; TOC/body-heading derived, parameters not transcribed | 149 |
-| `:DIGital:BUS1:DEFault` | `:DIGital:BUS1:DEFault?` | see p.150 | documented; TOC/body-heading derived, parameters not transcribed | 150 |
-| `:DIGital:BUS1:DISPlay` | `:DIGital:BUS1:DISPlay?` | see p.150 | documented; TOC/body-heading derived, parameters not transcribed | 150 |
-| `:DIGital:BUS1:FORMat` | `:DIGital:BUS1:FORMat?` | see p.151 | documented; TOC/body-heading derived, parameters not transcribed | 151 |
-| `:DIGital:BUS1:MAP` | `:DIGital:BUS1:MAP?` | see p.151 | documented; TOC/body-heading derived, parameters not transcribed | 151 |
-| `:DIGital:BUS<n>:DEFault` | `:DIGital:BUS<n>:DEFault?` | see p.150 | documented; TOC/body-heading derived, parameters not transcribed | 150 |
-| `:DIGital:BUS<n>:DISPlay` | `:DIGital:BUS<n>:DISPlay?` | see p.150 | documented; TOC/body-heading derived, parameters not transcribed | 150 |
-| `:DIGital:BUS<n>:FORMat` | `:DIGital:BUS<n>:FORMat?` | see p.150 | documented; TOC/body-heading derived, parameters not transcribed | 150 |
-| `:DIGital:BUS<n>:MAP` | `:DIGital:BUS<n>:MAP?` | see p.151 | documented; TOC/body-heading derived, parameters not transcribed | 151 |
-| `:DIGital:D5` | `:DIGital:D5?` | see p.152 | documented; TOC/body-heading derived, parameters not transcribed | 152 |
-| `:DIGital:D<d>` | `:DIGital:D<d>?` | see p.152 | documented; TOC/body-heading derived, parameters not transcribed | 152 |
-| `:DIGital:HEIGht` | `:DIGital:HEIGht?` | see p.152 | documented; TOC/body-heading derived, parameters not transcribed | 152 |
-| `:DIGital:LABel15` | `:DIGital:LABel15?` | see p.153 | documented; TOC/body-heading derived, parameters not transcribed | 153 |
-| `:DIGital:LABel<d>` | `:DIGital:LABel<d>?` | see p.153 | documented; TOC/body-heading derived, parameters not transcribed | 153 |
-| `:DIGital:POINts` | `:DIGital:POINts?` | see p.153 | documented; TOC/body-heading derived, parameters not transcribed | 153 |
-| `:DIGital:POSition` | `:DIGital:POSition?` | see p.153 | documented; TOC/body-heading derived, parameters not transcribed | 153 |
-| `:DIGital:SKEW` | `:DIGital:SKEW?` | see p.154 | documented; TOC/body-heading derived, parameters not transcribed | 154 |
-| `:DIGital:SRATe` | `:DIGital:SRATe?` | see p.154 | documented; TOC/body-heading derived, parameters not transcribed | 154 |
-| `:DIGital:THReshold1` | `:DIGital:THReshold1?` | see p.155 | documented; TOC/body-heading derived, parameters not transcribed | 155 |
-| `:DIGital:THReshold<n>` | `:DIGital:THReshold<n>?` | see p.155 | documented; TOC/body-heading derived, parameters not transcribed | 155 |
-| `:DISPlay:AXIS` | `:DISPlay:AXIS?` | see p.156 | documented; TOC/body-heading derived, parameters not transcribed | 156 |
-| `:DISPlay:AXIS:MODE` | `:DISPlay:AXIS:MODE?` | see p.156 | documented; TOC/body-heading derived, parameters not transcribed | 156 |
-| `:DISPlay:AXIS:POSition` | `:DISPlay:AXIS:POSition?` | see p.157 | documented; TOC/body-heading derived, parameters not transcribed | 157 |
-| `:DISPlay:BACKlight` | `:DISPlay:BACKlight?` | see p.157 | documented; TOC/body-heading derived, parameters not transcribed | 157 |
-| `:DISPlay:CLEar` | `:DISPlay:CLEar?` | see p.157 | documented; TOC/body-heading derived, parameters not transcribed | 157 |
-| `:DISPlay:COLor` | `:DISPlay:COLor?` | see p.158 | documented; TOC/body-heading derived, parameters not transcribed | 158 |
-| `:DISPlay:GRATicule` | `:DISPlay:GRATicule?` | see p.158 | documented; TOC/body-heading derived, parameters not transcribed | 158 |
-| `:DISPlay:GRIDstyle` | `:DISPlay:GRIDstyle?` | see p.159 | documented; TOC/body-heading derived, parameters not transcribed | 159 |
-| `:DISPlay:HIDemenu` | `:DISPlay:HIDemenu?` | see p.159 | documented; TOC/body-heading derived, parameters not transcribed | 159 |
-| `:DISPlay:INTensity` | `:DISPlay:INTensity?` | see p.159 | documented; TOC/body-heading derived, parameters not transcribed | 159 |
-| `:DISPlay:MENU` | `:DISPlay:MENU?` | see p.160 | documented; TOC/body-heading derived, parameters not transcribed | 160 |
-| `:DISPlay:MENU:HIDE` | `:DISPlay:MENU:HIDE?` | see p.160 | documented; TOC/body-heading derived, parameters not transcribed | 160 |
-| `:DISPlay:TRANsparence` | `:DISPlay:TRANsparence?` | see p.162 | documented; TOC/body-heading derived, parameters not transcribed | 162 |
-| `:DISPlay:TYPE` | `:DISPlay:TYPE?` | see p.162 | documented; TOC/body-heading derived, parameters not transcribed | 162 |
-| `:DVM:ALARm` | `:DVM:ALARm?` | see p.163 | documented; TOC/body-heading derived, parameters not transcribed | 163 |
-| `:DVM:ARANge` | `:DVM:ARANge?` | see p.164 | documented; TOC/body-heading derived, parameters not transcribed | 164 |
-| `:DVM:CURRent` | `:DVM:CURRent?` | see p.164 | documented; TOC/body-heading derived, parameters not transcribed | 164 |
-| `:DVM:HOLD` | `:DVM:HOLD?` | see p.164 | documented; TOC/body-heading derived, parameters not transcribed | 164 |
-| `:DVM:MODE` | `:DVM:MODE?` | see p.165 | documented; TOC/body-heading derived, parameters not transcribed | 165 |
-| `:DVM:SOURce` | `:DVM:SOURce?` | see p.165 | documented; TOC/body-heading derived, parameters not transcribed | 165 |
-| `:FUNCtion:FFTDisplay` | `:FUNCtion:FFTDisplay?` | see p.166 | documented; TOC/body-heading derived, parameters not transcribed | 166 |
-| `:FUNCtion:GVALue` | `:FUNCtion:GVALue?` | see p.166 | documented; TOC/body-heading derived, parameters not transcribed | 166 |
-| `:FUNCtion1:DIFF:DX` | `:FUNCtion1:DIFF:DX?` | see p.168 | documented; TOC/body-heading derived, parameters not transcribed | 168 |
-| `:FUNCtion1:ERES:BITS` | `:FUNCtion1:ERES:BITS?` | see p.168 | documented; TOC/body-heading derived, parameters not transcribed | 168 |
-| `:FUNCtion1:FFT:AUToset` | `:FUNCtion1:FFT:AUToset?` | see p.169 | documented; TOC/body-heading derived, parameters not transcribed | 169 |
-| `:FUNCtion1:FFT:HCENter` | `:FUNCtion1:FFT:HCENter?` | see p.169 | documented; TOC/body-heading derived, parameters not transcribed | 169 |
-| `:FUNCtion1:FFT:LOAD` | `:FUNCtion1:FFT:LOAD?` | see p.171 | documented; TOC/body-heading derived, parameters not transcribed | 171 |
-| `:FUNCtion1:FFT:MODE` | `:FUNCtion1:FFT:MODE?` | see p.171 | documented; TOC/body-heading derived, parameters not transcribed | 171 |
-| `:FUNCtion1:FFT:POINts` | `:FUNCtion1:FFT:POINts?` | see p.172 | documented; TOC/body-heading derived, parameters not transcribed | 172 |
-| `:FUNCtion1:FFT:RLEVel` | `:FUNCtion1:FFT:RLEVel?` | see p.173 | documented; TOC/body-heading derived, parameters not transcribed | 173 |
-| `:FUNCtion1:FFT:SCALe` | `:FUNCtion1:FFT:SCALe?` | see p.174 | documented; TOC/body-heading derived, parameters not transcribed | 174 |
+| `:COUNter:STATistics:VALue` | `:COUNter:STATistics:VALue?` | — | documented; 只读查询当前计数器的统计信息（仅频率/周期模式有效）；手册该页无输入参数（手册 p.62） | 62 |
+| `:CURSor:IXDelta` | `:CURSor:IXDelta?` | — | documented; 只读查询光标 1/(X2-X1) 的当前值；手册该页无输入参数（手册 p.68） | 68 |
+| `:CURSor:MANual:X<n>` | `:CURSor:MANual:X<n>?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}` | documented; 指定手动 X 光标的开关（手册 p.74） | 74 |
+| `:CURSor:MANual:X<n>:COLor` | `:CURSor:MANual:X<n>:COLor?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<color>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = colour of the cursor source, `DELTa` = follows the reference cursor, `CUSTom` needs `<string>` = quoted hexadecimal RGB code | documented; 指定手动 X 光标的颜色（手册 p.74） | 74 |
+| `:CURSor:MANual:X<n>:DFOLlow` | `:CURSor:MANual:X<n>:DFOLlow?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}`; only settable when the reference cursor source is not `NONE` | documented; 手动 X 光标与参考光标固定相对位置的开关（手册 p.75） | 75 |
+| `:CURSor:MANual:X<n>:DTCursor` | `:CURSor:MANual:X<n>:DTCursor?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<source>` = `{MX<m>\|TRACK<t>\|NONE}`; `<m>` = manual X cursor index 1 to 8, `<t>` = track cursor index 1 to 8, `NONE` = no reference cursor | documented; 指定手动 X 光标的参考光标（手册 p.75） | 75 |
+| `:CURSor:MANual:X<n>:DVALue` | `:CURSor:MANual:X<n>:DVALue?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<value>` = Real (NR3), position relative to the reference cursor | documented; 指定手动 X 光标相对参考光标的位置（手册 p.76） | 76 |
+| `:CURSor:MANual:X<n>:LABel` | `:CURSor:MANual:X<n>:LABel?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<state>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = empty label, `DELTa` = follows the reference cursor label, `CUSTom` needs `<string>` = quoted ASCII text, up to 20 characters | documented; 指定手动 X 光标的标签（手册 p.76） | 76 |
+| `:CURSor:MANual:X<n>:POSition` | `:CURSor:MANual:X<n>:POSition?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<value>` = Real (NR3), [-horizontal divisions/2 * current timebase + horizontal delay, horizontal divisions/2 * current timebase + horizontal delay] | documented; 指定手动 X 光标的位置（手册 p.77） | 77 |
+| `:CURSor:MANual:X<n>:SOURce` | `:CURSor:MANual:X<n>:SOURce?` | `<n>` = manual X cursor index, Integer (NR1), 1 to 8; `<source>` = `{C<n>\|Z<n>\|F<x>\|ZF<x>\|M<m>\|ZM<m>\|DIGital\|ZDIGital\|HISTOGram}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform, `HISTOGram` = waveform histogram | documented; 指定手动 X 光标的信源（手册 p.77） | 77 |
+| `:CURSor:MANual:Y<n>` | `:CURSor:MANual:Y<n>?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}` | documented; 指定手动 Y 光标的开关（手册 p.78） | 78 |
+| `:CURSor:MANual:Y<n>:COLor` | `:CURSor:MANual:Y<n>:COLor?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<color>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = colour of the cursor source, `DELTa` = follows the reference cursor, `CUSTom` needs `<string>` = quoted hexadecimal RGB code | documented; 指定手动 Y 光标的颜色（手册 p.78） | 78 |
+| `:CURSor:MANual:Y<n>:DFOLlow` | `:CURSor:MANual:Y<n>:DFOLlow?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}`; only settable when the reference cursor source is not `NONE` | documented; 手动 Y 光标与参考光标固定相对位置的开关（手册 p.79） | 79 |
+| `:CURSor:MANual:Y<n>:DTCursor` | `:CURSor:MANual:Y<n>:DTCursor?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<source>` = `{MY<m>\|NONE}`; `<m>` = manual Y cursor index, `NONE` = no reference cursor | documented; 指定手动 Y 光标的参考光标（手册 p.79） | 79 |
+| `:CURSor:MANual:Y<n>:DVALue` | `:CURSor:MANual:Y<n>:DVALue?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<value>` = Real (NR3), position relative to the reference cursor | documented; 指定手动 Y 光标相对参考光标的位置（手册 p.80） | 80 |
+| `:CURSor:MANual:Y<n>:LABel` | `:CURSor:MANual:Y<n>:LABel?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<state>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = empty label, `DELTa` = follows the reference cursor label, `CUSTom` needs `<string>` = quoted ASCII text, up to 20 characters | documented; 指定手动 Y 光标的标签（手册 p.80） | 80 |
+| `:CURSor:MANual:Y<n>:POSition` | `:CURSor:MANual:Y<n>:POSition?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<value>` = Real (NR3), [-vertical divisions/2 * vertical scale + vertical offset, vertical divisions/2 * vertical scale + vertical offset] | documented; 指定手动 Y 光标的位置（手册 p.81） | 81 |
+| `:CURSor:MANual:Y<n>:SOURce` | `:CURSor:MANual:Y<n>:SOURce?` | `<n>` = manual Y cursor index, Integer (NR1), 1 to 8; `<source>` = `{C<n>\|Z<n>\|F<x>\|ZF<x>\|M<m>\|ZM<m>\|HISTOGram}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform, `HISTOGram` = waveform histogram | documented; 指定手动 Y 光标的信源（手册 p.81） | 81 |
+| `:CURSor:MEASure<n>` | `:CURSor:MEASure<n>?` | `<n>` = measurement cursor index, Integer (NR1), 1 to 4; `<state>` = `{ON\|OFF}` | documented; 指定测量光标 MEA 的开关（手册 p.82） | 82 |
+| `:CURSor:MEASure<n>:COLor` | `:CURSor:MEASure<n>:COLor?` | `<n>` = measurement cursor index, Integer (NR1), 1 to 4; `<color>` = `{DEFault\|CUSTom[,<string>]}`; `DEFault` = colour of the cursor source, `CUSTom` needs `<string>` = quoted hexadecimal RGB code | documented; 指定测量光标 MEA 的颜色（手册 p.82） | 82 |
+| `:CURSor:MEASure<n>:LABel` | `:CURSor:MEASure<n>:LABel?` | `<n>` = Integer (NR1) (manual prints the 1-to-8 track-cursor range here); `<state>` = `{DEFault\|CUSTom[,<string>]}`; `DEFault` = empty label, `CUSTom` needs `<string>` = quoted ASCII text, up to 20 characters | documented; 指定测量光标 MEA 的标签（手册 p.83） | 83 |
+| `:CURSor:MEASure<n>:MITem` | `:CURSor:MEASure<n>:MITem?` | `<n>` = measurement cursor index, Integer (NR1), 1 to 4; `<type>` = measurement item, same mnemonics as Table 5-1; `<source1>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|D<d>\|ZD<d>}`; `<source2>` = `{C<n>}`, required when the advanced item is a channel delay; `<m>` = memory waveform 1 to 4, `<d>` = digital channel 0 to 15, `Z<n>` is only valid while Zoom is on | documented; 指定测量光标 MEA 的测量项（手册 p.84） | 84 |
+| `:CURSor:MITem` | `:CURSor:MITem?` | `<type>` = measurement item, same mnemonics as Table 5-1; `<source1>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|D<d>\|ZD<d>\|REF<r>}`; `<source2>` = `{C<n>}`, required when the advanced item is a channel delay; `<m>` = memory waveform 1 to 4, `<r>` = `{A\|B\|C\|D}` reference waveform, `<d>` = digital channel 0 to 15, `Z<n>` is only valid while Zoom is on | documented; 光标模式为测量光标时的测量项（手册 p.68） | 68 |
+| `:CURSor:TAGStyle` | `:CURSor:TAGStyle?` | `<type>` = `{FIXed\|FOLLowing}` (fixed / following cursor style) | documented; 光标样式（手册 p.66） | 66 |
+| `:CURSor:TRAC2:DTCursor` | `:CURSor:TRAC2:DTCursor?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<source>` = `{MX<m>\|TRACK<t>\|NONE}`; `<m>`/`<t>` = manual X / track cursor index 1 to 8, `NONE` = no reference cursor | documented; 指定追踪光标 TX 的参考光标（手册 p.86） | 86 |
+| `:CURSor:TRACk<n>` | `:CURSor:TRACk<n>?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}` | documented; 指定追踪光标 TX 的开关（手册 p.76） | 76 |
+| `:CURSor:TRACk<n>:COLor` | `:CURSor:TRACk<n>:COLor?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<color>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = colour of the cursor source, `DELTa` = follows the reference cursor, `CUSTom` needs `<string>` = quoted hexadecimal RGB code | documented; 指定追踪光标 TX 的颜色（手册 p.85） | 85 |
+| `:CURSor:TRACk<n>:DFOLlow` | `:CURSor:TRACk<n>:DFOLlow?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}`; only settable when the reference cursor source is not `NONE` | documented; 追踪光标 TX 与参考光标固定相对位置的开关（手册 p.85） | 85 |
+| `:CURSor:TRACk<n>:DTCursor` | `:CURSor:TRACk<n>:DTCursor?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<source>` = `{MX<m>\|TRACK<t>\|NONE}`; `<m>`/`<t>` = manual X / track cursor index 1 to 8, `NONE` = no reference cursor | documented; 指定追踪光标 TX 的参考光标（手册 p.85） | 85 |
+| `:CURSor:TRACk<n>:DVALue` | `:CURSor:TRACk<n>:DVALue?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<value>` = Real (NR3), position relative to the reference cursor | documented; 指定追踪光标 TX 相对参考光标的位置（手册 p.86） | 86 |
+| `:CURSor:TRACk<n>:LABel` | `:CURSor:TRACk<n>:LABel?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<state>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = empty label, `DELTa` = follows the reference cursor label, `CUSTom` needs `<string>` = quoted ASCII text, up to 20 characters | documented; 指定追踪光标 TX 的标签（手册 p.87） | 87 |
+| `:CURSor:TRACk<n>:POSition` | `:CURSor:TRACk<n>:POSition?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<value>` = Real (NR3), [-horizontal divisions/2 * current timebase + horizontal delay, horizontal divisions/2 * current timebase + horizontal delay] | documented; 指定追踪光标 TX 的水平位置（手册 p.87） | 87 |
+| `:CURSor:TRACk<n>:SOURce` | `:CURSor:TRACk<n>:SOURce?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8; `<source>` = `{C<n>\|Z<n>\|F<x>\|ZF<x>\|M<m>\|ZM<m>}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform | documented; 指定追踪光标 TX 的信源（手册 p.85） | 85 |
+| `:CURSor:TRACk<n>:VALue` | `:CURSor:TRACk<n>:VALue?` | `<n>` = track cursor TX index, Integer (NR1), 1 to 8 | documented; 只读查询追踪光标 TX 的垂直方向位置（手册 p.88） | 88 |
+| `:CURSor:XDELta` | `:CURSor:XDELta?` | — | documented; 只读查询光标 X2 与 X1 当前位置的水平差；手册该页无输入参数（手册 p.68） | 68 |
+| `:CURSor:XREFerence` | `:CURSor:XREFerence?` | `<type>` = `{DELay\|POSition}`; `DELay` keeps the X cursor value when the timebase changes, `POSition` keeps its on-screen grid position | documented; X 光标参考的类型（手册 p.67） | 67 |
+| `:CURSor:XY:X<n>` | `:CURSor:XY:X<n>?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<state>` = `{ON\|OFF}`; XY mode must be on, turning XY off turns these cursors off | documented; 指定 XY 模式 X 光标的开关（手册 p.89） | 89 |
+| `:CURSor:XY:X<n>:COLor` | `:CURSor:XY:X<n>:COLor?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<color>` = `{DEFault\|CUSTom[,<string>]}`; `DEFault` = colour of the cursor source, `CUSTom` needs `<string>` = quoted hexadecimal RGB code | documented; 指定 XY 模式 X 光标的颜色（手册 p.89） | 89 |
+| `:CURSor:XY:X<n>:DFOLlow` | `:CURSor:XY:X<n>:DFOLlow?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<state>` = `{ON\|OFF}`; only settable when the reference cursor source is not `NONE` | documented; XY 模式 X 光标与参考光标固定相对位置的开关（手册 p.90） | 90 |
+| `:CURSor:XY:X<n>:DTCursor` | `:CURSor:XY:X<n>:DTCursor?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<source>` = `{XY_X<m>\|NONE}`; `<m>` = XY mode X cursor index 1 to 2, `NONE` = no reference cursor | documented; 指定 XY 模式 X 光标的参考光标（手册 p.90） | 90 |
+| `:CURSor:XY:X<n>:DVALue` | `:CURSor:XY:X<n>:DVALue?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<value>` = Real (NR3), position relative to the reference cursor | documented; 指定 XY 模式 X 光标相对参考光标的位置（手册 p.91） | 91 |
+| `:CURSor:XY:X<n>:LABel` | `:CURSor:XY:X<n>:LABel?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<state>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = empty label, `DELTa` = follows the reference cursor label, `CUSTom` needs `<string>` = quoted ASCII text, up to 20 characters | documented; 指定 XY 模式 X 光标的标签（手册 p.91） | 91 |
+| `:CURSor:XY:X<n>:POSition` | `:CURSor:XY:X<n>:POSition?` | `<n>` = XY mode X cursor index, Integer (NR1), 1 to 2; `<value>` = Real (NR3); manual lists no range on this page | documented; 指定 XY 模式 X 光标的位置（手册 p.92） | 92 |
+| `:CURSor:XY:Y<n>` | `:CURSor:XY:Y<n>?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<state>` = `{ON\|OFF}`; XY mode must be on, turning XY off turns these cursors off | documented; 指定 XY 模式 Y 光标的开关（手册 p.92） | 92 |
+| `:CURSor:XY:Y<n>:COLor` | `:CURSor:XY:Y<n>:COLor?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<color>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = colour of the cursor source, `DELTa` = follows the reference cursor, `CUSTom` needs `<string>` = quoted hexadecimal RGB code | documented; 指定 XY 模式 Y 光标的颜色（手册 p.93） | 93 |
+| `:CURSor:XY:Y<n>:DFOLlow` | `:CURSor:XY:Y<n>:DFOLlow?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<state>` = `{ON\|OFF}`; only settable when the reference cursor source is not `NONE` | documented; XY 模式 Y 光标与参考光标固定相对位置的开关（手册 p.93） | 93 |
+| `:CURSor:XY:Y<n>:DTCursor` | `:CURSor:XY:Y<n>:DTCursor?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<source>` = `{XY_Y<m>\|NONE}`; `<m>` = XY mode Y cursor index 1 to 2, `NONE` = no reference cursor | documented; 指定 XY 模式 Y 光标的参考光标（手册 p.93） | 93 |
+| `:CURSor:XY:Y<n>:DVALue` | `:CURSor:XY:Y<n>:DVALue?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<value>` = Real (NR3), position relative to the reference cursor | documented; 指定 XY 模式 Y 光标相对参考光标的位置（手册 p.94） | 94 |
+| `:CURSor:XY:Y<n>:LABel` | `:CURSor:XY:Y<n>:LABel?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<state>` = `{DEFault\|DELTa\|CUSTom[,<string>]}`; `DEFault` = empty label, `DELTa` = follows the reference cursor label, `CUSTom` needs `<string>` = quoted ASCII text, up to 20 characters | documented; 指定 XY 模式 Y 光标的标签（手册 p.95） | 95 |
+| `:CURSor:XY:Y<n>:POSition` | `:CURSor:XY:Y<n>:POSition?` | `<n>` = XY mode cursor index, Integer (NR1), 1 to 2; `<value>` = Real (NR3); manual lists no range on this page | documented; 指定 XY 模式 Y 光标的位置（手册 p.95） | 95 |
+| `:CURSor:YDELta` | `:CURSor:YDELta?` | — | documented; 只读查询光标 Y2 与 Y1 当前位置的垂直差；手册该页无输入参数（手册 p.72） | 72 |
+| `:CURSor:YREFerence` | `:CURSor:YREFerence?` | `<type>` = `{OFFSet\|POSition}`; `OFFSet` keeps the Y cursor value when the vertical scale changes, `POSition` keeps its on-screen grid position | documented; Y 光标参考的类型（手册 p.67） | 67 |
+| `:DECode:BUS1:M1553:LTHReshold` | `:DECode:BUS1:M1553:LTHReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:DECode:BUS<n>:M1553:UTHReshold`) | documented; M1553 总线解码的阈值低电平（手册 p.135） | 135 |
+| `:DECode:BUS1:M1553:SOURce` | `:DECode:BUS1:M1553:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; M1553 总线解码的信源（手册 p.136） | 136 |
+| `:DECode:BUS1:M1553:UTHReshold` | `:DECode:BUS1:M1553:UTHReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The high level must not be below the low level (`:DECode:BUS<n>:M1553:LTHReshold`) | documented; M1553 总线解码的阈值高电平（手册 p.136） | 136 |
+| `:DECode:BUS<n>` | `:DECode:BUS<n>?` | `<n>` = `{1\|2}`, bus index; `<state>` = `{ON\|OFF}` | documented; 解码总线的显示状态（手册 p.98） | 98 |
+| `:DECode:BUS<n>:CAN` | `:DECode:BUS<n>:CAN?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.119） | 119 |
+| `:DECode:BUS<n>:CAN:BAUD` | `:DECode:BUS<n>:CAN:BAUD?` | `<n>` = `{1\|2}`, bus index; `<baud>` = `{5kbps\|10kbps\|20kbps\|50kbps\|100kbps\|125kbps\|250kbps\|500kbps\|800kbps\|1Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 5000 to 1000000 | documented; CAN 总线解码的波特率（手册 p.119） | 119 |
+| `:DECode:BUS<n>:CAN:SOURce` | `:DECode:BUS<n>:CAN:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; CAN 总线解码的信源（手册 p.119） | 119 |
+| `:DECode:BUS<n>:CAN:THReshold` | `:DECode:BUS<n>:CAN:THReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; CAN 总线解码的阈值（手册 p.120） | 120 |
+| `:DECode:BUS<n>:CANFd` | `:DECode:BUS<n>:CANFd?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.125） | 125 |
+| `:DECode:BUS<n>:CANFd:BAUDData` | `:DECode:BUS<n>:CANFd:BAUDData?` | `<n>` = `{1\|2}`, bus index; `<baud>` = `{500kbps\|1Mbps\|2Mbps\|5Mbps\|8Mbps\|10Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 100000 to 10000000 | documented; CAN FD 总线解码的数据波特率（手册 p.125） | 125 |
+| `:DECode:BUS<n>:CANFd:BAUDNominal` | `:DECode:BUS<n>:CANFd:BAUDNominal?` | `<n>` = `{1\|2}`, bus index; `<baud>` = `{10kbps\|25kbps\|50kbps\|100kbps\|250kbps\|1Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 10000 to 1000000 | documented; CAN FD 总线解码的标准波特率（手册 p.125） | 125 |
+| `:DECode:BUS<n>:CANFd:SOURce` | `:DECode:BUS<n>:CANFd:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; CAN FD 总线解码的信源（手册 p.126） | 126 |
+| `:DECode:BUS<n>:CANFd:THReshold` | `:DECode:BUS<n>:CANFd:THReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; CAN FD 总线解码的阈值（手册 p.126） | 126 |
+| `:DECode:BUS<n>:COPY` | `:DECode:BUS<n>:COPY?` | `<n>` = `{1\|2}`, bus index; `<operation>` = `{FROMtrigger\|TOTRigger}`; copy the trigger settings into the decode settings / the decode settings into the trigger settings | documented; 解码设置与触发设置同步（手册 p.99） | 99 |
+| `:DECode:BUS<n>:FLEXray` | `:DECode:BUS<n>:FLEXray?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.123） | 123 |
+| `:DECode:BUS<n>:FLEXray:BAUD` | `:DECode:BUS<n>:FLEXray:BAUD?` | `<n>` = `{1\|2}`, bus index; `<baud>` = `{2500kbps\|5Mbps\|10Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 1000000 to 20000000 | documented; FlexRay 总线解码的波特率（手册 p.123） | 123 |
+| `:DECode:BUS<n>:FLEXray:SOURce` | `:DECode:BUS<n>:FLEXray:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; FlexRay 总线解码的信源（手册 p.123） | 123 |
+| `:DECode:BUS<n>:FLEXray:THReshold` | `:DECode:BUS<n>:FLEXray:THReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; FlexRay 总线解码的阈值（手册 p.124） | 124 |
+| `:DECode:BUS<n>:FORMat` | `:DECode:BUS<n>:FORMat?` | `<n>` = `{1\|2}`, bus index; `<format>` = `{BINary\|DECimal\|HEX\|ASCii}` | documented; 解码总线的数据格式（手册 p.99） | 99 |
+| `:DECode:BUS<n>:IIC` | `:DECode:BUS<n>:IIC?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.101） | 101 |
+| `:DECode:BUS<n>:IIC:RWBit` | `:DECode:BUS<n>:IIC:RWBit?` | `<n>` = `{1\|2}`, bus index; `<state>` = `{ON\|OFF}` | documented; IIC 总线解码结果是否包含读写位（手册 p.101） | 101 |
+| `:DECode:BUS<n>:IIC:SCLSource` | `:DECode:BUS<n>:IIC:SCLSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIC 总线解码的 SCL（串行时钟线）信源（手册 p.101） | 101 |
+| `:DECode:BUS<n>:IIC:SCLThreshold` | `:DECode:BUS<n>:IIC:SCLThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIC 总线解码的 SCL（串行时钟线）阈值（手册 p.102） | 102 |
+| `:DECode:BUS<n>:IIC:SDASource` | `:DECode:BUS<n>:IIC:SDASource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIC 总线解码的 SDA（串行数据线）信源（手册 p.101） | 101 |
+| `:DECode:BUS<n>:IIC:SDAThreshold` | `:DECode:BUS<n>:IIC:SDAThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIC 总线解码的 SDA（串行数据线）阈值（手册 p.103） | 103 |
+| `:DECode:BUS<n>:IIS` | `:DECode:BUS<n>:IIS?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.128） | 128 |
+| `:DECode:BUS<n>:IIS:ANNotate` | `:DECode:BUS<n>:IIS:ANNotate?` | `<n>` = `{1\|2}`, bus index; `<type>` = `{ALL\|LEFT\|RIGHt}` | documented; IIS 总线解码的注释通道（手册 p.128） | 128 |
+| `:DECode:BUS<n>:IIS:AVARiant` | `:DECode:BUS<n>:IIS:AVARiant?` | `<n>` = `{1\|2}`, bus index; `<type>` = `{I2S\|LJ\|RJ}` (Audio-I2S / Audio-LJ / Audio-RJ) | documented; IIS 总线解码的音频格式（手册 p.128） | 128 |
+| `:DECode:BUS<n>:IIS:BCLKSource` | `:DECode:BUS<n>:IIS:BCLKSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIS 总线解码的时钟（BCLK）源（手册 p.129） | 129 |
+| `:DECode:BUS<n>:IIS:BCLKThreshold` | `:DECode:BUS<n>:IIS:BCLKThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIS 总线解码的时钟（BCLK）源阈值（手册 p.129） | 129 |
+| `:DECode:BUS<n>:IIS:BITorder` | `:DECode:BUS<n>:IIS:BITorder?` | `<n>` = `{1\|2}`, bus index; `<order>` = `{LSB\|MSB}` (least / most significant bit first) | documented; IIS 总线解码的比特流格式（手册 p.130） | 130 |
+| `:DECode:BUS<n>:IIS:DLENgth` | `:DECode:BUS<n>:IIS:DLENgth?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 1 to 32 | documented; IIS 总线解码的数据位数（手册 p.130） | 130 |
+| `:DECode:BUS<n>:IIS:DSource` | `:DECode:BUS<n>:IIS:DSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIS 总线解码的数据源（手册 p.131） | 131 |
+| `:DECode:BUS<n>:IIS:DTHReshold` | `:DECode:BUS<n>:IIS:DTHReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIS 总线解码的数据源阈值（手册 p.131） | 131 |
+| `:DECode:BUS<n>:IIS:LATChedge` | `:DECode:BUS<n>:IIS:LATChedge?` | `<n>` = `{1\|2}`, bus index; `<slope>` = `{RISing\|FALLing}`; data is latched on the selected clock edge | documented; IIS 总线解码的时钟采样边沿（手册 p.132） | 132 |
+| `:DECode:BUS<n>:IIS:LCH` | `:DECode:BUS<n>:IIS:LCH?` | `<n>` = `{1\|2}`, bus index; `<left>` = `{LOW\|HIGH}`; `LOW` selects the left channel while WS is low, `HIGH` selects it while WS is high | documented; IIS 总线解码的左声道极性（手册 p.132） | 132 |
+| `:DECode:BUS<n>:IIS:SBIT` | `:DECode:BUS<n>:IIS:SBIT?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 1 to 31 | documented; IIS 总线解码的起始位（手册 p.133） | 133 |
+| `:DECode:BUS<n>:IIS:WSSource` | `:DECode:BUS<n>:IIS:WSSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIS 总线解码的帧时钟（WS）源（手册 p.133） | 133 |
+| `:DECode:BUS<n>:IIS:WSTHreshold` | `:DECode:BUS<n>:IIS:WSTHreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIS 总线解码的帧时钟（WS）阈值（手册 p.134） | 134 |
+| `:DECode:BUS<n>:LIN` | `:DECode:BUS<n>:LIN?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.121） | 121 |
+| `:DECode:BUS<n>:LIN:BAUD` | `:DECode:BUS<n>:LIN:BAUD?` | `<n>` = `{1\|2}`, bus index; `<baud>` = `{600bps\|1200bps\|2400bps\|4800bps\|9600bps\|19200bps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 300 to 20000000 | documented; LIN 总线解码的波特率（手册 p.121） | 121 |
+| `:DECode:BUS<n>:LIN:SOURce` | `:DECode:BUS<n>:LIN:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; LIN 总线解码的信源（手册 p.121） | 121 |
+| `:DECode:BUS<n>:LIN:THReshold` | `:DECode:BUS<n>:LIN:THReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; LIN 总线解码的阈值（手册 p.122） | 122 |
+| `:DECode:BUS<n>:M1553` | `:DECode:BUS<n>:M1553?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.135） | 135 |
+| `:DECode:BUS<n>:M1553:LTHReshold` | `:DECode:BUS<n>:M1553:LTHReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:DECode:BUS<n>:M1553:UTHReshold`) | documented; M1553 总线解码的阈值低电平（手册 p.135） | 135 |
+| `:DECode:BUS<n>:M1553:SOURce` | `:DECode:BUS<n>:M1553:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; M1553 总线解码的信源（手册 p.135） | 135 |
+| `:DECode:BUS<n>:M1553:UTHReshold` | `:DECode:BUS<n>:M1553:UTHReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The high level must not be below the low level (`:DECode:BUS<n>:M1553:LTHReshold`) | documented; M1553 总线解码的阈值高电平（手册 p.135） | 135 |
+| `:DECode:BUS<n>:MANChester` | `:DECode:BUS<n>:MANChester?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.142） | 142 |
+| `:DECode:BUS<n>:MANChester:BAUD` | `:DECode:BUS<n>:MANChester:BAUD?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 500 to 5000000 | documented; MANChester 总线解码的波特率（手册 p.143） | 143 |
+| `:DECode:BUS<n>:MANChester:BITorder` | `:DECode:BUS<n>:MANChester:BITorder?` | `<n>` = `{1\|2}`, bus index; `<order>` = `{LSB\|MSB}` (least / most significant bit first) | documented; MANChester 总线解码的比特流格式（手册 p.148） | 148 |
+| `:DECode:BUS<n>:MANChester:DISPlay` | `:DECode:BUS<n>:MANChester:DISPlay?` | `<n>` = `{1\|2}`, bus index; `<format>` = `{WORD\|BIT}` | documented; MANChester 总线解码的显示格式（手册 p.147） | 147 |
+| `:DECode:BUS<n>:MANChester:DSIZe` | `:DECode:BUS<n>:MANChester:DSIZe?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 1 to 255 | documented; MANChester 总线解码的数据字长度（手册 p.147） | 147 |
+| `:DECode:BUS<n>:MANChester:HSIZe` | `:DECode:BUS<n>:MANChester:HSIZe?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 0 to 32 | documented; MANChester 总线解码的头部字段长度（手册 p.145） | 145 |
+| `:DECode:BUS<n>:MANChester:IBITs` | `:DECode:BUS<n>:MANChester:IBITs?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 2 to 32 | documented; MANChester 总线解码的帧间隔（手册 p.144） | 144 |
+| `:DECode:BUS<n>:MANChester:IDLE` | `:DECode:BUS<n>:MANChester:IDLE?` | `<n>` = `{1\|2}`, bus index; `<idle>` = `{LOW\|HIGH}` (manual repeats `LOW` for both entries) | documented; MANChester 总线解码的空闲状态（手册 p.144） | 144 |
+| `:DECode:BUS<n>:MANChester:POLarity` | `:DECode:BUS<n>:MANChester:POLarity?` | `<n>` = `{1\|2}`, bus index; `<polar>` = `{RISing\|FALLing}`; `RISing` treats a rising edge as logic 1, `FALLing` a falling edge | documented; MANChester 总线解码的极性（手册 p.143） | 143 |
+| `:DECode:BUS<n>:MANChester:SOURce` | `:DECode:BUS<n>:MANChester:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; MANChester 总线解码的信源（手册 p.142） | 142 |
+| `:DECode:BUS<n>:MANChester:SSIZe` | `:DECode:BUS<n>:MANChester:SSIZe?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 0 to 32 | documented; MANChester 总线解码的同步字段长度（手册 p.145） | 145 |
+| `:DECode:BUS<n>:MANChester:STARt` | `:DECode:BUS<n>:MANChester:STARt?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 1 to 32 | documented; MANChester 总线解码的起始沿（手册 p.145） | 145 |
+| `:DECode:BUS<n>:MANChester:THReshold` | `:DECode:BUS<n>:MANChester:THReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; MANChester 总线解码的阈值（手册 p.142） | 142 |
+| `:DECode:BUS<n>:MANChester:TSIZe` | `:DECode:BUS<n>:MANChester:TSIZe?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 0 to 32 | documented; MANChester 总线解码的尾部字段长度（手册 p.146） | 146 |
+| `:DECode:BUS<n>:MANChester:WSIZe` | `:DECode:BUS<n>:MANChester:WSIZe?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 2 to 8 | documented; MANChester 总线解码的字大小（手册 p.146） | 146 |
+| `:DECode:BUS<n>:PROTocol` | `:DECode:BUS<n>:PROTocol?` | `<n>` = `{1\|2}`, bus index; `<protocol>` = `{IIC\|SPI\|UART\|CAN\|LIN\|FLEXray\|CANFd\|IIS\|M1553\|SENT\|MANchester\|ARINC429\|USB20}` (the return format prints `A429` for `ARINC429`) | documented; 解码总线的协议（手册 p.99） | 99 |
+| `:DECode:BUS<n>:RESult` | `:DECode:BUS<n>:RESult?` | `<n>` = `{1\|2}`, bus index | documented; 只读查询解码总线的结果，返回 ASCII 文本（字段逗号分隔、帧分号分隔，首行为头部描述）；完整结果用 `:DECode:LIST<n>:RESult`（手册 p.100） | 100 |
+| `:DECode:BUS<n>:SENT` | `:DECode:BUS<n>:SENT?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.137） | 137 |
+| `:DECode:BUS<n>:SENT:CLOCk` | `:DECode:BUS<n>:SENT:CLOCk?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3), 500E-09 to 300E-06 | documented; SENT 总线解码的时钟周期（手册 p.138） | 138 |
+| `:DECode:BUS<n>:SENT:CRC` | `:DECode:BUS<n>:SENT:CRC?` | `<n>` = `{1\|2}`, bus index; `<state>` = `{OFF\|ON}` (`ON` = 2010 CRC format, `OFF` = 2008 CRC format) | documented; SENT 总线解码的 CRC 校验格式（手册 p.140） | 140 |
+| `:DECode:BUS<n>:SENT:FORMat` | `:DECode:BUS<n>:SENT:FORMat?` | `<n>` = `{1\|2}`, bus index; `<format>` = `{NIBBles\|FSIGnal\|SSERial\|ESERial}` | documented; SENT 总线解码的消息格式（手册 p.138） | 138 |
+| `:DECode:BUS<n>:SENT:IDLE` | `:DECode:BUS<n>:SENT:IDLE?` | `<n>` = `{1\|2}`, bus index; `<idle>` = `{LOW\|HIGH}` (manual repeats `LOW` for both entries) | documented; SENT 总线解码的空闲状态（手册 p.139） | 139 |
+| `:DECode:BUS<n>:SENT:LENGth` | `:DECode:BUS<n>:SENT:LENGth?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 3 to 8 | documented; SENT 总线解码的半字节数（手册 p.140） | 140 |
+| `:DECode:BUS<n>:SENT:PPULse` | `:DECode:BUS<n>:SENT:PPULse?` | `<state>` = `{OFF\|ON}`; manual lists no bus index for this command | documented; SENT 总线解码的可变暂停位状态（手册 p.141） | 141 |
+| `:DECode:BUS<n>:SENT:SOURce` | `:DECode:BUS<n>:SENT:SOURce?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SENT 总线解码的信源（手册 p.137） | 137 |
+| `:DECode:BUS<n>:SENT:THReshold` | `:DECode:BUS<n>:SENT:THReshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SENT 总线解码的阈值（手册 p.137） | 137 |
+| `:DECode:BUS<n>:SENT:TOLerance` | `:DECode:BUS<n>:SENT:TOLerance?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1) percent, 1 to 25 | documented; SENT 总线解码时钟周期的容差（手册 p.139） | 139 |
+| `:DECode:BUS<n>:SPI` | `:DECode:BUS<n>:SPI?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.104） | 104 |
+| `:DECode:BUS<n>:SPI:BITorder` | `:DECode:BUS<n>:SPI:BITorder?` | `<n>` = `{1\|2}`, bus index; `<order>` = `{LSB\|MSB}` (least / most significant bit first) | documented; SPI 总线解码的比特流格式（手册 p.104） | 104 |
+| `:DECode:BUS<n>:SPI:CLKSource` | `:DECode:BUS<n>:SPI:CLKSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线解码的 CLK（时钟）信源（手册 p.104） | 104 |
+| `:DECode:BUS<n>:SPI:CLKThreshold` | `:DECode:BUS<n>:SPI:CLKThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线解码的 CLK（时钟）阈值（手册 p.105） | 105 |
+| `:DECode:BUS<n>:SPI:CSSource` | `:DECode:BUS<n>:SPI:CSSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线解码的 CS（片选）信源（手册 p.105） | 105 |
+| `:DECode:BUS<n>:SPI:CSTYpe` | `:DECode:BUS<n>:SPI:CSTYpe?` | `<n>` = `{1\|2}`, bus index; `<type>` = `{NCS\|CS\|TIMeout[,<time>]}`; `NCS` frames on chip select low, `CS` on chip select high, `TIMeout` needs no CS source but `<time>` = Real (NR3), 1.00E-07 to 5.00E-03 (minimum clock-idle time) | documented; SPI 总线解码的片选类型（手册 p.107） | 107 |
+| `:DECode:BUS<n>:SPI:CSThreshold` | `:DECode:BUS<n>:SPI:CSThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线解码的 CS（片选）阈值（手册 p.106） | 106 |
+| `:DECode:BUS<n>:SPI:DLENgth` | `:DECode:BUS<n>:SPI:DLENgth?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 4 to 32 | documented; SPI 总线解码的数据位宽（手册 p.107） | 107 |
+| `:DECode:BUS<n>:SPI:LATChedge` | `:DECode:BUS<n>:SPI:LATChedge?` | `<n>` = `{1\|2}`, bus index; `<slope>` = `{RISing\|FALLing}` | documented; SPI 总线解码的 CLK（时钟）采样边沿（手册 p.108） | 108 |
+| `:DECode:BUS<n>:SPI:MISOSource` | `:DECode:BUS<n>:SPI:MISOSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>\|DIS}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1, `DIS` = disabled | documented; SPI 总线解码的 MISO 信源（手册 p.108） | 108 |
+| `:DECode:BUS<n>:SPI:MISOThreshold` | `:DECode:BUS<n>:SPI:MISOThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线解码的 MISO 阈值（手册 p.109） | 109 |
+| `:DECode:BUS<n>:SPI:MOSISource` | `:DECode:BUS<n>:SPI:MOSISource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>\|DIS}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1, `DIS` = disabled | documented; SPI 总线解码的 MOSI 信源（手册 p.109） | 109 |
+| `:DECode:BUS<n>:SPI:MOSIThreshold` | `:DECode:BUS<n>:SPI:MOSIThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线解码的 MOSI 阈值（手册 p.110） | 110 |
+| `:DECode:BUS<n>:SPI:NCSSource` | `:DECode:BUS<n>:SPI:NCSSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线解码的 NCS 信源（手册 p.111） | 111 |
+| `:DECode:BUS<n>:SPI:NCSThreshold` | `:DECode:BUS<n>:SPI:NCSThreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线解码的 NCS 阈值（手册 p.111） | 111 |
+| `:DECode:BUS<n>:UART` | `:DECode:BUS<n>:UART?` | — | documented; 章节标题，本节无独立参数；该协议的设置都在其子命令中（手册 p.113） | 113 |
+| `:DECode:BUS<n>:UART:BAUD` | `:DECode:BUS<n>:UART:BAUD?` | `<n>` = `{1\|2}`, bus index; `<baud>` = `{600bps\|1200bps\|2400bps\|4800bps\|9600bps\|19200bps\|38400bps\|57600bps\|115200bps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 300 to 20000000 | documented; UART 总线解码的波特率（手册 p.113） | 113 |
+| `:DECode:BUS<n>:UART:BITorder` | `:DECode:BUS<n>:UART:BITorder?` | `<n>` = `{1\|2}`, bus index; `<order>` = `{LSB\|MSB}` (least / most significant bit first) | documented; UART 总线解码的比特流格式（手册 p.113） | 113 |
+| `:DECode:BUS<n>:UART:DLENgth` | `:DECode:BUS<n>:UART:DLENgth?` | `<n>` = `{1\|2}`, bus index; `<value>` = Integer (NR1), 5 to 8 | documented; UART 总线解码的数据长度（手册 p.114） | 114 |
+| `:DECode:BUS<n>:UART:IDLE` | `:DECode:BUS<n>:UART:IDLE?` | `<n>` = `{1\|2}`, bus index; `<idle>` = `{LOW\|HIGH}` | documented; UART 总线解码的空闲电平（手册 p.114） | 114 |
+| `:DECode:BUS<n>:UART:PARity` | `:DECode:BUS<n>:UART:PARity?` | `<n>` = `{1\|2}`, bus index; `<parity>` = `{NONE\|ODD\|EVEN\|MARK\|SPACe}` (none / odd / even / mark = 1 / space = 0) | documented; UART 总线解码的奇偶校验（手册 p.115） | 115 |
+| `:DECode:BUS<n>:UART:RXSource` | `:DECode:BUS<n>:UART:RXSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>\|DIS}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1, `DIS` = disabled | documented; UART 总线解码的 RX 信源（手册 p.115） | 115 |
+| `:DECode:BUS<n>:UART:RXTHreshold` | `:DECode:BUS<n>:UART:RXTHreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; UART 总线解码的 RX 阈值（手册 p.116） | 116 |
+| `:DECode:BUS<n>:UART:STOP` | `:DECode:BUS<n>:UART:STOP?` | `<n>` = `{1\|2}`, bus index; `<bit>` = `{1\|1.5\|2}` | documented; UART 总线解码的停止位数（手册 p.116） | 116 |
+| `:DECode:BUS<n>:UART:TXSource` | `:DECode:BUS<n>:UART:TXSource?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{C<n>\|D<d>\|DIS}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1, `DIS` = disabled | documented; UART 总线解码的 TX 信源（手册 p.117） | 117 |
+| `:DECode:BUS<n>:UART:TXTHreshold` | `:DECode:BUS<n>:UART:TXTHreshold?` | `<n>` = `{1\|2}`, bus index; `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; UART 总线解码的 TX 阈值（手册 p.117） | 117 |
+| `:DECode:LIST` | `:DECode:LIST?` | `<state>` = `{OFF\|D1\|D2}` (`OFF` hides the list, `D1`/`D2` shows the list of bus 1 / bus 2) | documented; 解码列表状态（手册 p.96） | 96 |
+| `:DECode:LIST:LINE` | `:DECode:LIST:LINE?` | `<value>` = Integer (NR1), 1 to 7 | documented; 解码列表显示的行数（手册 p.97） | 97 |
+| `:DECode:LIST:SCRoll` | `:DECode:LIST:SCRoll?` | `<value>` = Integer (NR1); manual lists no range on this page | documented; 解码列表选定行（手册 p.97） | 97 |
+| `:DECode:LIST<n>:RESult` | `:DECode:LIST<n>:RESult?` | `<n>` = `{1\|2}`, list index of the corresponding bus | documented; 只读查询指定解码列表的结果（手册 p.98） | 98 |
+| `:DIGital:ACTive` | `:DIGital:ACTive?` | `<digital>` = `{D<d>}`; `<d>` = channel index, Integer (NR1) | documented; 当前激活的数字通道（手册 p.149） | 149 |
+| `:DIGital:BUS<n>:DEFault` | `:DIGital:BUS<n>:DEFault?` | `<n>` = `{1\|2}`, bus index | documented; 重置数字通道总线的比特位顺序（手册 p.150） | 150 |
+| `:DIGital:BUS<n>:DISPlay` | `:DIGital:BUS<n>:DISPlay?` | `<n>` = `{1\|2}`, bus index; `<state>` = `{ON\|OFF}` | documented; 数字通道总线的显示状态（手册 p.150） | 150 |
+| `:DIGital:BUS<n>:FORMat` | `:DIGital:BUS<n>:FORMat?` | `<n>` = `{1\|2}`, bus index; `<format>` = `{BINary\|DECimal\|UDECimal\|HEX}` | documented; 数字通道总线的显示格式（手册 p.150） | 150 |
+| `:DIGital:BUS<n>:MAP` | `:DIGital:BUS<n>:MAP?` | `<n>` = `{1\|2}`, bus index; `<source>` = `{D<d>}`, one entry per bit, `<d>` = channel index Integer (NR1); the number of values sets the bus width | documented; 数字总线的位宽与各位对应的通道（手册 p.151） | 151 |
+| `:DIGital:D<d>` | `:DIGital:D<d>?` | `<d>` = channel index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; 指定数字通道的开关（手册 p.152） | 152 |
+| `:DIGital:HEIGht` | `:DIGital:HEIGht?` | `<value>` = Real (NR3), 4.00E+00 to 8.00E+00 | documented; 数字通道的显示高度（手册 p.152） | 152 |
+| `:DIGital:LABel<d>` | `:DIGital:LABel<d>?` | `<d>` = channel index, Integer (NR1); `<qstring>` = quoted ASCII text, up to 8 characters | documented; 指定数字通道的标签字符（手册 p.153） | 153 |
+| `:DIGital:POINts` | `:DIGital:POINts?` | — | documented; 只读查询数字通道当前的采样点数；手册该页无输入参数（手册 p.153） | 153 |
+| `:DIGital:POSition` | `:DIGital:POSition?` | `<value>` = Real (NR3), vertical position in divisions; the range changes with the number of enabled digital channels | documented; 数字通道的显示位置（手册 p.153） | 153 |
+| `:DIGital:SKEW` | `:DIGital:SKEW?` | `<value>` = Real (NR3), -1.00E-07 to 1.00E-07 | documented; 数字通道的时滞（手册 p.154） | 154 |
+| `:DIGital:SRATe` | `:DIGital:SRATe?` | — | documented; 只读查询数字通道当前的采样率；手册该页无输入参数（手册 p.154） | 154 |
+| `:DIGital:THReshold<n>` | `:DIGital:THReshold<n>?` | `<n>` = `{1\|2}` (channel group 1 = D0-D7, group 2 = D8-D15); `<type>` = `{TTL\|CMOS\|LVCMOS33\|LVCMOS25\|CUSTom[,<value>]}`; `<value>` = Real (NR3), range depends on model - SDS800X HD: [-8E-1, 8E-1] | documented; 数字通道组的阈值（手册 p.155） | 155 |
+| `:DISPlay:AXIS` | `:DISPlay:AXIS?` | `<state>` = `{ON\|OFF}` | documented; 轴标签显示状态（手册 p.156） | 156 |
+| `:DISPlay:AXIS:MODE` | `:DISPlay:AXIS:MODE?` | `<mode>` = `{FIXed\|MOVing}`; `FIXed` keeps the axis position fixed while the coordinates follow the waveform, `MOVing` moves the axis with the waveform | documented; 轴标签显示模式（手册 p.156） | 156 |
+| `:DISPlay:AXIS:POSition` | `:DISPlay:AXIS:POSition?` | `<pos>` = `{LEFT\|MIDDle\|RIGHt}` (vertical axis at the left / middle / right of the screen) | documented; 轴标签垂直轴的显示位置（手册 p.157） | 157 |
+| `:DISPlay:BACKlight` | `:DISPlay:BACKlight?` | `<value>` = Integer (NR1) percent, 0 to 100 | documented; 屏幕亮度（手册 p.157） | 157 |
+| `:DISPlay:CLEar` | `:DISPlay:CLEar?` | — | documented; 事件命令（无参数），清除当前屏幕内显示的波形（手册 p.157） | 157 |
+| `:DISPlay:COLor` | `:DISPlay:COLor?` | `<state>` = `{ON\|OFF}` | documented; 色温状态（手册 p.158） | 158 |
+| `:DISPlay:GRATicule` | `:DISPlay:GRATicule?` | `<value>` = Integer (NR1) percent, 0 to 100 | documented; 网格亮度（手册 p.158） | 158 |
+| `:DISPlay:GRIDstyle` | `:DISPlay:GRIDstyle?` | `<mode>` = `{FULL\|LIGHt\|NONE}`; `FULL` = 8 x 10 grid, `LIGHt` splits the screen into four, `NONE` = no grid | documented; 网格的显示模式（手册 p.159） | 159 |
+| `:DISPlay:HIDemenu` | `:DISPlay:HIDemenu?` | — | documented; 事件命令（无参数），隐藏右侧菜单（手册 p.159） | 159 |
+| `:DISPlay:INTensity` | `:DISPlay:INTensity?` | `<value>` = Integer (NR1) percent, 0 to 100 | documented; 波形亮度（手册 p.159） | 159 |
+| `:DISPlay:MENU` | `:DISPlay:MENU?` | `<mode>` = `{EMBedded\|FLOating}` (embedded / floating menu) | documented; 菜单的显示样式（手册 p.160） | 160 |
+| `:DISPlay:MENU:HIDE` | `:DISPlay:MENU:HIDE?` | `<time>` = `{OFF\|3S\|5S\|10S\|30S\|60S}`; `OFF` disables auto-hide | documented; 隐藏菜单的时间（手册 p.160） | 160 |
+| `:DISPlay:TRANsparence` | `:DISPlay:TRANsparence?` | `<value>` = Integer (NR1) percent, 0 to 100 | documented; 信息显示框的透明度（仅 SHS800X/SHS1000X）（手册 p.162） | 162 |
+| `:DISPlay:TYPE` | `:DISPlay:TYPE?` | `<type>` = `{VECTor\|DOT}`; `VECTor` connects the samples, `DOT` shows the raw samples | documented; 波形的显示类型（手册 p.162） | 162 |
+| `:DVM:ALARm` | `:DVM:ALARm?` | `<state>` = `{ON\|OFF}` | documented; DVM 超量程报警开关（手册 p.163） | 163 |
+| `:DVM:ARANge` | `:DVM:ARANge?` | `<state>` = `{ON\|OFF}` | documented; DVM 自动量程开关（手册 p.164） | 164 |
+| `:DVM:CURRent` | `:DVM:CURRent?` | — | documented; 只读查询 DVM 当前模式下的测量值（默认 3 位有效数字）；手册该页无输入参数（手册 p.164） | 164 |
+| `:DVM:HOLD` | `:DVM:HOLD?` | `<state>` = `{ON\|OFF}` | documented; DVM 保持开关（保持显示值，后台仍持续测量）（手册 p.164） | 164 |
+| `:DVM:MODE` | `:DVM:MODE?` | `<mode>` = `{DCavg\|DCRMs\|ACRMs\|PKPK\|AMPLitude}` (DC average / DC RMS / AC RMS / peak-to-peak / amplitude) | documented; DVM 测量模式（手册 p.165） | 165 |
+| `:DVM:SOURce` | `:DVM:SOURce?` | `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; DVM 测量的信源（手册 p.165） | 165 |
+| `:FUNCtion:FFTDisplay` | `:FUNCtion:FFTDisplay?` | `<mode>` = `{SPLit\|FULL\|EXCLusive}`; `SPLit` = time domain on top, frequency domain below, `FULL` = both on one screen, `EXCLusive` = spectrum analyser view | documented; FFT 显示模式（手册 p.166） | 166 |
+| `:FUNCtion:GVALue` | `:FUNCtion:GVALue?` | `<valueA/B>` = Real (NR3), [-horizontal divisions/2 * current timebase + horizontal delay, horizontal divisions/2 * current timebase + horizontal delay]; A above B clamps to B and vice versa | documented; 数学函数积分门限阈值（手册 p.166） | 166 |
+| `:FUNCtion1:DIFF:DX` | `:FUNCtion1:DIFF:DX?` | `<x>` = math function index, Integer (NR1); `<dx>` = step, Integer (NR1) | documented; 数学函数导数的步长（手册 p.168） | 168 |
+| `:FUNCtion1:ERES:BITS` | `:FUNCtion1:ERES:BITS?` | `<x>` = math function index, Integer (NR1); `<bits>` = `{0.5\|1.0\|1.5\|2.0\|2.5\|3.0}` | documented; 数学函数增强分辨率的增强位数（手册 p.168） | 168 |
+| `:FUNCtion1:FFT:AUToset` | `:FUNCtion1:FFT:AUToset?` | `<x>` = math function index, Integer (NR1); `<mode>` = `{SPAN\|PEAK\|NORMal}` (full span / peak centred / centre at the fundamental with span = half the FFT sample rate) | documented; 自动设置 FFT 波形的水平与垂直参数（手册 p.169） | 169 |
+| `:FUNCtion1:FFT:HCENter` | `:FUNCtion1:FFT:HCENter?` | `<x>` = math function index, Integer (NR1); `<center>` = Real (NR3); the range depends on the FFT sample rate | documented; FFT 的中心频率（手册 p.169） | 169 |
+| `:FUNCtion1:FFT:LOAD` | `:FUNCtion1:FFT:LOAD?` | `<x>` = math function index, Integer (NR1); `<load>` = Integer (NR1), 1 to 1000000 | documented; FFT 的外部负载（手册 p.171） | 171 |
+| `:FUNCtion1:FFT:MODE` | `:FUNCtion1:FFT:MODE?` | `<x>` = math function index, Integer (NR1); `<mode>` = `{NORMal\|MAXHold\|AVERage[,<num>]}`; `AVERage` needs `<num>` = Integer (NR1), 4 to 1024 | documented; FFT 的采集模式（手册 p.171） | 171 |
+| `:FUNCtion1:FFT:POINts` | `:FUNCtion1:FFT:POINts?` | `<x>` = math function index, Integer (NR1); `<point>` = `{1k\|2k\|4k\|8k\|16k\|32k\|64k\|128k\|256k\|512k\|1M\|2M}` on SDS800X HD (larger sets are listed for other models) | documented; FFT 最大点数（手册 p.172） | 172 |
+| `:FUNCtion1:FFT:RLEVel` | `:FUNCtion1:FFT:RLEVel?` | `<x>` = math function index, Integer (NR1); `<level>` = Real (NR3); the range depends on the probe factor and the FFT unit (dBVrms / Vrms / dBm), see the manual's table on p.173 | documented; FFT 的参考电平（手册 p.173） | 173 |
+| `:FUNCtion1:FFT:SCALe` | `:FUNCtion1:FFT:SCALe?` | `<x>` = math function index, Integer (NR1); `<scale>` = Real (NR3), `dBVrms` 1.00E-01 to 2.00E+01, `Vrms` 1.00E-03 to 1.00E+01, `dBm` 1.00E-01 to 2.00E+01 | documented; FFT 的垂直档位（手册 p.174） | 174 |
 | `:FUNCtion<x>:FFT:HSCale` | `:FUNCtion<x>:FFT:HSCale?` | query only; returns `<scale>` NR3 (Hz/div) | documented; FFT horizontal scale, manual writes the instance as `<x>` (body examples use `FUNC2:FFT:HSC?`) | 170 |
 | `:FUNCtion<x>:FFT:SEARch:RESult` | `:FUNCtion<x>:FFT:SEARch:RESult?` | query only; returns `<type>,<no>,<freq>,<ampl>` with `<type>` = `{Markers\|Peaks}` | documented; FFT search result list, one entry per query — preserve the raw text, it is not a single number | 177 |
 
-| `:FUNCtion1:FFT:SEARch` | `:FUNCtion1:FFT:SEARch?` | see p.174 | documented; TOC/body-heading derived, parameters not transcribed | 174 |
-| `:FUNCtion1:FFT:SEARch:EXCursion` | `:FUNCtion1:FFT:SEARch:EXCursion?` | see p.175 | documented; TOC/body-heading derived, parameters not transcribed | 175 |
-| `:FUNCtion1:FFT:SEARch:MARKer1` | `:FUNCtion1:FFT:SEARch:MARKer1?` | see p.175 | documented; TOC/body-heading derived, parameters not transcribed | 175 |
-| `:FUNCtion1:FFT:SEARch:MARKer2:SHOW` | `:FUNCtion1:FFT:SEARch:MARKer2:SHOW?` | see p.176 | documented; TOC/body-heading derived, parameters not transcribed | 176 |
-| `:FUNCtion1:FFT:SEARch:MON` | `:FUNCtion1:FFT:SEARch:MON?` | see p.176 | documented; TOC/body-heading derived, parameters not transcribed | 176 |
-| `:FUNCtion1:FFT:SEARch:PORDer` | `:FUNCtion1:FFT:SEARch:PORDer?` | see p.176 | documented; TOC/body-heading derived, parameters not transcribed | 176 |
-| `:FUNCtion1:FFT:SEARch:TABLe` | `:FUNCtion1:FFT:SEARch:TABLe?` | see p.178 | documented; TOC/body-heading derived, parameters not transcribed | 178 |
-| `:FUNCtion1:FFT:SEARch:TABLe:DELTa` | `:FUNCtion1:FFT:SEARch:TABLe:DELTa?` | see p.178 | documented; TOC/body-heading derived, parameters not transcribed | 178 |
-| `:FUNCtion1:FFT:SEARch:TABLe:FREQuency` | `:FUNCtion1:FFT:SEARch:TABLe:FREQuency?` | see p.179 | documented; TOC/body-heading derived, parameters not transcribed | 179 |
-| `:FUNCtion1:FFT:SEARch:THReshold` | `:FUNCtion1:FFT:SEARch:THReshold?` | see p.179 | documented; TOC/body-heading derived, parameters not transcribed | 179 |
-| `:FUNCtion1:FFT:SPAN` | `:FUNCtion1:FFT:SPAN?` | see p.170 | documented; TOC/body-heading derived, parameters not transcribed | 170 |
-| `:FUNCtion1:FFT:UNIT` | `:FUNCtion1:FFT:UNIT?` | see p.179 | documented; TOC/body-heading derived, parameters not transcribed | 179 |
-| `:FUNCtion1:FFT:WINDow` | `:FUNCtion1:FFT:WINDow?` | see p.180 | documented; TOC/body-heading derived, parameters not transcribed | 180 |
-| `:FUNCtion1:FILTer:HFRequency` | `:FUNCtion1:FILTer:HFRequency?` | see p.181 | documented; TOC/body-heading derived, parameters not transcribed | 181 |
-| `:FUNCtion1:FILTer:LFRequency` | `:FUNCtion1:FILTer:LFRequency?` | see p.181 | documented; TOC/body-heading derived, parameters not transcribed | 181 |
-| `:FUNCtion1:FILTer:TYPE` | `:FUNCtion1:FILTer:TYPE?` | see p.181 | documented; TOC/body-heading derived, parameters not transcribed | 181 |
-| `:FUNCtion1:INTErpolate:COEF` | `:FUNCtion1:INTErpolate:COEF?` | see p.183 | documented; TOC/body-heading derived, parameters not transcribed | 183 |
-| `:FUNCtion1:INTegrate:GATE` | `:FUNCtion1:INTegrate:GATE?` | see p.182 | documented; TOC/body-heading derived, parameters not transcribed | 182 |
-| `:FUNCtion1:INTegrate:OFFSet` | `:FUNCtion1:INTegrate:OFFSet?` | see p.183 | documented; TOC/body-heading derived, parameters not transcribed | 183 |
-| `:FUNCtion1:INVert` | `:FUNCtion1:INVert?` | see p.184 | documented; TOC/body-heading derived, parameters not transcribed | 184 |
-| `:FUNCtion1:LABel` | `:FUNCtion1:LABel?` | see p.184 | documented; TOC/body-heading derived, parameters not transcribed | 184 |
-| `:FUNCtion1:LABel:TEXT` | `:FUNCtion1:LABel:TEXT?` | see p.184 | documented; TOC/body-heading derived, parameters not transcribed | 184 |
-| `:FUNCtion1:MAXHold:SWeeps` | `:FUNCtion1:MAXHold:SWeeps?` | see p.185 | documented; TOC/body-heading derived, parameters not transcribed | 185 |
-| `:FUNCtion1:MINHold:SWeeps` | `:FUNCtion1:MINHold:SWeeps?` | see p.185 | documented; TOC/body-heading derived, parameters not transcribed | 185 |
-| `:FUNCtion1:OPERation` | `:FUNCtion1:OPERation?` | see p.186 | documented; TOC/body-heading derived, parameters not transcribed | 186 |
-| `:FUNCtion1:POSition` | `:FUNCtion1:POSition?` | see p.186 | documented; TOC/body-heading derived, parameters not transcribed | 186 |
-| `:FUNCtion1:SCALe` | `:FUNCtion1:SCALe?` | see p.187 | documented; TOC/body-heading derived, parameters not transcribed | 187 |
-| `:FUNCtion1:SOURce1` | `:FUNCtion1:SOURce1?` | see p.187 | documented; TOC/body-heading derived, parameters not transcribed | 187 |
-| `:FUNCtion1:SOURce2` | `:FUNCtion1:SOURce2?` | see p.188 | documented; TOC/body-heading derived, parameters not transcribed | 188 |
-| `:FUNCtion2:AVERage:NUM` | `:FUNCtion2:AVERage:NUM?` | see p.168 | documented; TOC/body-heading derived, parameters not transcribed | 168 |
-| `:FUNCtion2:FFT:RESET` | `:FUNCtion2:FFT:RESET?` | see p.172 | documented; TOC/body-heading derived, parameters not transcribed | 172 |
-| `:HISTORy:LIST` | `:HISTORy:LIST?` | see p.190 | documented; TOC/body-heading derived, parameters not transcribed | 190 |
-| `:HISTORy:TIME` | `:HISTORy:TIME?` | see p.191 | documented; TOC/body-heading derived, parameters not transcribed | 191 |
-| `:MEASure:ADVanced:CLEar` | `:MEASure:ADVanced:CLEar?` | see p.192 | documented; TOC/body-heading derived, parameters not transcribed | 192 |
-| `:MEASure:ADVanced:LINenumber` | `:MEASure:ADVanced:LINenumber?` | see p.192 | documented; TOC/body-heading derived, parameters not transcribed | 192 |
-| `:MEASure:ADVanced:P1` | `:MEASure:ADVanced:P1?` | see p.193 | documented; TOC/body-heading derived, parameters not transcribed | 193 |
-| `:MEASure:ADVanced:P1:SHIStory` | `:MEASure:ADVanced:P1:SHIStory?` | see p.195 | documented; TOC/body-heading derived, parameters not transcribed | 195 |
-| `:MEASure:ADVanced:P1:SOURce1` | `:MEASure:ADVanced:P1:SOURce1?` | see p.194 | documented; TOC/body-heading derived, parameters not transcribed | 194 |
-| `:MEASure:ADVanced:P1:SOURce2` | `:MEASure:ADVanced:P1:SOURce2?` | see p.194 | documented; TOC/body-heading derived, parameters not transcribed | 194 |
-| `:MEASure:ADVanced:P1:TYPE` | `:MEASure:ADVanced:P1:TYPE?` | see p.199 | documented; TOC/body-heading derived, parameters not transcribed | 199 |
-| `:MEASure:ADVanced:P<n>:SHIStory` | `:MEASure:ADVanced:P<n>:SHIStory?` | see p.195 | documented; TOC/body-heading derived, parameters not transcribed | 195 |
-| `:MEASure:ADVanced:P<n>:STATistics` | `:MEASure:ADVanced:P<n>:STATistics?` | see p.194 | documented; TOC/body-heading derived, parameters not transcribed | 194 |
-| `:MEASure:ADVanced:P<n>:VALue` | `:MEASure:ADVanced:P<n>:VALue?` | see p.200 | documented; TOC/body-heading derived, parameters not transcribed | 200 |
-| `:MEASure:ADVanced:STATistics` | `:MEASure:ADVanced:STATistics?` | see p.200 | documented; TOC/body-heading derived, parameters not transcribed | 200 |
-| `:MEASure:ADVanced:STATistics:AIMLimit` | `:MEASure:ADVanced:STATistics:AIMLimit?` | see p.200 | documented; TOC/body-heading derived, parameters not transcribed | 200 |
-| `:MEASure:ADVanced:STATistics:HISTOGram` | `:MEASure:ADVanced:STATistics:HISTOGram?` | see p.201 | documented; TOC/body-heading derived, parameters not transcribed | 201 |
-| `:MEASure:ADVanced:STATistics:MAXCount` | `:MEASure:ADVanced:STATistics:MAXCount?` | see p.201 | documented; TOC/body-heading derived, parameters not transcribed | 201 |
-| `:MEASure:ADVanced:STATistics:RESet` | `:MEASure:ADVanced:STATistics:RESet?` | see p.202 | documented; TOC/body-heading derived, parameters not transcribed | 202 |
-| `:MEASure:ADVanced:STYLe` | `:MEASure:ADVanced:STYLe?` | see p.202 | documented; TOC/body-heading derived, parameters not transcribed | 202 |
-| `:MEASure:ASTRategy` | `:MEASure:ASTRategy?` | see p.202 | documented; TOC/body-heading derived, parameters not transcribed | 202 |
-| `:MEASure:ASTRategy:BASE` | `:MEASure:ASTRategy:BASE?` | see p.203 | documented; TOC/body-heading derived, parameters not transcribed | 203 |
-| `:MEASure:ASTRategy:TOP` | `:MEASure:ASTRategy:TOP?` | see p.203 | documented; TOC/body-heading derived, parameters not transcribed | 203 |
-| `:MEASure:DTIMe1:EDGE1` | `:MEASure:DTIMe1:EDGE1?` | see p.204 | documented; TOC/body-heading derived, parameters not transcribed | 204 |
-| `:MEASure:DTIMe1:EDGE2` | `:MEASure:DTIMe1:EDGE2?` | see p.205 | documented; TOC/body-heading derived, parameters not transcribed | 205 |
-| `:MEASure:DTIMe1:SLOPe1` | `:MEASure:DTIMe1:SLOPe1?` | see p.205 | documented; TOC/body-heading derived, parameters not transcribed | 205 |
-| `:MEASure:DTIMe1:SLOPe2` | `:MEASure:DTIMe1:SLOPe2?` | see p.205 | documented; TOC/body-heading derived, parameters not transcribed | 205 |
-| `:MEASure:DTIMe1:THReshold1` | `:MEASure:DTIMe1:THReshold1?` | see p.206 | documented; TOC/body-heading derived, parameters not transcribed | 206 |
-| `:MEASure:DTIMe1:THReshold2` | `:MEASure:DTIMe1:THReshold2?` | see p.206 | documented; TOC/body-heading derived, parameters not transcribed | 206 |
-| `:MEASure:DTIMe<n>:EDGE1` | `:MEASure:DTIMe<n>:EDGE1?` | see p.204 | documented; TOC/body-heading derived, parameters not transcribed | 204 |
-| `:MEASure:DTIMe<n>:EDGE2` | `:MEASure:DTIMe<n>:EDGE2?` | see p.204 | documented; TOC/body-heading derived, parameters not transcribed | 204 |
-| `:MEASure:DTIMe<n>:SLOPe1` | `:MEASure:DTIMe<n>:SLOPe1?` | see p.205 | documented; TOC/body-heading derived, parameters not transcribed | 205 |
-| `:MEASure:DTIMe<n>:SLOPe2` | `:MEASure:DTIMe<n>:SLOPe2?` | see p.205 | documented; TOC/body-heading derived, parameters not transcribed | 205 |
-| `:MEASure:DTIMe<n>:THReshold1` | `:MEASure:DTIMe<n>:THReshold1?` | see p.206 | documented; TOC/body-heading derived, parameters not transcribed | 206 |
-| `:MEASure:DTIMe<n>:THReshold2` | `:MEASure:DTIMe<n>:THReshold2?` | see p.206 | documented; TOC/body-heading derived, parameters not transcribed | 206 |
-| `:MEASure:GATE` | `:MEASure:GATE?` | see p.207 | documented; TOC/body-heading derived, parameters not transcribed | 207 |
-| `:MEASure:GATE:GA` | `:MEASure:GATE:GA?` | see p.207 | documented; TOC/body-heading derived, parameters not transcribed | 207 |
-| `:MEASure:GATE:GB` | `:MEASure:GATE:GB?` | see p.207 | documented; TOC/body-heading derived, parameters not transcribed | 207 |
-| `:MEASure:RDISplay` | `:MEASure:RDISplay?` | see p.209 | documented; TOC/body-heading derived, parameters not transcribed | 209 |
-| `:MEASure:SIMPle:CLEar` | `:MEASure:SIMPle:CLEar?` | see p.209 | documented; TOC/body-heading derived, parameters not transcribed | 209 |
-| `:MEASure:SIMPle:SOURce` | `:MEASure:SIMPle:SOURce?` | see p.210 | documented; TOC/body-heading derived, parameters not transcribed | 210 |
-| `:MEASure:SIMPle:VALue` | `:MEASure:SIMPle:VALue?` | see p.210 | documented; TOC/body-heading derived, parameters not transcribed | 210 |
-| `:MEASure:THReshold:ABSolute` | `:MEASure:THReshold:ABSolute?` | see p.212 | documented; TOC/body-heading derived, parameters not transcribed | 212 |
-| `:MEASure:THReshold:PERCent` | `:MEASure:THReshold:PERCent?` | see p.213 | documented; TOC/body-heading derived, parameters not transcribed | 213 |
-| `:MEASure:THReshold:SOURce` | `:MEASure:THReshold:SOURce?` | see p.211 | documented; TOC/body-heading derived, parameters not transcribed | 211 |
-| `:MEASure:THReshold:TYPE` | `:MEASure:THReshold:TYPE?` | see p.212 | documented; TOC/body-heading derived, parameters not transcribed | 212 |
-| `:MEMory2:HORizontal:POSition` | `:MEMory2:HORizontal:POSition?` | see p.214 | documented; TOC/body-heading derived, parameters not transcribed | 214 |
-| `:MEMory2:HORizontal:SCALe` | `:MEMory2:HORizontal:SCALe?` | see p.214 | documented; TOC/body-heading derived, parameters not transcribed | 214 |
-| `:MEMory2:HORizontal:SYNC` | `:MEMory2:HORizontal:SYNC?` | see p.215 | documented; TOC/body-heading derived, parameters not transcribed | 215 |
-| `:MEMory2:LABel` | `:MEMory2:LABel?` | see p.216 | documented; TOC/body-heading derived, parameters not transcribed | 216 |
-| `:MEMory2:LABel:TEXT` | `:MEMory2:LABel:TEXT?` | see p.216 | documented; TOC/body-heading derived, parameters not transcribed | 216 |
-| `:MEMory2:SWITch` | `:MEMory2:SWITch?` | see p.216 | documented; TOC/body-heading derived, parameters not transcribed | 216 |
+| `:FUNCtion1:FFT:SEARch` | `:FUNCtion1:FFT:SEARch?` | `<x>` = math function index, Integer (NR1); `<type>` = `{OFF\|PEAK\|MARKer}` | documented; FFT 的搜索工具类型（手册 p.174） | 174 |
+| `:FUNCtion1:FFT:SEARch:EXCursion` | `:FUNCtion1:FFT:SEARch:EXCursion?` | `<x>` = math function index, Integer (NR1); `<value>` = Real (NR3), range depends on the FFT unit; with `dBVrms` it is 0 to 1.60E+02 | documented; FFT 搜索工具的峰值偏移（手册 p.175） | 175 |
+| `:FUNCtion1:FFT:SEARch:MARKer1` | `:FUNCtion1:FFT:SEARch:MARKer1?` | `<x>` = math function index, Integer (NR1); `<n>` = marker index, Integer (NR1), 1 to 8; `<freq>` = `{NPeak\|NAMPlitude\|<value>}` (`NPeak` = next peak, `NAMPlitude` = next amplitude, `<value>` = frequency Real NR3) | documented; 设置 FFT 指定标记的频率（手册 p.175） | 175 |
+| `:FUNCtion1:FFT:SEARch:MARKer2:SHOW` | `:FUNCtion1:FFT:SEARch:MARKer2:SHOW?` | `<x>` = math function index, Integer (NR1); `<n>` = marker index, Integer (NR1), 1 to 8; `<state>` = `{ON\|OFF}` | documented; FFT 指定标记的开关（手册 p.176） | 176 |
+| `:FUNCtion1:FFT:SEARch:MON` | `:FUNCtion1:FFT:SEARch:MON?` | `<x>` = math function index, Integer (NR1); `<type>` = `{PEAK\|HARMonics}` (mark peaks / mark harmonics) | documented; FFT 标记的方式（手册 p.176） | 176 |
+| `:FUNCtion1:FFT:SEARch:PORDer` | `:FUNCtion1:FFT:SEARch:PORDer?` | `<x>` = math function index, Integer (NR1); `<type>` = `{AMPLitude\|FREQuency}` | documented; FFT 峰值的排序方式（手册 p.176） | 176 |
+| `:FUNCtion1:FFT:SEARch:TABLe` | `:FUNCtion1:FFT:SEARch:TABLe?` | `<x>` = math function index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; FFT 搜索表格的开关（手册 p.178） | 178 |
+| `:FUNCtion1:FFT:SEARch:TABLe:DELTa` | `:FUNCtion1:FFT:SEARch:TABLe:DELTa?` | `<x>` = math function index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; FFT 搜索表格中增量的显示状态（手册 p.178） | 178 |
+| `:FUNCtion1:FFT:SEARch:TABLe:FREQuency` | `:FUNCtion1:FFT:SEARch:TABLe:FREQuency?` | `<x>` = math function index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; FFT 搜索表格中频率的显示状态（手册 p.179） | 179 |
+| `:FUNCtion1:FFT:SEARch:THReshold` | `:FUNCtion1:FFT:SEARch:THReshold?` | `<x>` = math function index, Integer (NR1); `<value>` = Real (NR3), range depends on the FFT unit; with `dBVrms` it is -1.60E+02 to 8.00E+01 | documented; FFT 搜索工具的峰值阈值（手册 p.179） | 179 |
+| `:FUNCtion1:FFT:SPAN` | `:FUNCtion1:FFT:SPAN?` | `<x>` = math function index, Integer (NR1); `<span>` = Real (NR3); manual lists no range on this page | documented; FFT 的频率范围（手册 p.170） | 170 |
+| `:FUNCtion1:FFT:UNIT` | `:FUNCtion1:FFT:UNIT?` | `<x>` = math function index, Integer (NR1); `<unit>` = `{DBVrms\|Vrms\|DBm}` | documented; FFT 的单位（手册 p.179） | 179 |
+| `:FUNCtion1:FFT:WINDow` | `:FUNCtion1:FFT:WINDow?` | `<x>` = math function index, Integer (NR1); `<window>` = `{RECTangle\|BLACkman\|HANNing\|HAMMing\|FLATtop}` | documented; FFT 的窗口类型（手册 p.180） | 180 |
+| `:FUNCtion1:FILTer:HFRequency` | `:FUNCtion1:FILTer:HFRequency?` | `<x>` = math function index, Integer (NR1); `<value>` = Real (NR3); manual lists no range on this page | documented; 滤波算子（带通/带阻）的上限截止频率（手册 p.181） | 181 |
+| `:FUNCtion1:FILTer:LFRequency` | `:FUNCtion1:FILTer:LFRequency?` | `<x>` = math function index, Integer (NR1); `<value>` = Real (NR3); manual lists no range on this page | documented; 滤波算子（带通/带阻）的下限截止频率（手册 p.181） | 181 |
+| `:FUNCtion1:FILTer:TYPE` | `:FUNCtion1:FILTer:TYPE?` | `<x>` = math function index, Integer (NR1); `<type>` = `{LPASs\|HPASs\|BPASs\|BREJect}` (low-pass / high-pass / band-pass / band-reject) | documented; 滤波算子的滤波类型（手册 p.181） | 181 |
+| `:FUNCtion1:INTErpolate:COEF` | `:FUNCtion1:INTErpolate:COEF?` | `<x>` = math function index, Integer (NR1); `<coef>` = `{2\|5\|10\|20}` | documented; 数学函数插值的插值系数（手册 p.183） | 183 |
+| `:FUNCtion1:INTegrate:GATE` | `:FUNCtion1:INTegrate:GATE?` | `<x>` = math function index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; 数学函数积分门限开关（手册 p.182） | 182 |
+| `:FUNCtion1:INTegrate:OFFSet` | `:FUNCtion1:INTegrate:OFFSet?` | `<x>` = math function index, Integer (NR1); `<offset>` = Real (NR3), [-100 * pixel, 100 * pixel] | documented; 积分算子的偏移（手册 p.183） | 183 |
+| `:FUNCtion1:INVert` | `:FUNCtion1:INVert?` | `<x>` = math function index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; 数学函数反相开关（手册 p.184） | 184 |
+| `:FUNCtion1:LABel` | `:FUNCtion1:LABel?` | `<x>` = math function index, Integer (NR1); `<state>` = `{ON\|OFF}` | documented; 数学函数标签开关（手册 p.184） | 184 |
+| `:FUNCtion1:LABel:TEXT` | `:FUNCtion1:LABel:TEXT?` | `<n>` = math function index, Integer (NR1); `<qstring>` = quoted ASCII text, up to 20 characters | documented; 指定数学函数的标签字符（手册 p.184） | 184 |
+| `:FUNCtion1:MAXHold:SWeeps` | `:FUNCtion1:MAXHold:SWeeps?` | `<x>` = math function index, Integer (NR1); `<value>` = Integer (NR1), 0 to 2147483646; 0 means unlimited | documented; 数学函数最大保持的扫描限制（手册 p.185） | 185 |
+| `:FUNCtion1:MINHold:SWeeps` | `:FUNCtion1:MINHold:SWeeps?` | `<x>` = math function index, Integer (NR1); `<value>` = Integer (NR1), 1 to 2147483646 (the page also states 0 means unlimited) | documented; 数学函数最小保持的扫描限制（手册 p.185） | 185 |
+| `:FUNCtion1:OPERation` | `:FUNCtion1:OPERation?` | `<x>` = math function index, Integer (NR1); `<operation>` = `{ADD\|SUBTract\|MULTiply\|DIVision\|INTegrate\|DIFF\|FFT\|SQRT\|ERES\|AVERage\|ABSolute\|SIGN\|IDENtity\|NEGation\|EXP\|TEN\|LN\|LOG\|INTErpolate\|MAXHold\|MINHold\|FILTer}` | documented; 数学函数的算子（手册 p.186） | 186 |
+| `:FUNCtion1:POSition` | `:FUNCtion1:POSition?` | `<x>` = math function index, Integer (NR1); `<offset>` = Real (NR3), [-1E+5, 1E+5]; the range depends on the operator type | documented; 数学函数的垂直位移（手册 p.186） | 186 |
+| `:FUNCtion1:SCALe` | `:FUNCtion1:SCALe?` | `<x>` = math function index, Integer (NR1); `<scale>` = Real (NR3), [5E-4, 1E+4]; the range depends on the function source, and for integral/derivative operators on the timebase | documented; 数学函数的垂直档位（手册 p.187） | 187 |
+| `:FUNCtion1:SOURce1` | `:FUNCtion1:SOURce1?` | `<x>` = math function index, Integer (NR1); `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform. `Z<n>` is only valid while Zoom is on, and a function cannot use itself as a source | documented; 指定数学函数的信源 A（手册 p.187） | 187 |
+| `:FUNCtion1:SOURce2` | `:FUNCtion1:SOURce2?` | `<x>` = math function index, Integer (NR1); `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform. `Z<n>` is only valid while Zoom is on, and a function cannot use itself as a source | documented; 指定数学函数的信源 B（手册 p.188） | 188 |
+| `:FUNCtion2:AVERage:NUM` | `:FUNCtion2:AVERage:NUM?` | `<x>` = math function index, Integer (NR1); `<num>` = `{4\|16\|32\|64\|128\|256\|512\|1024}` on SDS800X HD (larger sets are listed for other models) | documented; 平均算子的平均次数（手册 p.168） | 168 |
+| `:FUNCtion2:FFT:RESET` | `:FUNCtion2:FFT:RESET?` | `<x>` = math function index, Integer (NR1); no other parameter | documented; FFT 采集模式为平均时，让 FFT 重新开始计数（手册 p.172） | 172 |
+| `:HISTORy:LIST` | `:HISTORy:LIST?` | `<state>` = `{OFF\|ON[,<type>]}`, `<type>` = `{TIME\|DELTa}` (list by sample time / by sample interval) | documented; 历史波形列表的开关（手册 p.190） | 190 |
+| `:HISTORy:TIME` | `:HISTORy:TIME?` | — | documented; 只读查询当前历史帧的时间戳（时:分:秒）；手册该页无输入参数（手册 p.191） | 191 |
+| `:MEASure:ADVanced:CLEar` | `:MEASure:ADVanced:CLEar?` | — | documented; 事件命令（无参数），清除所有高级测量项（手册 p.192） | 192 |
+| `:MEASure:ADVanced:LINenumber` | `:MEASure:ADVanced:LINenumber?` | `<value>` = total number of displayed measurements, Integer (NR1), 1 to 12 | documented; 高级测量 M2 模式下显示的测量项总数（手册 p.192） | 192 |
+| `:MEASure:ADVanced:P1:SOURce1` | `:MEASure:ADVanced:P1:SOURce1?` | `<n>` = measurement index, Integer (NR1), 1 to 12; `<source>` = `{C<n>\|Z<n>\|F<x>\|ZF<x>\|M<m>\|ZM<m>\|D<d>\|ZD<d>\|REF<r>}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform, `<d>` = digital channel (0 to 15), `<r>` = `{A\|B\|C\|D}` | documented; 指定高级测量项的信源 A（手册 p.194） | 194 |
+| `:MEASure:ADVanced:P1:SOURce2` | `:MEASure:ADVanced:P1:SOURce2?` | `<n>` = measurement index, Integer (NR1), 1 to 12; `<source>` = `{C<n>\|F<x>}` (`<n>` = analog/zoom channel, `<x>` = math function); required for delay measurements | documented; 指定高级测量项的信源 B（手册 p.194） | 194 |
+| `:MEASure:ADVanced:P<n>:SHIStory` | `:MEASure:ADVanced:P<n>:SHIStory?` | `<count>` = Integer (NR1), bounded by the maximum statistics count; omit it to return all history | documented; 查询指定高级测量项的历史统计数据（仅在最大统计次数有限时有效）（手册 p.195） | 195 |
+| `:MEASure:ADVanced:P<n>:STATistics` | `:MEASure:ADVanced:P<n>:STATistics?` | — | documented; 只读查询指定高级测量项的统计信息；手册该页无输入参数（手册 p.194） | 194 |
+| `:MEASure:ADVanced:P<n>:VALue` | `:MEASure:ADVanced:P<n>:VALue?` | `<n>` = measurement index, Integer (NR1), 1 to 12 | documented; 只读查询当前指定高级测量项的值（手册 p.200） | 200 |
+| `:MEASure:ADVanced:STATistics` | `:MEASure:ADVanced:STATistics?` | `<state>` = `{ON\|OFF}` | documented; 高级测量统计开关（手册 p.200） | 200 |
+| `:MEASure:ADVanced:STATistics:AIMLimit` | `:MEASure:ADVanced:STATistics:AIMLimit?` | `<value>` = AIM count, Integer (NR1); the range depends on the model | documented; 高级测量统计的 AIM 次数（手册 p.200） | 200 |
+| `:MEASure:ADVanced:STATistics:HISTOGram` | `:MEASure:ADVanced:STATistics:HISTOGram?` | `<state>` = `{ON\|OFF}` | documented; 高级测量统计直方图开关（手册 p.201） | 201 |
+| `:MEASure:ADVanced:STATistics:MAXCount` | `:MEASure:ADVanced:STATistics:MAXCount?` | `<value>` = Integer (NR1), 0 to 1024; 0 means unlimited | documented; 高级测量的最大统计次数（手册 p.201） | 201 |
+| `:MEASure:ADVanced:STATistics:RESet` | `:MEASure:ADVanced:STATistics:RESet?` | — | documented; 事件命令（无参数），重置高级测量的统计结果（手册 p.202） | 202 |
+| `:MEASure:ADVanced:STYLe` | `:MEASure:ADVanced:STYLe?` | `<type>` = `{M1\|M2}`; `M1` shows statistics vertically (with histogram), `M2` horizontally (no histogram) | documented; 高级测量的显示模式（手册 p.202） | 202 |
+| `:MEASure:ASTRategy` | `:MEASure:ASTRategy?` | `<type>` = `{AUTO\|MANual}`; `AUTO` picks the amplitude strategy from the signal, `MANual` uses the top/base strategy set by `:MEASure:ASTRategy:TOP` / `:BASE` | documented; 测量的幅值计算策略（手册 p.202） | 202 |
+| `:MEASure:ASTRategy:BASE` | `:MEASure:ASTRategy:BASE?` | `<type>` = `{HISTogram\|MIN}`; `HISTogram` takes the most probable value below half the peak-to-peak value, `MIN` takes the waveform minimum | documented; 手动幅值策略下的底端值计算策略（手册 p.203） | 203 |
+| `:MEASure:ASTRategy:TOP` | `:MEASure:ASTRategy:TOP?` | `<type>` = `{HISTogram\|MAX}`; `HISTogram` takes the most probable value above half the peak-to-peak value, `MAX` takes the waveform maximum | documented; 手动幅值策略下的顶端值计算策略（手册 p.203） | 203 |
+| `:MEASure:DTIMe1:EDGE1` | `:MEASure:DTIMe1:EDGE1?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<value>` = start edge, Integer (NR1), bounded by the maximum AIM count, -1 selects the last edge | documented; 指定 △Time 的开始沿（手册 p.204） | 204 |
+| `:MEASure:DTIMe1:EDGE2` | `:MEASure:DTIMe1:EDGE2?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<value>` = stop edge, Integer (NR1), bounded by the maximum AIM count, -1 selects the last edge | documented; 指定 △Time 的结束沿（手册 p.205） | 205 |
+| `:MEASure:DTIMe1:SLOPe1` | `:MEASure:DTIMe1:SLOPe1?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<slope_type>` = `{RISing\|FALLing}` | documented; 指定 △Time 开始沿的类型（手册 p.205） | 205 |
+| `:MEASure:DTIMe1:SLOPe2` | `:MEASure:DTIMe1:SLOPe2?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<slope_type>` = `{RISing\|FALLing}` | documented; 指定 △Time 开始沿的类型（手册 p.205） | 205 |
+| `:MEASure:DTIMe1:THReshold1` | `:MEASure:DTIMe1:THReshold1?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<type>` = `{UPPer\|MIDDle\|LOWer}` | documented; 指定 △Time 的开始沿阈值（手册 p.206） | 206 |
+| `:MEASure:DTIMe1:THReshold2` | `:MEASure:DTIMe1:THReshold2?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<type>` = `{UPPer\|MIDDle\|LOWer}` | documented; 指定 △Time 的结束沿阈值（手册 p.206） | 206 |
+| `:MEASure:DTIMe<n>:EDGE1` | `:MEASure:DTIMe<n>:EDGE1?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<value>` = start edge, Integer (NR1), bounded by the maximum AIM count, -1 selects the last edge | documented; 指定 △Time 的开始沿（手册 p.204） | 204 |
+| `:MEASure:DTIMe<n>:EDGE2` | `:MEASure:DTIMe<n>:EDGE2?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<value>` = stop edge, Integer (NR1), bounded by the maximum AIM count, -1 selects the last edge | documented; 指定 △Time 的结束沿（手册 p.204） | 204 |
+| `:MEASure:DTIMe<n>:SLOPe1` | `:MEASure:DTIMe<n>:SLOPe1?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<slope_type>` = `{RISing\|FALLing}` | documented; 指定 △Time 开始沿的类型（手册 p.205） | 205 |
+| `:MEASure:DTIMe<n>:SLOPe2` | `:MEASure:DTIMe<n>:SLOPe2?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<slope_type>` = `{RISing\|FALLing}` | documented; 指定 △Time 结束沿的类型（手册 p.205） | 205 |
+| `:MEASure:DTIMe<n>:THReshold1` | `:MEASure:DTIMe<n>:THReshold1?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<type>` = `{UPPer\|MIDDle\|LOWer}` | documented; 指定 △Time 的开始沿阈值（手册 p.206） | 206 |
+| `:MEASure:DTIMe<n>:THReshold2` | `:MEASure:DTIMe<n>:THReshold2?` | `<n>` = DeltaTime index, Integer (NR1), 1 to 4; `<type>` = `{UPPer\|MIDDle\|LOWer}` | documented; 指定 △Time 的结束沿阈值（手册 p.206） | 206 |
+| `:MEASure:GATE` | `:MEASure:GATE?` | `<state>` = `{ON\|OFF}` | documented; 测量门限开关（手册 p.207） | 207 |
+| `:MEASure:GATE:GA` | `:MEASure:GATE:GA?` | `<value>` = Real (NR3), [-horizontal divisions/2 * current timebase + horizontal delay, horizontal divisions/2 * current timebase + horizontal delay]; a value above B is clamped to B | documented; 测量门限 A 的位置（手册 p.207） | 207 |
+| `:MEASure:GATE:GB` | `:MEASure:GATE:GB?` | `<value>` = Real (NR3), [-horizontal divisions/2 * current timebase + horizontal delay, horizontal divisions/2 * current timebase + horizontal delay]; a value below A is clamped to A | documented; 测量门限 B 的位置（手册 p.207） | 207 |
+| `:MEASure:RDISplay` | `:MEASure:RDISplay?` | `<type>` = `{EMBedded\|FLOating}`; `EMBedded` squeezes the waveform area, `FLOating` overlays it | documented; 测量结果的显示样式（手册 p.209） | 209 |
+| `:MEASure:SIMPle:CLEar` | `:MEASure:SIMPle:CLEar?` | — | documented; 事件命令（无参数），清除所有基本测量项（手册 p.209） | 209 |
+| `:MEASure:SIMPle:SOURce` | `:MEASure:SIMPle:SOURce?` | `<source>` = `{C<n>\|Z<n>\|F<x>\|ZF<x>\|M<m>\|ZM<m>\|D<d>\|ZD<d>\|REF<r>}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform, `<d>` = digital channel, `<r>` = `{A\|B\|C\|D}` reference waveform | documented; 基本测量的源（手册 p.210） | 210 |
+| `:MEASure:SIMPle:VALue` | `:MEASure:SIMPle:VALue?` | `<type>` = {PKPK\|MAX\|MIN\|AMPL\|TOP\|BASE\|LEVELX\|CMEAN\|MEAN\|STDEV\|VSTD\|RMS\|CRMS\|MEDIAN\|CMEDIAN\|OVSN\|FPRE\|OVSP\|RPRE\|ULOWer\|PER\|FREQ\|TMAX\|TMIN\|PWID\|NWID\|DUTY\|NDUTY\|WID\|NBWID\|DELAY\|TIMEL\|RISE\|FALL\|RISE20T80\|FALL80T20\|CCJ\|PAREA\|NAREA\|AREA\|ABSAREA\|CYCLES\|REDGES\|FEDGES\|EDGES\|PPULSES\|NPULSES\|PACArea\|NACArea\|ACArea\|ABSACArea\|ALL}; `ALL` returns every simple measurement; values are Real (NR3) | documented; 查询基本测量中指定测量项的值（手册 p.210） | 210 |
+| `:MEASure:THReshold:ABSolute` | `:MEASure:THReshold:ABSolute?` | `<high>,<mid>,<low>` = Real (NR3); the range depends on the vertical scale and offset of the current threshold source | documented; 阈值类型为绝对值时的测量阈值（手册 p.212） | 212 |
+| `:MEASure:THReshold:PERCent` | `:MEASure:THReshold:PERCent?` | `<high>,<mid>,<low>` = Integer (NR1) percent; `<high>` 3 to 99, `<mid>` 2 to 98, `<low>` 1 to 97 | documented; 阈值类型为百分比时的测量阈值（手册 p.213） | 213 |
+| `:MEASure:THReshold:SOURce` | `:MEASure:THReshold:SOURce?` | `<source>` = `{C<n>\|Z<n>\|F<x>\|ZF<x>\|M<m>\|ZM<m>\|REF<r>}`; `<n>` = analog/zoom channel, `<x>` = math function, `<m>` = memory waveform, `<r>` = `{A\|B\|C\|D}`. `Z<n>`/`ZF<x>`/`ZM<m>` are only valid while Zoom is on | documented; 测量阈值的源（手册 p.211） | 211 |
+| `:MEASure:THReshold:TYPE` | `:MEASure:THReshold:TYPE?` | `<type>` = `{PERCent\|ABSolute}`; `PERCent` uses waveform percentages (low/high 1%-99%, low must not exceed mid or high), `ABSolute` uses the vertical range (depends on scale, offset and probe factor) | documented; 测量阈值的类型（手册 p.212） | 212 |
+| `:MEMory2:HORizontal:POSition` | `:MEMory2:HORizontal:POSition?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<val>` = Real (NR3), horizontal position | documented; 内存波形的水平位置（偏移）（手册 p.214） | 214 |
+| `:MEMory2:HORizontal:SCALe` | `:MEMory2:HORizontal:SCALe?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<value>` = Real (NR3), horizontal scale | documented; 内存波形的水平档位（手册 p.214） | 214 |
+| `:MEMory2:HORizontal:SYNC` | `:MEMory2:HORizontal:SYNC?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<state>` = `{ON\|OFF}` | documented; 内存波形与窗口同步开关（手册 p.215） | 215 |
+| `:MEMory2:LABel` | `:MEMory2:LABel?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<state>` = `{ON\|OFF}` | documented; 内存波形标签开关（手册 p.216） | 216 |
+| `:MEMory2:LABel:TEXT` | `:MEMory2:LABel:TEXT?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<qstring>` = quoted ASCII text, up to 20 characters | documented; 内存波形的标签字符（手册 p.216） | 216 |
+| `:MEMory2:SWITch` | `:MEMory2:SWITch?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<state>` = `{ON\|OFF}` | documented; 内存波形显示开关（手册 p.216） | 216 |
 | `:MEMory<m>:IMPort` | — | `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|<path>}`, path is a quoted `.bin` | documented; imports a source waveform into memory waveform `<m>`; the query form returns the last source and is not documented as writable | 215 |
 
-| `:MEMory2:VERTical:POSition` | `:MEMory2:VERTical:POSition?` | see p.217 | documented; TOC/body-heading derived, parameters not transcribed | 217 |
-| `:MEMory2:VERTical:SCALe` | `:MEMory2:VERTical:SCALe?` | see p.217 | documented; TOC/body-heading derived, parameters not transcribed | 217 |
-| `:MTES:MASK:LOAD` | `:MTES:MASK:LOAD?` | see p.221 | documented; TOC/body-heading derived, parameters not transcribed | 221 |
-| `:MTESt:COUNt` | `:MTESt:COUNt?` | see p.218 | documented; TOC/body-heading derived, parameters not transcribed | 218 |
-| `:MTESt:FUNCtion:BUZZer` | `:MTESt:FUNCtion:BUZZer?` | see p.218 | documented; TOC/body-heading derived, parameters not transcribed | 218 |
-| `:MTESt:FUNCtion:COF` | `:MTESt:FUNCtion:COF?` | see p.219 | documented; TOC/body-heading derived, parameters not transcribed | 219 |
-| `:MTESt:FUNCtion:FTH` | `:MTESt:FUNCtion:FTH?` | see p.219 | documented; TOC/body-heading derived, parameters not transcribed | 219 |
-| `:MTESt:FUNCtion:SOF` | `:MTESt:FUNCtion:SOF?` | see p.220 | documented; TOC/body-heading derived, parameters not transcribed | 220 |
-| `:MTESt:IDISplay` | `:MTESt:IDISplay?` | see p.220 | documented; TOC/body-heading derived, parameters not transcribed | 220 |
-| `:MTESt:MASK:CREate` | `:MTESt:MASK:CREate?` | see p.221 | documented; TOC/body-heading derived, parameters not transcribed | 221 |
-| `:MTESt:OPERate` | `:MTESt:OPERate?` | see p.222 | documented; TOC/body-heading derived, parameters not transcribed | 222 |
-| `:MTESt:RESet` | `:MTESt:RESet?` | see p.222 | documented; TOC/body-heading derived, parameters not transcribed | 222 |
-| `:MTESt:SOURce` | `:MTESt:SOURce?` | see p.222 | documented; TOC/body-heading derived, parameters not transcribed | 222 |
-| `:RECall:FDEFault` | `:RECall:FDEFault?` | see p.224 | documented; TOC/body-heading derived, parameters not transcribed | 224 |
-| `:RECall:REFerence` | `:RECall:REFerence?` | see p.224 | documented; TOC/body-heading derived, parameters not transcribed | 224 |
-| `:RECall:SERase` | `:RECall:SERase?` | see p.225 | documented; TOC/body-heading derived, parameters not transcribed | 225 |
-| `:RECall:SETup` | `:RECall:SETup?` | see p.225 | documented; TOC/body-heading derived, parameters not transcribed | 225 |
-| `:REFA:DATA` | `:REFA:DATA?` | see p.227 | documented; TOC/body-heading derived, parameters not transcribed | 227 |
-| `:REFA:DATA:POSition` | `:REFA:DATA:POSition?` | see p.228 | documented; TOC/body-heading derived, parameters not transcribed | 228 |
-| `:REFA:DATA:SCALe` | `:REFA:DATA:SCALe?` | see p.228 | documented; TOC/body-heading derived, parameters not transcribed | 228 |
-| `:REFA:DATA:SOUR` | `:REFA:DATA:SOUR?` | see p.227 | documented; TOC/body-heading derived, parameters not transcribed | 227 |
-| `:REFA:LAB` | `:REFA:LAB?` | see p.226 | documented; TOC/body-heading derived, parameters not transcribed | 226 |
-| `:REFA:LABel` | `:REFA:LABel?` | see p.226 | documented; TOC/body-heading derived, parameters not transcribed | 226 |
-| `:REFA:LABel:TEXT` | `:REFA:LABel:TEXT?` | see p.226 | documented; TOC/body-heading derived, parameters not transcribed | 226 |
-| `:SAVE:BINary` | `:SAVE:BINary?` | see p.229 | documented; TOC/body-heading derived, parameters not transcribed | 229 |
-| `:SAVE:CSV` | `:SAVE:CSV?` | see p.230 | documented; TOC/body-heading derived, parameters not transcribed | 230 |
-| `:SAVE:DEFault` | `:SAVE:DEFault?` | see p.231 | documented; TOC/body-heading derived, parameters not transcribed | 231 |
-| `:SAVE:MATLab` | `:SAVE:MATLab?` | see p.232 | documented; TOC/body-heading derived, parameters not transcribed | 232 |
-| `:SAVE:REFerence` | `:SAVE:REFerence?` | see p.233 | documented; TOC/body-heading derived, parameters not transcribed | 233 |
-| `:SAVE:SET` | `:SAVE:SET?` | see p.234 | documented; TOC/body-heading derived, parameters not transcribed | 234 |
-| `:SEAR:MODE` | `:SEAR:MODE?` | see p.235 | documented; TOC/body-heading derived, parameters not transcribed | 235 |
-| `:SEARch:COPY` | `:SEARch:COPY?` | see p.236 | documented; TOC/body-heading derived, parameters not transcribed | 236 |
-| `:SEARch:COUNT` | `:SEARch:COUNT?` | see p.236 | documented; TOC/body-heading derived, parameters not transcribed | 236 |
-| `:SEARch:EDGE` | `:SEARch:EDGE?` | see p.237 | documented; TOC/body-heading derived, parameters not transcribed | 237 |
-| `:SEARch:EDGE:LEVel` | `:SEARch:EDGE:LEVel?` | see p.238 | documented; TOC/body-heading derived, parameters not transcribed | 238 |
-| `:SEARch:EDGE:SLOPe` | `:SEARch:EDGE:SLOPe?` | see p.237 | documented; TOC/body-heading derived, parameters not transcribed | 237 |
-| `:SEARch:EDGE:SOURce` | `:SEARch:EDGE:SOURce?` | see p.237 | documented; TOC/body-heading derived, parameters not transcribed | 237 |
-| `:SEARch:EVENt` | `:SEARch:EVENt?` | see p.236 | documented; TOC/body-heading derived, parameters not transcribed | 236 |
-| `:SEARch:INTerval` | `:SEARch:INTerval?` | see p.248 | documented; TOC/body-heading derived, parameters not transcribed | 248 |
-| `:SEARch:INTerval:LEVel` | `:SEARch:INTerval:LEVel?` | see p.249 | documented; TOC/body-heading derived, parameters not transcribed | 249 |
-| `:SEARch:INTerval:LIMit` | `:SEARch:INTerval:LIMit?` | see p.249 | documented; TOC/body-heading derived, parameters not transcribed | 249 |
-| `:SEARch:INTerval:SLOPe` | `:SEARch:INTerval:SLOPe?` | see p.248 | documented; TOC/body-heading derived, parameters not transcribed | 248 |
-| `:SEARch:INTerval:SOURce` | `:SEARch:INTerval:SOURce?` | see p.248 | documented; TOC/body-heading derived, parameters not transcribed | 248 |
-| `:SEARch:INTerval:TLOWer` | `:SEARch:INTerval:TLOWer?` | see p.250 | documented; TOC/body-heading derived, parameters not transcribed | 250 |
-| `:SEARch:INTerval:TUPPer` | `:SEARch:INTerval:TUPPer?` | see p.250 | documented; TOC/body-heading derived, parameters not transcribed | 250 |
-| `:SEARch:PULSe` | `:SEARch:PULSe?` | see p.244 | documented; TOC/body-heading derived, parameters not transcribed | 244 |
-| `:SEARch:PULSe:LEVel` | `:SEARch:PULSe:LEVel?` | see p.245 | documented; TOC/body-heading derived, parameters not transcribed | 245 |
-| `:SEARch:PULSe:LIMit` | `:SEARch:PULSe:LIMit?` | see p.245 | documented; TOC/body-heading derived, parameters not transcribed | 245 |
-| `:SEARch:PULSe:POLarity` | `:SEARch:PULSe:POLarity?` | see p.244 | documented; TOC/body-heading derived, parameters not transcribed | 244 |
-| `:SEARch:PULSe:SOURce` | `:SEARch:PULSe:SOURce?` | see p.244 | documented; TOC/body-heading derived, parameters not transcribed | 244 |
-| `:SEARch:PULSe:TLOWer` | `:SEARch:PULSe:TLOWer?` | see p.246 | documented; TOC/body-heading derived, parameters not transcribed | 246 |
-| `:SEARch:PULSe:TUPPer` | `:SEARch:PULSe:TUPPer?` | see p.246 | documented; TOC/body-heading derived, parameters not transcribed | 246 |
-| `:SEARch:PULse:POLarity` | `:SEARch:PULse:POLarity?` | see p.244 | documented; TOC/body-heading derived, parameters not transcribed | 244 |
-| `:SEARch:PULse:SOURce` | `:SEARch:PULse:SOURce?` | see p.244 | documented; TOC/body-heading derived, parameters not transcribed | 244 |
-| `:SEARch:RUNT` | `:SEARch:RUNT?` | see p.252 | documented; TOC/body-heading derived, parameters not transcribed | 252 |
-| `:SEARch:RUNT:HLEVel` | `:SEARch:RUNT:HLEVel?` | see p.252 | documented; TOC/body-heading derived, parameters not transcribed | 252 |
-| `:SEARch:RUNT:LIMit` | `:SEARch:RUNT:LIMit?` | see p.254 | documented; TOC/body-heading derived, parameters not transcribed | 254 |
-| `:SEARch:RUNT:LLEVel` | `:SEARch:RUNT:LLEVel?` | see p.253 | documented; TOC/body-heading derived, parameters not transcribed | 253 |
-| `:SEARch:RUNT:POLarity` | `:SEARch:RUNT:POLarity?` | see p.252 | documented; TOC/body-heading derived, parameters not transcribed | 252 |
-| `:SEARch:RUNT:SOURce` | `:SEARch:RUNT:SOURce?` | see p.252 | documented; TOC/body-heading derived, parameters not transcribed | 252 |
-| `:SEARch:RUNT:TLOWer` | `:SEARch:RUNT:TLOWer?` | see p.254 | documented; TOC/body-heading derived, parameters not transcribed | 254 |
-| `:SEARch:RUNT:TUPPer` | `:SEARch:RUNT:TUPPer?` | see p.254 | documented; TOC/body-heading derived, parameters not transcribed | 254 |
-| `:SEARch:SLOPe` | `:SEARch:SLOPe?` | see p.239 | documented; TOC/body-heading derived, parameters not transcribed | 239 |
-| `:SEARch:SLOPe:HLEVel` | `:SEARch:SLOPe:HLEVel?` | see p.239 | documented; TOC/body-heading derived, parameters not transcribed | 239 |
-| `:SEARch:SLOPe:LIMit` | `:SEARch:SLOPe:LIMit?` | see p.241 | documented; TOC/body-heading derived, parameters not transcribed | 241 |
-| `:SEARch:SLOPe:LLEVel` | `:SEARch:SLOPe:LLEVel?` | see p.240 | documented; TOC/body-heading derived, parameters not transcribed | 240 |
-| `:SEARch:SLOPe:SLOPe` | `:SEARch:SLOPe:SLOPe?` | see p.239 | documented; TOC/body-heading derived, parameters not transcribed | 239 |
-| `:SEARch:SLOPe:SOURce` | `:SEARch:SLOPe:SOURce?` | see p.239 | documented; TOC/body-heading derived, parameters not transcribed | 239 |
-| `:SEARch:SLOPe:TLOWer` | `:SEARch:SLOPe:TLOWer?` | see p.241 | documented; TOC/body-heading derived, parameters not transcribed | 241 |
-| `:SEARch:SLOPe:TUPPer` | `:SEARch:SLOPe:TUPPer?` | see p.241 | documented; TOC/body-heading derived, parameters not transcribed | 241 |
-| `:SYSTem:BUZZer` | `:SYSTem:BUZZer?` | see p.257 | documented; TOC/body-heading derived, parameters not transcribed | 257 |
-| `:SYSTem:CLOCk` | `:SYSTem:CLOCk?` | see p.257 | documented; TOC/body-heading derived, parameters not transcribed | 257 |
-| `:SYSTem:COMMunicate:LAN:MAC` | `:SYSTem:COMMunicate:LAN:MAC?` | see p.259 | documented; TOC/body-heading derived, parameters not transcribed | 259 |
-| `:SYSTem:COMMunicate:VNCPort` | `:SYSTem:COMMunicate:VNCPort?` | see p.260 | documented; TOC/body-heading derived, parameters not transcribed | 260 |
-| `:SYSTem:DATE` | `:SYSTem:DATE?` | see p.260 | documented; TOC/body-heading derived, parameters not transcribed | 260 |
-| `:SYSTem:EDUMode` | `:SYSTem:EDUMode?` | see p.261 | documented; TOC/body-heading derived, parameters not transcribed | 261 |
-| `:SYSTem:LANGuage` | `:SYSTem:LANGuage?` | see p.261 | documented; TOC/body-heading derived, parameters not transcribed | 261 |
-| `:SYSTem:MENU` | `:SYSTem:MENU?` | see p.262 | documented; TOC/body-heading derived, parameters not transcribed | 262 |
-| `:SYSTem:NSTorage:STATus` | `:SYSTem:NSTorage:STATus?` | see p.263 | documented; TOC/body-heading derived, parameters not transcribed | 263 |
-| `:SYSTem:PON` | `:SYSTem:PON?` | see p.264 | documented; TOC/body-heading derived, parameters not transcribed | 264 |
-| `:SYSTem:REBoot` | `:SYSTem:REBoot?` | see p.264 | documented; TOC/body-heading derived, parameters not transcribed | 264 |
-| `:SYSTem:SELFCal` | `:SYSTem:SELFCal?` | see p.265 | documented; TOC/body-heading derived, parameters not transcribed | 265 |
-| `:SYSTem:SHUTdown` | `:SYSTem:SHUTdown?` | see p.265 | documented; TOC/body-heading derived, parameters not transcribed | 265 |
-| `:SYSTem:SSAVer` | `:SYSTem:SSAVer?` | see p.265 | documented; TOC/body-heading derived, parameters not transcribed | 265 |
-| `:SYSTem:TIME` | `:SYSTem:TIME?` | see p.266 | documented; TOC/body-heading derived, parameters not transcribed | 266 |
-| `:SYSTem:TOUCh` | `:SYSTem:TOUCh?` | see p.266 | documented; TOC/body-heading derived, parameters not transcribed | 266 |
-| `:TIMebase:DELay` | `:TIMebase:DELay?` | see p.267 | documented; TOC/body-heading derived, parameters not transcribed | 267 |
-| `:TIMebase:REFerence` | `:TIMebase:REFerence?` | see p.267 | documented; TOC/body-heading derived, parameters not transcribed | 267 |
-| `:TIMebase:REFerence:POSition` | `:TIMebase:REFerence:POSition?` | see p.268 | documented; TOC/body-heading derived, parameters not transcribed | 268 |
-| `:TIMebase:WINDow` | `:TIMebase:WINDow?` | see p.269 | documented; TOC/body-heading derived, parameters not transcribed | 269 |
-| `:TIMebase:WINDow:DELay` | `:TIMebase:WINDow:DELay?` | see p.269 | documented; TOC/body-heading derived, parameters not transcribed | 269 |
-| `:TIMebase:WINDow:SCALe` | `:TIMebase:WINDow:SCALe?` | see p.269 | documented; TOC/body-heading derived, parameters not transcribed | 269 |
-| `:TRIG:SPI:NCSS` | `:TRIG:SPI:NCSS?` | see p.370 | documented; TOC/body-heading derived, parameters not transcribed | 370 |
-| `:TRIG:STAT` | `:TRIG:STAT?` | see p.272 | documented; TOC/body-heading derived, parameters not transcribed | 272 |
-| `:TRIGger:CAN` | `:TRIGger:CAN?` | see p.380 | documented; TOC/body-heading derived, parameters not transcribed | 380 |
-| `:TRIGger:CAN:BAUD` | `:TRIGger:CAN:BAUD?` | see p.380 | documented; TOC/body-heading derived, parameters not transcribed | 380 |
-| `:TRIGger:CAN:CONDition` | `:TRIGger:CAN:CONDition?` | see p.380 | documented; TOC/body-heading derived, parameters not transcribed | 380 |
-| `:TRIGger:CAN:DAT2` | `:TRIGger:CAN:DAT2?` | see p.381 | documented; TOC/body-heading derived, parameters not transcribed | 381 |
-| `:TRIGger:CAN:DATA` | `:TRIGger:CAN:DATA?` | see p.381 | documented; TOC/body-heading derived, parameters not transcribed | 381 |
-| `:TRIGger:CAN:ID` | `:TRIGger:CAN:ID?` | see p.382 | documented; TOC/body-heading derived, parameters not transcribed | 382 |
-| `:TRIGger:CAN:IDLENgth` | `:TRIGger:CAN:IDLENgth?` | see p.382 | documented; TOC/body-heading derived, parameters not transcribed | 382 |
-| `:TRIGger:CAN:IDLength` | `:TRIGger:CAN:IDLength?` | see p.382 | documented; TOC/body-heading derived, parameters not transcribed | 382 |
-| `:TRIGger:CAN:SOURce` | `:TRIGger:CAN:SOURce?` | see p.383 | documented; TOC/body-heading derived, parameters not transcribed | 383 |
-| `:TRIGger:CAN:THReshold` | `:TRIGger:CAN:THReshold?` | see p.383 | documented; TOC/body-heading derived, parameters not transcribed | 383 |
-| `:TRIGger:CANFd:BAUDData` | `:TRIGger:CANFd:BAUDData?` | see p.396 | documented; TOC/body-heading derived, parameters not transcribed | 396 |
-| `:TRIGger:CANFd:BAUDNominal` | `:TRIGger:CANFd:BAUDNominal?` | see p.396 | documented; TOC/body-heading derived, parameters not transcribed | 396 |
-| `:TRIGger:CANFd:CONDition` | `:TRIGger:CANFd:CONDition?` | see p.397 | documented; TOC/body-heading derived, parameters not transcribed | 397 |
-| `:TRIGger:CANFd:DAT2` | `:TRIGger:CANFd:DAT2?` | see p.397 | documented; TOC/body-heading derived, parameters not transcribed | 397 |
-| `:TRIGger:CANFd:DATA` | `:TRIGger:CANFd:DATA?` | see p.397 | documented; TOC/body-heading derived, parameters not transcribed | 397 |
-| `:TRIGger:CANFd:FTYPe` | `:TRIGger:CANFd:FTYPe?` | see p.398 | documented; TOC/body-heading derived, parameters not transcribed | 398 |
-| `:TRIGger:CANFd:ID` | `:TRIGger:CANFd:ID?` | see p.398 | documented; TOC/body-heading derived, parameters not transcribed | 398 |
-| `:TRIGger:CANFd:IDLength` | `:TRIGger:CANFd:IDLength?` | see p.399 | documented; TOC/body-heading derived, parameters not transcribed | 399 |
-| `:TRIGger:CANFd:SOURce` | `:TRIGger:CANFd:SOURce?` | see p.399 | documented; TOC/body-heading derived, parameters not transcribed | 399 |
-| `:TRIGger:CANFd:THReshold` | `:TRIGger:CANFd:THReshold?` | see p.400 | documented; TOC/body-heading derived, parameters not transcribed | 400 |
-| `:TRIGger:DELay` | `:TRIGger:DELay?` | see p.340 | documented; TOC/body-heading derived, parameters not transcribed | 340 |
-| `:TRIGger:DELay:INPut` | `:TRIGger:DELay:INPut?` | see p.340 | documented; TOC/body-heading derived, parameters not transcribed | 340 |
-| `:TRIGger:DELay:LEVel` | `:TRIGger:DELay:LEVel?` | see p.341 | documented; TOC/body-heading derived, parameters not transcribed | 341 |
-| `:TRIGger:DELay:LEVel2` | `:TRIGger:DELay:LEVel2?` | see p.342 | documented; TOC/body-heading derived, parameters not transcribed | 342 |
-| `:TRIGger:DELay:LIMit` | `:TRIGger:DELay:LIMit?` | see p.343 | documented; TOC/body-heading derived, parameters not transcribed | 343 |
-| `:TRIGger:DELay:SLOPe` | `:TRIGger:DELay:SLOPe?` | see p.341 | documented; TOC/body-heading derived, parameters not transcribed | 341 |
-| `:TRIGger:DELay:SLOPe2` | `:TRIGger:DELay:SLOPe2?` | see p.341 | documented; TOC/body-heading derived, parameters not transcribed | 341 |
-| `:TRIGger:DELay:SOURce` | `:TRIGger:DELay:SOURce?` | see p.340 | documented; TOC/body-heading derived, parameters not transcribed | 340 |
-| `:TRIGger:DELay:SOURce2` | `:TRIGger:DELay:SOURce2?` | see p.340 | documented; TOC/body-heading derived, parameters not transcribed | 340 |
-| `:TRIGger:DELay:TLOWer` | `:TRIGger:DELay:TLOWer?` | see p.343 | documented; TOC/body-heading derived, parameters not transcribed | 343 |
-| `:TRIGger:DELay:TUPPer` | `:TRIGger:DELay:TUPPer?` | see p.343 | documented; TOC/body-heading derived, parameters not transcribed | 343 |
-| `:TRIGger:DROPout` | `:TRIGger:DROPout?` | see p.315 | documented; TOC/body-heading derived, parameters not transcribed | 315 |
-| `:TRIGger:DROPout:COUPling` | `:TRIGger:DROPout:COUPling?` | see p.315 | documented; TOC/body-heading derived, parameters not transcribed | 315 |
-| `:TRIGger:DROPout:HLDEVent` | `:TRIGger:DROPout:HLDEVent?` | see p.315 | documented; TOC/body-heading derived, parameters not transcribed | 315 |
-| `:TRIGger:DROPout:HLDTime` | `:TRIGger:DROPout:HLDTime?` | see p.316 | documented; TOC/body-heading derived, parameters not transcribed | 316 |
-| `:TRIGger:DROPout:HOLDoff` | `:TRIGger:DROPout:HOLDoff?` | see p.316 | documented; TOC/body-heading derived, parameters not transcribed | 316 |
-| `:TRIGger:DROPout:HSTart` | `:TRIGger:DROPout:HSTart?` | see p.317 | documented; TOC/body-heading derived, parameters not transcribed | 317 |
-| `:TRIGger:DROPout:LEVel` | `:TRIGger:DROPout:LEVel?` | see p.317 | documented; TOC/body-heading derived, parameters not transcribed | 317 |
-| `:TRIGger:DROPout:NREJect` | `:TRIGger:DROPout:NREJect?` | see p.318 | documented; TOC/body-heading derived, parameters not transcribed | 318 |
-| `:TRIGger:DROPout:SLOPe` | `:TRIGger:DROPout:SLOPe?` | see p.318 | documented; TOC/body-heading derived, parameters not transcribed | 318 |
-| `:TRIGger:DROPout:SOURce` | `:TRIGger:DROPout:SOURce?` | see p.319 | documented; TOC/body-heading derived, parameters not transcribed | 319 |
-| `:TRIGger:DROPout:TIME` | `:TRIGger:DROPout:TIME?` | see p.319 | documented; TOC/body-heading derived, parameters not transcribed | 319 |
-| `:TRIGger:DROPout:TYPE` | `:TRIGger:DROPout:TYPE?` | see p.320 | documented; TOC/body-heading derived, parameters not transcribed | 320 |
-| `:TRIGger:EDGE` | `:TRIGger:EDGE?` | see p.274 | documented; TOC/body-heading derived, parameters not transcribed | 274 |
-| `:TRIGger:EDGE:COUPling` | `:TRIGger:EDGE:COUPling?` | see p.274 | documented; TOC/body-heading derived, parameters not transcribed | 274 |
-| `:TRIGger:EDGE:HLDEVent` | `:TRIGger:EDGE:HLDEVent?` | see p.274 | documented; TOC/body-heading derived, parameters not transcribed | 274 |
-| `:TRIGger:EDGE:HLDTime` | `:TRIGger:EDGE:HLDTime?` | see p.275 | documented; TOC/body-heading derived, parameters not transcribed | 275 |
-| `:TRIGger:EDGE:HOLDoff` | `:TRIGger:EDGE:HOLDoff?` | see p.275 | documented; TOC/body-heading derived, parameters not transcribed | 275 |
-| `:TRIGger:EDGE:HSTart` | `:TRIGger:EDGE:HSTart?` | see p.276 | documented; TOC/body-heading derived, parameters not transcribed | 276 |
-| `:TRIGger:EDGE:IMPedance` | `:TRIGger:EDGE:IMPedance?` | see p.276 | documented; TOC/body-heading derived, parameters not transcribed | 276 |
-| `:TRIGger:EDGE:LEVel` | `:TRIGger:EDGE:LEVel?` | see p.277 | documented; TOC/body-heading derived, parameters not transcribed | 277 |
-| `:TRIGger:EDGE:NREJect` | `:TRIGger:EDGE:NREJect?` | see p.278 | documented; TOC/body-heading derived, parameters not transcribed | 278 |
-| `:TRIGger:FLEXray:BAUD` | `:TRIGger:FLEXray:BAUD?` | see p.392 | documented; TOC/body-heading derived, parameters not transcribed | 392 |
-| `:TRIGger:FLEXray:CONDition` | `:TRIGger:FLEXray:CONDition?` | see p.392 | documented; TOC/body-heading derived, parameters not transcribed | 392 |
-| `:TRIGger:FLEXray:FRAMe:COMPare` | `:TRIGger:FLEXray:FRAMe:COMPare?` | see p.393 | documented; TOC/body-heading derived, parameters not transcribed | 393 |
-| `:TRIGger:FLEXray:FRAMe:CYCLe` | `:TRIGger:FLEXray:FRAMe:CYCLe?` | see p.393 | documented; TOC/body-heading derived, parameters not transcribed | 393 |
-| `:TRIGger:FLEXray:FRAMe:ID` | `:TRIGger:FLEXray:FRAMe:ID?` | see p.393 | documented; TOC/body-heading derived, parameters not transcribed | 393 |
-| `:TRIGger:FLEXray:FRAMe:REPetition` | `:TRIGger:FLEXray:FRAMe:REPetition?` | see p.394 | documented; TOC/body-heading derived, parameters not transcribed | 394 |
-| `:TRIGger:FLEXray:SOURce` | `:TRIGger:FLEXray:SOURce?` | see p.394 | documented; TOC/body-heading derived, parameters not transcribed | 394 |
-| `:TRIGger:FLEXray:Source` | `:TRIGger:FLEXray:Source?` | see p.394 | documented; TOC/body-heading derived, parameters not transcribed | 394 |
-| `:TRIGger:FLEXray:THReshold` | `:TRIGger:FLEXray:THReshold?` | see p.395 | documented; TOC/body-heading derived, parameters not transcribed | 395 |
-| `:TRIGger:FREQuency` | `:TRIGger:FREQuency?` | see p.271 | documented; TOC/body-heading derived, parameters not transcribed | 271 |
-| `:TRIGger:IIC` | `:TRIGger:IIC?` | see p.357 | documented; TOC/body-heading derived, parameters not transcribed | 357 |
-| `:TRIGger:IIC:ADDRess` | `:TRIGger:IIC:ADDRess?` | see p.357 | documented; TOC/body-heading derived, parameters not transcribed | 357 |
-| `:TRIGger:IIC:ALENgth` | `:TRIGger:IIC:ALENgth?` | see p.357 | documented; TOC/body-heading derived, parameters not transcribed | 357 |
-| `:TRIGger:IIC:CONDition` | `:TRIGger:IIC:CONDition?` | see p.358 | documented; TOC/body-heading derived, parameters not transcribed | 358 |
-| `:TRIGger:IIC:DAT2` | `:TRIGger:IIC:DAT2?` | see p.358 | documented; TOC/body-heading derived, parameters not transcribed | 358 |
-| `:TRIGger:IIC:DATA` | `:TRIGger:IIC:DATA?` | see p.358 | documented; TOC/body-heading derived, parameters not transcribed | 358 |
-| `:TRIGger:IIC:DLENgth` | `:TRIGger:IIC:DLENgth?` | see p.359 | documented; TOC/body-heading derived, parameters not transcribed | 359 |
-| `:TRIGger:IIC:LIMit` | `:TRIGger:IIC:LIMit?` | see p.359 | documented; TOC/body-heading derived, parameters not transcribed | 359 |
-| `:TRIGger:IIC:RWBit` | `:TRIGger:IIC:RWBit?` | see p.360 | documented; TOC/body-heading derived, parameters not transcribed | 360 |
-| `:TRIGger:IIC:SCLSource` | `:TRIGger:IIC:SCLSource?` | see p.360 | documented; TOC/body-heading derived, parameters not transcribed | 360 |
-| `:TRIGger:IIC:SCLThreshold` | `:TRIGger:IIC:SCLThreshold?` | see p.361 | documented; TOC/body-heading derived, parameters not transcribed | 361 |
-| `:TRIGger:IIC:SDASource` | `:TRIGger:IIC:SDASource?` | see p.361 | documented; TOC/body-heading derived, parameters not transcribed | 361 |
-| `:TRIGger:IIC:SDAThreshold` | `:TRIGger:IIC:SDAThreshold?` | see p.362 | documented; TOC/body-heading derived, parameters not transcribed | 362 |
-| `:TRIGger:IIS:AVARiant` | `:TRIGger:IIS:AVARiant?` | see p.401 | documented; TOC/body-heading derived, parameters not transcribed | 401 |
-| `:TRIGger:IIS:BCLKSource` | `:TRIGger:IIS:BCLKSource?` | see p.401 | documented; TOC/body-heading derived, parameters not transcribed | 401 |
-| `:TRIGger:IIS:BCLKThreshold` | `:TRIGger:IIS:BCLKThreshold?` | see p.402 | documented; TOC/body-heading derived, parameters not transcribed | 402 |
-| `:TRIGger:IIS:BITorder` | `:TRIGger:IIS:BITorder?` | see p.402 | documented; TOC/body-heading derived, parameters not transcribed | 402 |
-| `:TRIGger:IIS:CHANnel` | `:TRIGger:IIS:CHANnel?` | see p.403 | documented; TOC/body-heading derived, parameters not transcribed | 403 |
-| `:TRIGger:IIS:COMPare` | `:TRIGger:IIS:COMPare?` | see p.403 | documented; TOC/body-heading derived, parameters not transcribed | 403 |
-| `:TRIGger:IIS:CONDition` | `:TRIGger:IIS:CONDition?` | see p.403 | documented; TOC/body-heading derived, parameters not transcribed | 403 |
-| `:TRIGger:IIS:DLENgth` | `:TRIGger:IIS:DLENgth?` | see p.404 | documented; TOC/body-heading derived, parameters not transcribed | 404 |
-| `:TRIGger:IIS:DSource` | `:TRIGger:IIS:DSource?` | see p.404 | documented; TOC/body-heading derived, parameters not transcribed | 404 |
-| `:TRIGger:IIS:DTHReshold` | `:TRIGger:IIS:DTHReshold?` | see p.405 | documented; TOC/body-heading derived, parameters not transcribed | 405 |
-| `:TRIGger:IIS:LATChedge` | `:TRIGger:IIS:LATChedge?` | see p.406 | documented; TOC/body-heading derived, parameters not transcribed | 406 |
-| `:TRIGger:IIS:LATChegde` | `:TRIGger:IIS:LATChegde?` | see p.406 | documented; TOC/body-heading derived, parameters not transcribed | 406 |
-| `:TRIGger:IIS:LCH` | `:TRIGger:IIS:LCH?` | see p.406 | documented; TOC/body-heading derived, parameters not transcribed | 406 |
-| `:TRIGger:IIS:VALue` | `:TRIGger:IIS:VALue?` | see p.407 | documented; TOC/body-heading derived, parameters not transcribed | 407 |
-| `:TRIGger:IIS:WSSource` | `:TRIGger:IIS:WSSource?` | see p.407 | documented; TOC/body-heading derived, parameters not transcribed | 407 |
-| `:TRIGger:IIS:WSTHreshold` | `:TRIGger:IIS:WSTHreshold?` | see p.408 | documented; TOC/body-heading derived, parameters not transcribed | 408 |
-| `:TRIGger:INTerval` | `:TRIGger:INTerval?` | see p.308 | documented; TOC/body-heading derived, parameters not transcribed | 308 |
-| `:TRIGger:INTerval:COUPling` | `:TRIGger:INTerval:COUPling?` | see p.308 | documented; TOC/body-heading derived, parameters not transcribed | 308 |
-| `:TRIGger:INTerval:HLDEVent` | `:TRIGger:INTerval:HLDEVent?` | see p.308 | documented; TOC/body-heading derived, parameters not transcribed | 308 |
-| `:TRIGger:INTerval:HLDTime` | `:TRIGger:INTerval:HLDTime?` | see p.309 | documented; TOC/body-heading derived, parameters not transcribed | 309 |
-| `:TRIGger:INTerval:HOLDoff` | `:TRIGger:INTerval:HOLDoff?` | see p.309 | documented; TOC/body-heading derived, parameters not transcribed | 309 |
-| `:TRIGger:INTerval:HSTart` | `:TRIGger:INTerval:HSTart?` | see p.310 | documented; TOC/body-heading derived, parameters not transcribed | 310 |
-| `:TRIGger:INTerval:LEVel` | `:TRIGger:INTerval:LEVel?` | see p.310 | documented; TOC/body-heading derived, parameters not transcribed | 310 |
-| `:TRIGger:INTerval:LIMit` | `:TRIGger:INTerval:LIMit?` | see p.311 | documented; TOC/body-heading derived, parameters not transcribed | 311 |
-| `:TRIGger:INTerval:NREJect` | `:TRIGger:INTerval:NREJect?` | see p.312 | documented; TOC/body-heading derived, parameters not transcribed | 312 |
-| `:TRIGger:INTerval:SLOPe` | `:TRIGger:INTerval:SLOPe?` | see p.312 | documented; TOC/body-heading derived, parameters not transcribed | 312 |
-| `:TRIGger:INTerval:SOURce` | `:TRIGger:INTerval:SOURce?` | see p.312 | documented; TOC/body-heading derived, parameters not transcribed | 312 |
-| `:TRIGger:INTerval:TLOWer` | `:TRIGger:INTerval:TLOWer?` | see p.313 | documented; TOC/body-heading derived, parameters not transcribed | 313 |
-| `:TRIGger:INTerval:TUPPer` | `:TRIGger:INTerval:TUPPer?` | see p.311 | documented; TOC/body-heading derived, parameters not transcribed | 311 |
-| `:TRIGger:LIN` | `:TRIGger:LIN?` | see p.385 | documented; TOC/body-heading derived, parameters not transcribed | 385 |
-| `:TRIGger:LIN:BAUD` | `:TRIGger:LIN:BAUD?` | see p.385 | documented; TOC/body-heading derived, parameters not transcribed | 385 |
-| `:TRIGger:LIN:CONDition` | `:TRIGger:LIN:CONDition?` | see p.385 | documented; TOC/body-heading derived, parameters not transcribed | 385 |
-| `:TRIGger:LIN:DAT2` | `:TRIGger:LIN:DAT2?` | see p.386 | documented; TOC/body-heading derived, parameters not transcribed | 386 |
-| `:TRIGger:LIN:DATA` | `:TRIGger:LIN:DATA?` | see p.386 | documented; TOC/body-heading derived, parameters not transcribed | 386 |
-| `:TRIGger:LIN:ERRor:CHECksum` | `:TRIGger:LIN:ERRor:CHECksum?` | see p.387 | documented; TOC/body-heading derived, parameters not transcribed | 387 |
-| `:TRIGger:LIN:ERRor:DLENgth` | `:TRIGger:LIN:ERRor:DLENgth?` | see p.387 | documented; TOC/body-heading derived, parameters not transcribed | 387 |
-| `:TRIGger:LIN:ERRor:ID` | `:TRIGger:LIN:ERRor:ID?` | see p.388 | documented; TOC/body-heading derived, parameters not transcribed | 388 |
-| `:TRIGger:LIN:ERRor:PARity` | `:TRIGger:LIN:ERRor:PARity?` | see p.388 | documented; TOC/body-heading derived, parameters not transcribed | 388 |
-| `:TRIGger:LIN:ERRor:SYNC` | `:TRIGger:LIN:ERRor:SYNC?` | see p.389 | documented; TOC/body-heading derived, parameters not transcribed | 389 |
-| `:TRIGger:LIN:ID` | `:TRIGger:LIN:ID?` | see p.389 | documented; TOC/body-heading derived, parameters not transcribed | 389 |
-| `:TRIGger:LIN:SOURce` | `:TRIGger:LIN:SOURce?` | see p.390 | documented; TOC/body-heading derived, parameters not transcribed | 390 |
-| `:TRIGger:LIN:STANdard` | `:TRIGger:LIN:STANdard?` | see p.390 | documented; TOC/body-heading derived, parameters not transcribed | 390 |
-| `:TRIGger:LIN:Source` | `:TRIGger:LIN:Source?` | see p.390 | documented; TOC/body-heading derived, parameters not transcribed | 390 |
-| `:TRIGger:LIN:THReshold` | `:TRIGger:LIN:THReshold?` | see p.390 | documented; TOC/body-heading derived, parameters not transcribed | 390 |
-| `:TRIGger:NEDGe` | `:TRIGger:NEDGe?` | see p.345 | documented; TOC/body-heading derived, parameters not transcribed | 345 |
-| `:TRIGger:NEDGe:EDGE` | `:TRIGger:NEDGe:EDGE?` | see p.346 | documented; TOC/body-heading derived, parameters not transcribed | 346 |
-| `:TRIGger:NEDGe:HLDEVent` | `:TRIGger:NEDGe:HLDEVent?` | see p.348 | documented; TOC/body-heading derived, parameters not transcribed | 348 |
-| `:TRIGger:NEDGe:HLDEvent` | `:TRIGger:NEDGe:HLDEvent?` | see p.349 | documented; TOC/body-heading derived, parameters not transcribed | 349 |
-| `:TRIGger:NEDGe:HLDTime` | `:TRIGger:NEDGe:HLDTime?` | see p.348 | documented; TOC/body-heading derived, parameters not transcribed | 348 |
-| `:TRIGger:NEDGe:HOLDoff` | `:TRIGger:NEDGe:HOLDoff?` | see p.347 | documented; TOC/body-heading derived, parameters not transcribed | 347 |
-| `:TRIGger:NEDGe:HSTart` | `:TRIGger:NEDGe:HSTart?` | see p.348 | documented; TOC/body-heading derived, parameters not transcribed | 348 |
-| `:TRIGger:NEDGe:IDLE` | `:TRIGger:NEDGe:IDLE?` | see p.346 | documented; TOC/body-heading derived, parameters not transcribed | 346 |
-| `:TRIGger:NEDGe:LEVel` | `:TRIGger:NEDGe:LEVel?` | see p.347 | documented; TOC/body-heading derived, parameters not transcribed | 347 |
-| `:TRIGger:NEDGe:NREJect` | `:TRIGger:NEDGe:NREJect?` | see p.349 | documented; TOC/body-heading derived, parameters not transcribed | 349 |
-| `:TRIGger:NEDGe:SLOPe` | `:TRIGger:NEDGe:SLOPe?` | see p.345 | documented; TOC/body-heading derived, parameters not transcribed | 345 |
-| `:TRIGger:NEDGe:SOURce` | `:TRIGger:NEDGe:SOURce?` | see p.345 | documented; TOC/body-heading derived, parameters not transcribed | 345 |
-| `:TRIGger:PATTern` | `:TRIGger:PATTern?` | see p.329 | documented; TOC/body-heading derived, parameters not transcribed | 329 |
-| `:TRIGger:PATTern:HLDEVent` | `:TRIGger:PATTern:HLDEVent?` | see p.329 | documented; TOC/body-heading derived, parameters not transcribed | 329 |
-| `:TRIGger:PATTern:HLDTime` | `:TRIGger:PATTern:HLDTime?` | see p.329 | documented; TOC/body-heading derived, parameters not transcribed | 329 |
-| `:TRIGger:PATTern:HOLDoff` | `:TRIGger:PATTern:HOLDoff?` | see p.330 | documented; TOC/body-heading derived, parameters not transcribed | 330 |
-| `:TRIGger:PATTern:HSTart` | `:TRIGger:PATTern:HSTart?` | see p.330 | documented; TOC/body-heading derived, parameters not transcribed | 330 |
-| `:TRIGger:PATTern:INPut` | `:TRIGger:PATTern:INPut?` | see p.331 | documented; TOC/body-heading derived, parameters not transcribed | 331 |
-| `:TRIGger:PATTern:LEVel` | `:TRIGger:PATTern:LEVel?` | see p.331 | documented; TOC/body-heading derived, parameters not transcribed | 331 |
-| `:TRIGger:PATTern:LIMit` | `:TRIGger:PATTern:LIMit?` | see p.332 | documented; TOC/body-heading derived, parameters not transcribed | 332 |
-| `:TRIGger:PATTern:LOGic` | `:TRIGger:PATTern:LOGic?` | see p.333 | documented; TOC/body-heading derived, parameters not transcribed | 333 |
-| `:TRIGger:PATTern:TLOWer` | `:TRIGger:PATTern:TLOWer?` | see p.333 | documented; TOC/body-heading derived, parameters not transcribed | 333 |
-| `:TRIGger:PATTern:TUPPer` | `:TRIGger:PATTern:TUPPer?` | see p.333 | documented; TOC/body-heading derived, parameters not transcribed | 333 |
-| `:TRIGger:PULSe` | `:TRIGger:PULSe?` | see p.288 | documented; TOC/body-heading derived, parameters not transcribed | 288 |
-| `:TRIGger:PULSe:COUPling` | `:TRIGger:PULSe:COUPling?` | see p.288 | documented; TOC/body-heading derived, parameters not transcribed | 288 |
-| `:TRIGger:PULSe:HLDEVent` | `:TRIGger:PULSe:HLDEVent?` | see p.288 | documented; TOC/body-heading derived, parameters not transcribed | 288 |
-| `:TRIGger:PULSe:HLDTime` | `:TRIGger:PULSe:HLDTime?` | see p.289 | documented; TOC/body-heading derived, parameters not transcribed | 289 |
-| `:TRIGger:PULSe:HOLDoff` | `:TRIGger:PULSe:HOLDoff?` | see p.289 | documented; TOC/body-heading derived, parameters not transcribed | 289 |
-| `:TRIGger:PULSe:HSTart` | `:TRIGger:PULSe:HSTart?` | see p.290 | documented; TOC/body-heading derived, parameters not transcribed | 290 |
-| `:TRIGger:PULSe:LEVel` | `:TRIGger:PULSe:LEVel?` | see p.290 | documented; TOC/body-heading derived, parameters not transcribed | 290 |
-| `:TRIGger:PULSe:LIMit` | `:TRIGger:PULSe:LIMit?` | see p.291 | documented; TOC/body-heading derived, parameters not transcribed | 291 |
-| `:TRIGger:PULSe:NREJect` | `:TRIGger:PULSe:NREJect?` | see p.292 | documented; TOC/body-heading derived, parameters not transcribed | 292 |
-| `:TRIGger:PULSe:POLarity` | `:TRIGger:PULSe:POLarity?` | see p.292 | documented; TOC/body-heading derived, parameters not transcribed | 292 |
-| `:TRIGger:PULSe:SOURce` | `:TRIGger:PULSe:SOURce?` | see p.292 | documented; TOC/body-heading derived, parameters not transcribed | 292 |
-| `:TRIGger:PULSe:TLOWer` | `:TRIGger:PULSe:TLOWer?` | see p.293 | documented; TOC/body-heading derived, parameters not transcribed | 293 |
-| `:TRIGger:PULSe:TUPPer` | `:TRIGger:PULSe:TUPPer?` | see p.291 | documented; TOC/body-heading derived, parameters not transcribed | 291 |
-| `:TRIGger:QUALified` | `:TRIGger:QUALified?` | see p.335 | documented; TOC/body-heading derived, parameters not transcribed | 335 |
-| `:TRIGger:QUALified:ELEVel` | `:TRIGger:QUALified:ELEVel?` | see p.335 | documented; TOC/body-heading derived, parameters not transcribed | 335 |
-| `:TRIGger:QUALified:ELVel` | `:TRIGger:QUALified:ELVel?` | see p.335 | documented; TOC/body-heading derived, parameters not transcribed | 335 |
-| `:TRIGger:QUALified:ESLope` | `:TRIGger:QUALified:ESLope?` | see p.335 | documented; TOC/body-heading derived, parameters not transcribed | 335 |
-| `:TRIGger:QUALified:ESource` | `:TRIGger:QUALified:ESource?` | see p.336 | documented; TOC/body-heading derived, parameters not transcribed | 336 |
-| `:TRIGger:QUALified:LIMit` | `:TRIGger:QUALified:LIMit?` | see p.336 | documented; TOC/body-heading derived, parameters not transcribed | 336 |
-| `:TRIGger:QUALified:QLEVel` | `:TRIGger:QUALified:QLEVel?` | see p.337 | documented; TOC/body-heading derived, parameters not transcribed | 337 |
-| `:TRIGger:QUALified:QSource` | `:TRIGger:QUALified:QSource?` | see p.337 | documented; TOC/body-heading derived, parameters not transcribed | 337 |
-| `:TRIGger:QUALified:TLOWer` | `:TRIGger:QUALified:TLOWer?` | see p.338 | documented; TOC/body-heading derived, parameters not transcribed | 338 |
-| `:TRIGger:QUALified:TUPPer` | `:TRIGger:QUALified:TUPPer?` | see p.337 | documented; TOC/body-heading derived, parameters not transcribed | 337 |
-| `:TRIGger:QUALified:TYPE` | `:TRIGger:QUALified:TYPE?` | see p.339 | documented; TOC/body-heading derived, parameters not transcribed | 339 |
-| `:TRIGger:RUNT` | `:TRIGger:RUNT?` | see p.321 | documented; TOC/body-heading derived, parameters not transcribed | 321 |
-| `:TRIGger:RUNT:COUPling` | `:TRIGger:RUNT:COUPling?` | see p.321 | documented; TOC/body-heading derived, parameters not transcribed | 321 |
-| `:TRIGger:RUNT:HLDEVent` | `:TRIGger:RUNT:HLDEVent?` | see p.321 | documented; TOC/body-heading derived, parameters not transcribed | 321 |
-| `:TRIGger:RUNT:HLDTime` | `:TRIGger:RUNT:HLDTime?` | see p.322 | documented; TOC/body-heading derived, parameters not transcribed | 322 |
-| `:TRIGger:RUNT:HLEVel` | `:TRIGger:RUNT:HLEVel?` | see p.322 | documented; TOC/body-heading derived, parameters not transcribed | 322 |
-| `:TRIGger:RUNT:HOLDoff` | `:TRIGger:RUNT:HOLDoff?` | see p.323 | documented; TOC/body-heading derived, parameters not transcribed | 323 |
-| `:TRIGger:RUNT:HSTart` | `:TRIGger:RUNT:HSTart?` | see p.323 | documented; TOC/body-heading derived, parameters not transcribed | 323 |
-| `:TRIGger:RUNT:LIMit` | `:TRIGger:RUNT:LIMit?` | see p.324 | documented; TOC/body-heading derived, parameters not transcribed | 324 |
-| `:TRIGger:RUNT:LLEVel` | `:TRIGger:RUNT:LLEVel?` | see p.325 | documented; TOC/body-heading derived, parameters not transcribed | 325 |
-| `:TRIGger:RUNT:NREJect` | `:TRIGger:RUNT:NREJect?` | see p.325 | documented; TOC/body-heading derived, parameters not transcribed | 325 |
-| `:TRIGger:RUNT:POLarity` | `:TRIGger:RUNT:POLarity?` | see p.326 | documented; TOC/body-heading derived, parameters not transcribed | 326 |
-| `:TRIGger:RUNT:SOURce` | `:TRIGger:RUNT:SOURce?` | see p.326 | documented; TOC/body-heading derived, parameters not transcribed | 326 |
-| `:TRIGger:RUNT:TLOWer` | `:TRIGger:RUNT:TLOWer?` | see p.327 | documented; TOC/body-heading derived, parameters not transcribed | 327 |
-| `:TRIGger:RUNT:TUPPer` | `:TRIGger:RUNT:TUPPer?` | see p.324 | documented; TOC/body-heading derived, parameters not transcribed | 324 |
-| `:TRIGger:RUNt:HLDTime` | `:TRIGger:RUNt:HLDTime?` | see p.322 | documented; TOC/body-heading derived, parameters not transcribed | 322 |
-| `:TRIGger:SENT:SOURce` | `:TRIGger:SENT:SOURce?` | see p.409 | documented; TOC/body-heading derived, parameters not transcribed | 409 |
-| `:TRIGger:SENT:THReshold` | `:TRIGger:SENT:THReshold?` | see p.409 | documented; TOC/body-heading derived, parameters not transcribed | 409 |
-| `:TRIGger:SHOL:TUPPer` | `:TRIGger:SHOL:TUPPer?` | see p.355 | documented; TOC/body-heading derived, parameters not transcribed | 355 |
-| `:TRIGger:SHOLd` | `:TRIGger:SHOLd?` | see p.351 | documented; TOC/body-heading derived, parameters not transcribed | 351 |
-| `:TRIGger:SHOLd:CSource` | `:TRIGger:SHOLd:CSource?` | see p.351 | documented; TOC/body-heading derived, parameters not transcribed | 351 |
-| `:TRIGger:SHOLd:CTHReshold` | `:TRIGger:SHOLd:CTHReshold?` | see p.352 | documented; TOC/body-heading derived, parameters not transcribed | 352 |
-| `:TRIGger:SHOLd:DSource` | `:TRIGger:SHOLd:DSource?` | see p.353 | documented; TOC/body-heading derived, parameters not transcribed | 353 |
-| `:TRIGger:SHOLd:DTHReshold` | `:TRIGger:SHOLd:DTHReshold?` | see p.353 | documented; TOC/body-heading derived, parameters not transcribed | 353 |
-| `:TRIGger:SHOLd:LEVel` | `:TRIGger:SHOLd:LEVel?` | see p.354 | documented; TOC/body-heading derived, parameters not transcribed | 354 |
-| `:TRIGger:SHOLd:LIMit` | `:TRIGger:SHOLd:LIMit?` | see p.354 | documented; TOC/body-heading derived, parameters not transcribed | 354 |
-| `:TRIGger:SHOLd:SLOPe` | `:TRIGger:SHOLd:SLOPe?` | see p.352 | documented; TOC/body-heading derived, parameters not transcribed | 352 |
-| `:TRIGger:SHOLd:TLOWer` | `:TRIGger:SHOLd:TLOWer?` | see p.355 | documented; TOC/body-heading derived, parameters not transcribed | 355 |
-| `:TRIGger:SHOLd:TUPPer` | `:TRIGger:SHOLd:TUPPer?` | see p.355 | documented; TOC/body-heading derived, parameters not transcribed | 355 |
-| `:TRIGger:SHOLd:TYPE` | `:TRIGger:SHOLd:TYPE?` | see p.351 | documented; TOC/body-heading derived, parameters not transcribed | 351 |
-| `:TRIGger:SLOPe` | `:TRIGger:SLOPe?` | see p.280 | documented; TOC/body-heading derived, parameters not transcribed | 280 |
-| `:TRIGger:SLOPe:COUPling` | `:TRIGger:SLOPe:COUPling?` | see p.280 | documented; TOC/body-heading derived, parameters not transcribed | 280 |
-| `:TRIGger:SLOPe:HLDEVent` | `:TRIGger:SLOPe:HLDEVent?` | see p.280 | documented; TOC/body-heading derived, parameters not transcribed | 280 |
-| `:TRIGger:SLOPe:HLDTime` | `:TRIGger:SLOPe:HLDTime?` | see p.281 | documented; TOC/body-heading derived, parameters not transcribed | 281 |
-| `:TRIGger:SLOPe:HLEVel` | `:TRIGger:SLOPe:HLEVel?` | see p.281 | documented; TOC/body-heading derived, parameters not transcribed | 281 |
-| `:TRIGger:SLOPe:HOLDoff` | `:TRIGger:SLOPe:HOLDoff?` | see p.282 | documented; TOC/body-heading derived, parameters not transcribed | 282 |
-| `:TRIGger:SLOPe:HSTart` | `:TRIGger:SLOPe:HSTart?` | see p.282 | documented; TOC/body-heading derived, parameters not transcribed | 282 |
-| `:TRIGger:SLOPe:LIMit` | `:TRIGger:SLOPe:LIMit?` | see p.283 | documented; TOC/body-heading derived, parameters not transcribed | 283 |
-| `:TRIGger:SLOPe:LLEVel` | `:TRIGger:SLOPe:LLEVel?` | see p.284 | documented; TOC/body-heading derived, parameters not transcribed | 284 |
-| `:TRIGger:SLOPe:NREJect` | `:TRIGger:SLOPe:NREJect?` | see p.284 | documented; TOC/body-heading derived, parameters not transcribed | 284 |
-| `:TRIGger:SLOPe:SLOPe` | `:TRIGger:SLOPe:SLOPe?` | see p.285 | documented; TOC/body-heading derived, parameters not transcribed | 285 |
-| `:TRIGger:SLOPe:SOURce` | `:TRIGger:SLOPe:SOURce?` | see p.285 | documented; TOC/body-heading derived, parameters not transcribed | 285 |
-| `:TRIGger:SLOPe:TLOWer` | `:TRIGger:SLOPe:TLOWer?` | see p.286 | documented; TOC/body-heading derived, parameters not transcribed | 286 |
-| `:TRIGger:SLOPe:TUPPer` | `:TRIGger:SLOPe:TUPPer?` | see p.283 | documented; TOC/body-heading derived, parameters not transcribed | 283 |
-| `:TRIGger:SPI` | `:TRIGger:SPI?` | see p.363 | documented; TOC/body-heading derived, parameters not transcribed | 363 |
-| `:TRIGger:SPI:BITorder` | `:TRIGger:SPI:BITorder?` | see p.363 | documented; TOC/body-heading derived, parameters not transcribed | 363 |
-| `:TRIGger:SPI:CLKSource` | `:TRIGger:SPI:CLKSource?` | see p.363 | documented; TOC/body-heading derived, parameters not transcribed | 363 |
-| `:TRIGger:SPI:CLKThreshold` | `:TRIGger:SPI:CLKThreshold?` | see p.364 | documented; TOC/body-heading derived, parameters not transcribed | 364 |
-| `:TRIGger:SPI:CSSource` | `:TRIGger:SPI:CSSource?` | see p.364 | documented; TOC/body-heading derived, parameters not transcribed | 364 |
-| `:TRIGger:SPI:CSTYpe` | `:TRIGger:SPI:CSTYpe?` | see p.366 | documented; TOC/body-heading derived, parameters not transcribed | 366 |
-| `:TRIGger:SPI:CSThreshold` | `:TRIGger:SPI:CSThreshold?` | see p.365 | documented; TOC/body-heading derived, parameters not transcribed | 365 |
-| `:TRIGger:SPI:DATA` | `:TRIGger:SPI:DATA?` | see p.366 | documented; TOC/body-heading derived, parameters not transcribed | 366 |
-| `:TRIGger:SPI:DLENgth` | `:TRIGger:SPI:DLENgth?` | see p.367 | documented; TOC/body-heading derived, parameters not transcribed | 367 |
-| `:TRIGger:SPI:LATC` | `:TRIGger:SPI:LATC?` | see p.367 | documented; TOC/body-heading derived, parameters not transcribed | 367 |
-| `:TRIGger:SPI:LATChedge` | `:TRIGger:SPI:LATChedge?` | see p.367 | documented; TOC/body-heading derived, parameters not transcribed | 367 |
-| `:TRIGger:SPI:MISOSource` | `:TRIGger:SPI:MISOSource?` | see p.367 | documented; TOC/body-heading derived, parameters not transcribed | 367 |
-| `:TRIGger:SPI:MISOThreshold` | `:TRIGger:SPI:MISOThreshold?` | see p.368 | documented; TOC/body-heading derived, parameters not transcribed | 368 |
-| `:TRIGger:SPI:MOSISource` | `:TRIGger:SPI:MOSISource?` | see p.369 | documented; TOC/body-heading derived, parameters not transcribed | 369 |
-| `:TRIGger:SPI:MOSIThreshold` | `:TRIGger:SPI:MOSIThreshold?` | see p.369 | documented; TOC/body-heading derived, parameters not transcribed | 369 |
-| `:TRIGger:SPI:NCSSource` | `:TRIGger:SPI:NCSSource?` | see p.370 | documented; TOC/body-heading derived, parameters not transcribed | 370 |
-| `:TRIGger:SPI:NCSThreshold` | `:TRIGger:SPI:NCSThreshold?` | see p.370 | documented; TOC/body-heading derived, parameters not transcribed | 370 |
-| `:TRIGger:SPI:TTYPe` | `:TRIGger:SPI:TTYPe?` | see p.371 | documented; TOC/body-heading derived, parameters not transcribed | 371 |
-| `:TRIGger:STATus` | `:TRIGger:STATus?` | see p.272 | documented; TOC/body-heading derived, parameters not transcribed | 272 |
-| `:TRIGger:STOP` | `:TRIGger:STOP?` | see p.272 | documented; TOC/body-heading derived, parameters not transcribed | 272 |
-| `:TRIGger:UART` | `:TRIGger:UART?` | see p.372 | documented; TOC/body-heading derived, parameters not transcribed | 372 |
-| `:TRIGger:UART:BAUD` | `:TRIGger:UART:BAUD?` | see p.372 | documented; TOC/body-heading derived, parameters not transcribed | 372 |
-| `:TRIGger:UART:BITorder` | `:TRIGger:UART:BITorder?` | see p.372 | documented; TOC/body-heading derived, parameters not transcribed | 372 |
-| `:TRIGger:UART:CONDition` | `:TRIGger:UART:CONDition?` | see p.373 | documented; TOC/body-heading derived, parameters not transcribed | 373 |
-| `:TRIGger:UART:DATA` | `:TRIGger:UART:DATA?` | see p.373 | documented; TOC/body-heading derived, parameters not transcribed | 373 |
-| `:TRIGger:UART:DLENgth` | `:TRIGger:UART:DLENgth?` | see p.374 | documented; TOC/body-heading derived, parameters not transcribed | 374 |
-| `:TRIGger:UART:IDLE` | `:TRIGger:UART:IDLE?` | see p.374 | documented; TOC/body-heading derived, parameters not transcribed | 374 |
-| `:TRIGger:UART:LIMit` | `:TRIGger:UART:LIMit?` | see p.375 | documented; TOC/body-heading derived, parameters not transcribed | 375 |
-| `:TRIGger:UART:PARity` | `:TRIGger:UART:PARity?` | see p.375 | documented; TOC/body-heading derived, parameters not transcribed | 375 |
-| `:TRIGger:UART:RXSource` | `:TRIGger:UART:RXSource?` | see p.376 | documented; TOC/body-heading derived, parameters not transcribed | 376 |
-| `:TRIGger:UART:RXTHreshold` | `:TRIGger:UART:RXTHreshold?` | see p.376 | documented; TOC/body-heading derived, parameters not transcribed | 376 |
-| `:TRIGger:UART:STOP` | `:TRIGger:UART:STOP?` | see p.377 | documented; TOC/body-heading derived, parameters not transcribed | 377 |
-| `:TRIGger:UART:TTYPe` | `:TRIGger:UART:TTYPe?` | see p.377 | documented; TOC/body-heading derived, parameters not transcribed | 377 |
-| `:TRIGger:UART:TXSource` | `:TRIGger:UART:TXSource?` | see p.378 | documented; TOC/body-heading derived, parameters not transcribed | 378 |
-| `:TRIGger:UART:TXTHreshold` | `:TRIGger:UART:TXTHreshold?` | see p.378 | documented; TOC/body-heading derived, parameters not transcribed | 378 |
-| `:TRIGger:VIDeo` | `:TRIGger:VIDeo?` | see p.295 | documented; TOC/body-heading derived, parameters not transcribed | 295 |
-| `:TRIGger:VIDeo:FCNT` | `:TRIGger:VIDeo:FCNT?` | see p.295 | documented; TOC/body-heading derived, parameters not transcribed | 295 |
-| `:TRIGger:VIDeo:FIELd` | `:TRIGger:VIDeo:FIELd?` | see p.295 | documented; TOC/body-heading derived, parameters not transcribed | 295 |
-| `:TRIGger:VIDeo:FRATe` | `:TRIGger:VIDeo:FRATe?` | see p.296 | documented; TOC/body-heading derived, parameters not transcribed | 296 |
-| `:TRIGger:VIDeo:INTerlace` | `:TRIGger:VIDeo:INTerlace?` | see p.296 | documented; TOC/body-heading derived, parameters not transcribed | 296 |
-| `:TRIGger:VIDeo:LCNT` | `:TRIGger:VIDeo:LCNT?` | see p.296 | documented; TOC/body-heading derived, parameters not transcribed | 296 |
-| `:TRIGger:VIDeo:LEVel` | `:TRIGger:VIDeo:LEVel?` | see p.297 | documented; TOC/body-heading derived, parameters not transcribed | 297 |
-| `:TRIGger:VIDeo:LINE` | `:TRIGger:VIDeo:LINE?` | see p.298 | documented; TOC/body-heading derived, parameters not transcribed | 298 |
-| `:TRIGger:VIDeo:SOURce` | `:TRIGger:VIDeo:SOURce?` | see p.298 | documented; TOC/body-heading derived, parameters not transcribed | 298 |
-| `:TRIGger:VIDeo:STANdard` | `:TRIGger:VIDeo:STANdard?` | see p.299 | documented; TOC/body-heading derived, parameters not transcribed | 299 |
-| `:TRIGger:VIDeo:SYNC` | `:TRIGger:VIDeo:SYNC?` | see p.295 | documented; TOC/body-heading derived, parameters not transcribed | 295 |
-| `:TRIGger:WIND:HLDTime` | `:TRIGger:WIND:HLDTime?` | see p.303 | documented; TOC/body-heading derived, parameters not transcribed | 303 |
-| `:TRIGger:WIND:HOLDoff` | `:TRIGger:WIND:HOLDoff?` | see p.304 | documented; TOC/body-heading derived, parameters not transcribed | 304 |
-| `:TRIGger:WINDow` | `:TRIGger:WINDow?` | see p.301 | documented; TOC/body-heading derived, parameters not transcribed | 301 |
-| `:TRIGger:WINDow:CLEVel` | `:TRIGger:WINDow:CLEVel?` | see p.301 | documented; TOC/body-heading derived, parameters not transcribed | 301 |
-| `:TRIGger:WINDow:COUPling` | `:TRIGger:WINDow:COUPling?` | see p.301 | documented; TOC/body-heading derived, parameters not transcribed | 301 |
-| `:TRIGger:WINDow:DLEVel` | `:TRIGger:WINDow:DLEVel?` | see p.302 | documented; TOC/body-heading derived, parameters not transcribed | 302 |
-| `:TRIGger:WINDow:HLDEVent` | `:TRIGger:WINDow:HLDEVent?` | see p.303 | documented; TOC/body-heading derived, parameters not transcribed | 303 |
-| `:TRIGger:WINDow:HLDTime` | `:TRIGger:WINDow:HLDTime?` | see p.303 | documented; TOC/body-heading derived, parameters not transcribed | 303 |
-| `:TRIGger:WINDow:HLEVel` | `:TRIGger:WINDow:HLEVel?` | see p.304 | documented; TOC/body-heading derived, parameters not transcribed | 304 |
-| `:TRIGger:WINDow:HOLDoff` | `:TRIGger:WINDow:HOLDoff?` | see p.304 | documented; TOC/body-heading derived, parameters not transcribed | 304 |
-| `:TRIGger:WINDow:HSTart` | `:TRIGger:WINDow:HSTart?` | see p.305 | documented; TOC/body-heading derived, parameters not transcribed | 305 |
-| `:TRIGger:WINDow:LLEVel` | `:TRIGger:WINDow:LLEVel?` | see p.305 | documented; TOC/body-heading derived, parameters not transcribed | 305 |
-| `:TRIGger:WINDow:NREJect` | `:TRIGger:WINDow:NREJect?` | see p.306 | documented; TOC/body-heading derived, parameters not transcribed | 306 |
-| `:TRIGger:WINDow:SOURce` | `:TRIGger:WINDow:SOURce?` | see p.307 | documented; TOC/body-heading derived, parameters not transcribed | 307 |
-| `:TRIGger:WINDow:TYPE` | `:TRIGger:WINDow:TYPE?` | see p.307 | documented; TOC/body-heading derived, parameters not transcribed | 307 |
-| `:WAVeform:DATA` | `:WAVeform:DATA?` | see p.418 | documented; TOC/body-heading derived, parameters not transcribed | 418 |
-| `:WAVeform:MAXPoint` | `:WAVeform:MAXPoint?` | see p.413 | documented; TOC/body-heading derived, parameters not transcribed | 413 |
-| `:WAVeform:PRE` | `:WAVeform:PRE?` | see p.418 | documented; TOC/body-heading derived, parameters not transcribed | 418 |
-| `:WAVeform:PREamble` | `:WAVeform:PREamble?` | see p.412 | documented; TOC/body-heading derived, parameters not transcribed | 412 |
-| `:WAVeform:SEQuence` | `:WAVeform:SEQuence?` | see p.422 | documented; TOC/body-heading derived, parameters not transcribed | 422 |
+| `:MEMory2:VERTical:POSition` | `:MEMory2:VERTical:POSition?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<offset>` = Real (NR3), vertical position | documented; 内存波形的垂直位置（偏移）（手册 p.217） | 217 |
+| `:MEMory2:VERTical:SCALe` | `:MEMory2:VERTical:SCALe?` | `<m>` = memory waveform index, Integer (NR1) (this row spells it as the literal `2`); `<scale>` = Real (NR3), vertical scale | documented; 内存波形的垂直档位（手册 p.217） | 217 |
+| `:MTES:MASK:LOAD` | `:MTES:MASK:LOAD?` | `<location>` = `{INTernal,<num>\|EXTernal,<path>}`; `<num>` = `{1\|2\|3\|4}` (early internal templates), `<path>` = quoted path to a `.msk`/`.smsk` file | documented; `MTESt:MASK:LOAD` 的短形式；加载内部或外部存储的模板（手册 p.221） | 221 |
+| `:MTESt:COUNt` | `:MTESt:COUNt?` | — | documented; 只读查询模板测试的结果；手册该页无输入参数（手册 p.218） | 218 |
+| `:MTESt:FUNCtion:BUZZer` | `:MTESt:FUNCtion:BUZZer?` | `<state>` = `{ON\|OFF}` | documented; 模板测试蜂鸣器开关（检测到故障帧时发声）（手册 p.218） | 218 |
+| `:MTESt:FUNCtion:COF` | `:MTESt:FUNCtion:COF?` | `<state>` = `{ON\|OFF}` | documented; 模板测试失败截图开关（默认保存路径 `SIGLENT/`）（手册 p.219） | 219 |
+| `:MTESt:FUNCtion:FTH` | `:MTESt:FUNCtion:FTH?` | `<state>` = `{ON\|OFF}` | documented; 模板测试存储失败帧开关（失败帧可在历史波形中查看）（手册 p.219） | 219 |
+| `:MTESt:FUNCtion:SOF` | `:MTESt:FUNCtion:SOF?` | `<state>` = `{ON\|OFF}` | documented; 模板测试失败即停开关（手册 p.220） | 220 |
+| `:MTESt:IDISplay` | `:MTESt:IDISplay?` | `<state>` = `{ON\|OFF}` | documented; 模板测试显示信息开关（手册 p.220） | 220 |
+| `:MTESt:MASK:CREate` | `:MTESt:MASK:CREate?` | `<XMARgin>` = Real (NR2), `<YMARgin>` = Real (NR2) | documented; 以波形为中心按给定水平 X、垂直 Y 数值创建模板（手册 p.221） | 221 |
+| `:MTESt:OPERate` | `:MTESt:OPERate?` | `<state>` = `{ON\|OFF}` | documented; 模板测试操作开关（手册 p.222） | 222 |
+| `:MTESt:RESet` | `:MTESt:RESet?` | — | documented; 事件命令（无参数），重置模板测试（手册 p.222） | 222 |
+| `:MTESt:SOURce` | `:MTESt:SOURce?` | `<source>` = `{C<n>\|Z<n>}`; `<n>` = analog/zoom channel; `Z<n>` is only valid while Zoom is on | documented; 模板测试的源（手册 p.222） | 222 |
+| `:RECall:FDEFault` | `:RECall:FDEFault?` | — | documented; 事件命令（无参数），调用出厂设置（手册 p.224） | 224 |
+| `:RECall:REFerence` | `:RECall:REFerence?` | `<location>` = `{REF<r>}` (`<r>` = `{A\|B\|C\|D}`), `<path>` = quoted path to a `.ref` file (`local/...`, `net_storage/...`, `U-disk0/...` or `U-disk1/...`); without a path type it loads from U-disk0 | documented; 从内部或外部存储器调出参考波形文件到指定参考波形（手册 p.224） | 224 |
+| `:RECall:SERase` | `:RECall:SERase?` | — | documented; 事件命令（无参数），删除内部存储的参考波形/设置/模板/自定义默认设置等文件（手册 p.225） | 225 |
+| `:RECall:SETup` | `:RECall:SETup?` | `<state>` = `{INTernal,<num>\|EXTernal,<path>}`; `<num>` = Integer (NR1), `<path>` = quoted path to a `.xml` file; without a path type it loads from U-disk0 | documented; 从内部或外部存储器调出配置文件（手册 p.225） | 225 |
+| `:REFA:DATA` | `:REFA:DATA?` | `<r>` = `{A\|B\|C\|D}`; `<operation>` = `{LOAD\|UNLoad\|SAVE,<source>}` (`LOAD` shows the stored REF waveform, `UNLoad` hides it, `SAVE` stores `<source>`); `<source>` = `{C<n>\|F<x>\|D<d>}` | documented; 参考波形的调用及保存（手册 p.227） | 227 |
+| `:REFA:DATA:POSition` | `:REFA:DATA:POSition?` | `<r>` = `{A\|B\|C\|D}`; `<value>` = Real (NR3), auto-clamped to the settable value, range same as the reference source. Only valid when the reference waveform is stored and displayed | documented; 参考波形的垂直偏移（手册 p.228） | 228 |
+| `:REFA:DATA:SCALe` | `:REFA:DATA:SCALe?` | `<r>` = `{A\|B\|C\|D}`; `<value>` = Real (NR3), auto-clamped to the settable value, range same as the reference source. Only valid when the reference waveform is stored and displayed | documented; 参考波形的垂直档位（手册 p.228） | 228 |
+| `:REFA:DATA:SOUR` | `:REFA:DATA:SOUR?` | — | documented; 只读查询当前参考波形的信源，返回 `{C<n>\|F<x>\|D<d>}`；手册该页无输入参数（手册 p.227） | 227 |
+| `:REFA:LAB` | `:REFA:LAB?` | `<r>` = `{A\|B\|C\|D}`; `<state>` = `{ON\|OFF}` | documented; `REF<r>:LABel` 的短形式；参考波形标签开关（手册 p.226） | 226 |
+| `:REFA:LABel` | `:REFA:LABel?` | `<r>` = `{A\|B\|C\|D}`; `<state>` = `{ON\|OFF}` | documented; 参考波形标签开关（手册 p.226） | 226 |
+| `:REFA:LABel:TEXT` | `:REFA:LABel:TEXT?` | `<r>` = `{A\|B\|C\|D}`; `<qstring>` = quoted ASCII text, up to 20 characters | documented; 参考波形的标签字符（手册 p.226） | 226 |
+| `:SAVE:BINary` | `:SAVE:BINary?` | `<path>` = quoted ASCII path, e.g. `"local/SIGLENT/test.bin"`, `"net_storage/test.bin"` or `"U-disk0/test.bin"`; internal saves must contain `local`, an external save without a path type goes to U-disk0; `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|D0_D15\|DIGital\|ZD0_ZD15\|ZDIGital}`; `D0_D15`/`DIGital` store the digital channels per bit / as a bus, the `Z*` forms are their zoomed versions | documented; 把指定通道波形以 `.bin` 保存到内部或外部存储器（手册 p.229） | 229 |
+| `:SAVE:CSV` | `:SAVE:CSV?` | `<path>` = quoted ASCII path to a `.csv` file (`local/...`, `net_storage/...`, `U-disk0/...`); `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|D0_D15\|DIGital\|ZD0_ZD15\|ZDIGital}`; `D0_D15`/`DIGital` store the digital channels per bit / as a bus, the `Z*` forms are their zoomed versions; `<state>` = `{OFF\|ON}` (`ON` also writes the vertical/horizontal settings into the file) | documented; 把指定通道波形以 `.csv` 保存到内部或外部存储器（手册 p.230） | 230 |
+| `:SAVE:DEFault` | `:SAVE:DEFault?` | `<set>` = `{CUSTom\|FACTory}` (current user settings / factory settings) | documented; 保存用户自定义设置或出厂设置作为默认设置（手册 p.231） | 231 |
+| `:SAVE:MATLab` | `:SAVE:MATLab?` | `<path>` = quoted ASCII path, e.g. `"local/SIGLENT/test.mat"`, `"net_storage/test.mat"` or `"U-disk0/test.mat"`; internal saves must contain `local`, an external save without a path type goes to U-disk0; `<source>` = `{C<n>\|Z<n>\|F<x>\|M<m>\|D0_D15\|DIGital\|ZD0_ZD15\|ZDIGital}`; `D0_D15`/`DIGital` store the digital channels per bit / as a bus, the `Z*` forms are their zoomed versions | documented; 把指定通道波形以 `.mat` 保存到内部或外部存储器（手册 p.232） | 232 |
+| `:SAVE:REFerence` | `:SAVE:REFerence?` | `<path>` = quoted ASCII path to a `.ref` file (`local/...`, `net_storage/...`, `U-disk0/...`); `<source>` = `{C<n>\|F<x>\|D<d>}` | documented; 把指定通道波形以 `.ref` 保存到内部或外部存储器作参考波形（手册 p.233） | 233 |
+| `:SAVE:SET` | `:SAVE:SET?` | `<setup_num>` = `{INTernal,<num>\|EXTernal,<path>}`; `<num>` = Integer (NR1) save slot, `<path>` = quoted path to a `.xml` file; an external save without a path type goes to U-disk0 | documented; `SAVe:SETup` 的短形式；把当前设置保存为内部或外部文件（手册 p.234） | 234 |
+| `:SEAR:MODE` | `:SEAR:MODE?` | `<mode>` = `{EDGE\|SLOPe\|PULSE\|INTerval\|RUNT}` (edge / slope / pulse width / interval / runt search) | documented; `SEARch:MODE` 的短形式（手册该节查询拼写）；当前搜索模式（手册 p.235） | 235 |
+| `:SEARch:COPY` | `:SEARch:COPY?` | `<operation>` = `{FROMtrigger\|TOTRigger\|CANCel}`; copy the trigger settings into the search settings / the search settings into the trigger settings / undo the last copy | documented; 搜索设置与触发设置同步（手册 p.236） | 236 |
+| `:SEARch:COUNT` | `:SEARch:COUNT?` | — | documented; 只读查询当前屏幕内搜索事件总数，返回整型 NR1；手册该页无输入参数（手册 p.236） | 236 |
+| `:SEARch:EDGE` | `:SEARch:EDGE?` | — | documented; 章节标题，本节无独立参数；边沿搜索的参数都在其子命令中（手册 p.237） | 237 |
+| `:SEARch:EDGE:LEVel` | `:SEARch:EDGE:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 边沿搜索的搜索电平（手册 p.238） | 238 |
+| `:SEARch:EDGE:SLOPe` | `:SEARch:EDGE:SLOPe?` | `<slope_type>` = `{RISing\|FALLing\|ALTernate}` (rising / falling / either edge) | documented; 边沿搜索的斜率（手册 p.237） | 237 |
+| `:SEARch:EDGE:SOURce` | `:SEARch:EDGE:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 边沿搜索的信源（手册 p.237） | 237 |
+| `:SEARch:EVENt` | `:SEARch:EVENt?` | — | documented; 只读查询采集停止时定位的事件帧号，返回整型 NR1；手册该页无输入参数（手册 p.236） | 236 |
+| `:SEARch:INTerval` | `:SEARch:INTerval?` | — | documented; 章节标题，本节无独立参数；间隔搜索的参数都在其子命令中（手册 p.248） | 248 |
+| `:SEARch:INTerval:LEVel` | `:SEARch:INTerval:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 间隔搜索的搜索电平（手册 p.249） | 249 |
+| `:SEARch:INTerval:LIMit` | `:SEARch:INTerval:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 间隔搜索的限制条件类型（手册 p.249） | 249 |
+| `:SEARch:INTerval:SLOPe` | `:SEARch:INTerval:SLOPe?` | `<slope_type>` = `{RISing\|FALLing}` | documented; 间隔搜索的斜率（手册 p.248） | 248 |
+| `:SEARch:INTerval:SOURce` | `:SEARch:INTerval:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 间隔搜索的信源（手册 p.248） | 248 |
+| `:SEARch:INTerval:TLOWer` | `:SEARch:INTerval:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 间隔搜索限制条件的下限值（手册 p.250） | 250 |
+| `:SEARch:INTerval:TUPPer` | `:SEARch:INTerval:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 间隔搜索限制条件的上限值（手册 p.250） | 250 |
+| `:SEARch:PULSe` | `:SEARch:PULSe?` | — | documented; 章节标题，本节无独立参数；脉宽搜索的参数都在其子命令中（手册 p.244） | 244 |
+| `:SEARch:PULSe:LEVel` | `:SEARch:PULSe:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 脉宽搜索的搜索电平（手册 p.245） | 245 |
+| `:SEARch:PULSe:LIMit` | `:SEARch:PULSe:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 脉宽搜索的限制条件类型（手册 p.245） | 245 |
+| `:SEARch:PULSe:POLarity` | `:SEARch:PULSe:POLarity?` | `<polarity_type>` = `{POSitive\|NEGative}` (positive / negative pulse) | documented; 脉宽搜索的极性（手册 p.244） | 244 |
+| `:SEARch:PULSe:SOURce` | `:SEARch:PULSe:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 脉宽搜索的信源（手册 p.244） | 244 |
+| `:SEARch:PULSe:TLOWer` | `:SEARch:PULSe:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 脉宽搜索限制条件的下限值（手册 p.246） | 246 |
+| `:SEARch:PULSe:TUPPer` | `:SEARch:PULSe:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 脉宽搜索限制条件的上限值（手册 p.246） | 246 |
+| `:SEARch:PULse:POLarity` | `:SEARch:PULse:POLarity?` | `<polarity_type>` = `{POSitive\|NEGative}` (positive / negative pulse) | documented; 脉宽搜索的极性（手册 p.244） | 244 |
+| `:SEARch:PULse:SOURce` | `:SEARch:PULse:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 脉宽搜索的信源（手册 p.244） | 244 |
+| `:SEARch:RUNT` | `:SEARch:RUNT?` | — | documented; 章节标题，本节无独立参数；欠幅搜索的参数都在其子命令中（手册 p.252） | 252 |
+| `:SEARch:RUNT:HLEVel` | `:SEARch:RUNT:HLEVel?` | `<high_level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The high level must not be below the low level (`:SEARch:RUNT:LLEVel`) | documented; 欠幅搜索的高电平（手册 p.252） | 252 |
+| `:SEARch:RUNT:LIMit` | `:SEARch:RUNT:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 欠幅搜索的限制条件类型（手册 p.254） | 254 |
+| `:SEARch:RUNT:LLEVel` | `:SEARch:RUNT:LLEVel?` | `<low_level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:SEARch:RUNT:HLEVel`) | documented; 欠幅搜索的低电平（手册 p.253） | 253 |
+| `:SEARch:RUNT:POLarity` | `:SEARch:RUNT:POLarity?` | `<polarity_type>` = `{POSitive\|NEGative}` (positive / negative pulse) | documented; 欠幅搜索的极性（手册 p.252） | 252 |
+| `:SEARch:RUNT:SOURce` | `:SEARch:RUNT:SOURce?` | `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; 欠幅搜索的信源（手册 p.252） | 252 |
+| `:SEARch:RUNT:TLOWer` | `:SEARch:RUNT:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 欠幅搜索限制条件的下限值（手册该节描述误写成“幅度搜索”）（手册 p.254） | 254 |
+| `:SEARch:RUNT:TUPPer` | `:SEARch:RUNT:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 欠幅搜索限制条件的上限值（手册 p.254） | 254 |
+| `:SEARch:SLOPe` | `:SEARch:SLOPe?` | — | documented; 章节标题，本节无独立参数；斜率搜索的参数都在其子命令中（手册 p.239） | 239 |
+| `:SEARch:SLOPe:HLEVel` | `:SEARch:SLOPe:HLEVel?` | `<high_level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The high level must not be below the low level (`:SEARch:SLOPe:LLEVel`) | documented; 斜率搜索的高电平（手册 p.239） | 239 |
+| `:SEARch:SLOPe:LIMit` | `:SEARch:SLOPe:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 斜率搜索的限制条件类型（手册 p.241） | 241 |
+| `:SEARch:SLOPe:LLEVel` | `:SEARch:SLOPe:LLEVel?` | `<low_level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:SEARch:SLOPe:HLEVel`) | documented; 斜率搜索的低电平（手册 p.240） | 240 |
+| `:SEARch:SLOPe:SLOPe` | `:SEARch:SLOPe:SLOPe?` | `<slope_type>` = `{RISing\|FALLing}` | documented; 斜率搜索的斜率（手册 p.239） | 239 |
+| `:SEARch:SLOPe:SOURce` | `:SEARch:SLOPe:SOURce?` | `<source>` = `C<n>` (`<n>` = analog channel NR1); no digital source | documented; 斜率搜索的信源（手册 p.239） | 239 |
+| `:SEARch:SLOPe:TLOWer` | `:SEARch:SLOPe:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 斜率搜索限制条件的下限值（手册 p.241） | 241 |
+| `:SEARch:SLOPe:TUPPer` | `:SEARch:SLOPe:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 斜率搜索限制条件的上限值（手册 p.241） | 241 |
+| `:SYSTem:BUZZer` | `:SYSTem:BUZZer?` | `<state>` = `{ON\|OFF}` | documented; 蜂鸣器开关（手册 p.257） | 257 |
+| `:SYSTem:CLOCk` | `:SYSTem:CLOCk?` | `<source>` = `{EXT\|IN_ON\|IN_OFF}`; `EXT` selects the external clock (internal 10 MHz output off), `IN_ON` internal clock with 10 MHz output on, `IN_OFF` internal clock with output off | documented; 时钟源与内部 10 MHz 时钟输出状态（手册 p.257） | 257 |
+| `:SYSTem:COMMunicate:LAN:MAC` | `:SYSTem:COMMunicate:LAN:MAC?` | — | documented; 只读查询 MAC 地址；手册该页无输入参数（手册 p.259） | 259 |
+| `:SYSTem:COMMunicate:VNCPort` | `:SYSTem:COMMunicate:VNCPort?` | `<value>` = Integer (NR1) port number, 5900 to 5999 | documented; VNC 端口号（手册 p.260） | 260 |
+| `:SYSTem:DATE` | `:SYSTem:DATE?` | `<date>` = Integer (NR1), 8 significant digits, YYYYMMDD from most to least significant | documented; 系统日期（手册 p.260） | 260 |
+| `:SYSTem:EDUMode` | `:SYSTem:EDUMode?` | `<func>` = `{AUTOSet\|MEASure\|CURSor}`, `<lock>` = `{ON\|OFF}` (`ON` enables the selected function, `OFF` disables it) | documented; 教育模式开关（教育模式下可禁用 Auto Setup、Measure、Cursors）（手册 p.261） | 261 |
+| `:SYSTem:LANGuage` | `:SYSTem:LANGuage?` | `<language>` = `{SCHinese\|TCHinese\|ENGLish\|FRENch\|JAPanese\|KORean\|DEUTsch\|ESPan\|RUSSian\|ITALiana\|PORTuguese}` | documented; 显示语言（手册 p.261） | 261 |
+| `:SYSTem:MENU` | `:SYSTem:MENU?` | `<state>` = `{ON\|OFF}` | documented; 菜单开关（仅适用于带 Menu 键的机型）（手册 p.262） | 262 |
+| `:SYSTem:NSTorage:STATus` | `:SYSTem:NSTorage:STATus?` | `<state>` = `{ON\|OFF}` | documented; 网络存储器的连接状态（只读查询）（手册 p.263） | 263 |
+| `:SYSTem:PON` | `:SYSTem:PON?` | `<state>` = `{ON\|OFF}` | documented; 上电自动开机开关（手册 p.264） | 264 |
+| `:SYSTem:REBoot` | `:SYSTem:REBoot?` | — | documented; 事件命令（无参数），重启示波器（手册 p.264） | 264 |
+| `:SYSTem:SELFCal` | `:SYSTem:SELFCal?` | — | documented; 设置或查询自校正状态；手册该页未列输入参数与取值范围（手册 p.265） | 265 |
+| `:SYSTem:SHUTdown` | `:SYSTem:SHUTdown?` | — | documented; 事件命令（无参数），示波器关机（手册 p.265） | 265 |
+| `:SYSTem:SSAVer` | `:SYSTem:SSAVer?` | `<time>` = `{OFF\|1MIN\|5MIN\|10MIN\|30MIN\|60MIN}` | documented; 屏幕保护（预设时间到达后关闭显示输出）（手册 p.265） | 265 |
+| `:SYSTem:TIME` | `:SYSTem:TIME?` | `<time>` = Integer (NR1), 6 significant digits, HHMMSS from most to least significant (24 h clock) | documented; 当前时间（24 小时制）（手册 p.266） | 266 |
+| `:SYSTem:TOUCh` | `:SYSTem:TOUCh?` | `<state>` = `{ON\|OFF}` | documented; 触摸屏开关（手册 p.266） | 266 |
+| `:TIMebase:DELay` | `:TIMebase:DELay?` | `<delay_value>` = Real (NR3); no range listed | documented; 设置或查询水平触发延时（手册 p.267） | 267 |
+| `:TIMebase:REFerence` | `:TIMebase:REFerence?` | `<type>` = `{DELay\|POSition}`; `DELay` keeps the delay value when the timebase changes and lets `:TIMebase:REFerence:POSition` set the reference point, `POSition` keeps the delay at a fixed on-screen grid position | documented; 水平扩展参考策略（手册 p.267） | 267 |
+| `:TIMebase:REFerence:POSition` | `:TIMebase:REFerence:POSition?` | `<value>` = Integer (NR1) percent, 0 to 100 | documented; 延时固定策略下的水平参考中心位置，百分比（手册 p.268） | 268 |
+| `:TIMebase:WINDow` | `:TIMebase:WINDow?` | `<state>` = `{ON\|OFF}` | documented; Zoom 窗口开关（手册 p.269） | 269 |
+| `:TIMebase:WINDow:DELay` | `:TIMebase:WINDow:DELay?` | `<delay_value>` = Real (NR3); must lie inside the main window range, an out-of-range value clamps to the nearest settable one | documented; Zoom 窗口水平延时（手册 p.269） | 269 |
+| `:TIMebase:WINDow:SCALe` | `:TIMebase:WINDow:SCALe?` | `<scale_value>` = Real (NR3); cannot exceed the main-window timebase, otherwise it auto-matches the main window | documented; Zoom 窗口时基（手册 p.269） | 269 |
+| `:TRIG:SPI:NCSS` | `:TRIG:SPI:NCSS?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 手册该节标题为 `:TRIGger:SPI:NCSSource`，本行为其短形式；设置或查询 SPI 触发 NCS 信源（手册 p.370） | 370 |
+| `:TRIG:STAT` | `:TRIG:STAT?` | — | documented; 短形式查询触发状态，返回 `{Arm\|Ready\|Auto\|Trig'd\|Stop\|Roll}`；手册该页只给返回格式，无输入参数（手册 p.272） | 272 |
+| `:TRIGger:CAN` | `:TRIGger:CAN?` | — | documented; 章节标题，本节无独立参数；CAN 触发的参数都在其子命令中（手册 p.380） | 380 |
+| `:TRIGger:CAN:BAUD` | `:TRIGger:CAN:BAUD?` | `<baud>` = `{5kbps\|10kbps\|20kbps\|50kbps\|100kbps\|125kbps\|250kbps\|500kbps\|800kbps\|1Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 5000 to 1000000 | documented; CAN 触发的波特率（手册 p.380） | 380 |
+| `:TRIGger:CAN:CONDition` | `:TRIGger:CAN:CONDition?` | `<condition>` = `{STARt\|REMote\|ID\|ID_AND_DATA\|ERRor}` | documented; CAN 触发条件：帧起始、远程帧、ID、ID+数据、错误帧（手册 p.380） | 380 |
+| `:TRIGger:CAN:DAT2` | `:TRIGger:CAN:DAT2?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; CAN 触发的数据字节 2（手册 p.381） | 381 |
+| `:TRIGger:CAN:DATA` | `:TRIGger:CAN:DATA?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; CAN 触发的数据字节 1（手册 p.381） | 381 |
+| `:TRIGger:CAN:ID` | `:TRIGger:CAN:ID?` | `<id>` = Integer (NR1); 29-bit ID: 0 to 536870912 (536870912 = any, `0xXXXXXXXX`), 11-bit ID: 0 to 2048 (2048 = any, `0xXXXX`) | documented; CAN 触发的 ID（手册 p.382） | 382 |
+| `:TRIGger:CAN:IDLENgth` | `:TRIGger:CAN:IDLENgth?` | `<id_length>` = `{11BITS\|29BITS}` | documented; 手册标题拼作 `:TRIGger:CAN:IDLength`，本行为其目录拼写；CAN 触发的 ID 长度（手册 p.382） | 382 |
+| `:TRIGger:CAN:IDLength` | `:TRIGger:CAN:IDLength?` | `<id_length>` = `{11BITS\|29BITS}` | documented; CAN 触发的 ID 长度（手册 p.382） | 382 |
+| `:TRIGger:CAN:SOURce` | `:TRIGger:CAN:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel index NR1, `<d>` = digital channel index NR1 | documented; CAN 触发的信源（手册 p.383） | 383 |
+| `:TRIGger:CAN:THReshold` | `:TRIGger:CAN:THReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; CAN 触发的阈值（手册 p.383） | 383 |
+| `:TRIGger:CANFd:BAUDData` | `:TRIGger:CANFd:BAUDData?` | `<baud>` = `{500kbps\|1Mbps\|2Mbps\|5Mbps\|8Mbps\|10Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 100000 to 10000000 | documented; CAN FD 触发的数据波特率（手册 p.396） | 396 |
+| `:TRIGger:CANFd:BAUDNominal` | `:TRIGger:CANFd:BAUDNominal?` | `<baud>` = `{10kbps\|25kbps\|50kbps\|100kbps\|250kbps\|1Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 10000 to 1000000 | documented; CAN FD 触发的标准波特率（手册 p.396） | 396 |
+| `:TRIGger:CANFd:CONDition` | `:TRIGger:CANFd:CONDition?` | `<condition>` = `{STARt\|REMote\|ID\|ID_AND_DATA\|ERRor}` | documented; CAN FD 触发条件；手册该页未展开各枚举的含义（手册 p.397） | 397 |
+| `:TRIGger:CANFd:DAT2` | `:TRIGger:CANFd:DAT2?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; CAN FD 触发的数据字节 2（手册 p.397） | 397 |
+| `:TRIGger:CANFd:DATA` | `:TRIGger:CANFd:DATA?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; CAN FD 触发的数据字节 1（手册 p.397） | 397 |
+| `:TRIGger:CANFd:FTYPe` | `:TRIGger:CANFd:FTYPe?` | `<frame_type>` = `{BOTH\|CAN\|CANFd}` | documented; CAN FD 触发的帧类型（手册 p.398） | 398 |
+| `:TRIGger:CANFd:ID` | `:TRIGger:CANFd:ID?` | `<id>` = Integer (NR1); manual lists no range on this page | documented; 触发条件为远程帧、ID 或 ID+数据时的 CAN FD 触发 ID（手册 p.398） | 398 |
+| `:TRIGger:CANFd:IDLength` | `:TRIGger:CANFd:IDLength?` | `<length>` = `{11BITS\|29BITS}` | documented; CAN FD 触发的 ID 长度（手册 p.399） | 399 |
+| `:TRIGger:CANFd:SOURce` | `:TRIGger:CANFd:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel index NR1, `<d>` = digital channel index NR1 | documented; CAN FD 触发的信源（手册 p.399） | 399 |
+| `:TRIGger:CANFd:THReshold` | `:TRIGger:CANFd:THReshold?` | `<threshold>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; CAN FD 触发的阈值（手册 p.400） | 400 |
+| `:TRIGger:DELay` | `:TRIGger:DELay?` | — | documented; 章节标题，本节无独立参数；延时触发的参数都在其子命令中（手册 p.340） | 340 |
+| `:TRIGger:DELay:INPut` | `:TRIGger:DELay:INPut?` | `<state>` = `{X\|L\|H}`, one entry per source, mapped in the order C1-C<n>, D0-D15; `X` = don't care, `H` = high, `L` = low | documented; 手册本节标题为 `:TRIGger:DELay:SOURce`、命令格式却写作 `:TRIGger:DELay:INPut`；设置/查询延时触发信源 A 各通道的逻辑电平（手册 p.340） | 340 |
+| `:TRIGger:DELay:LEVel` | `:TRIGger:DELay:LEVel?` | `<source>` = `{C<n>}` (`<n>` = analog channel NR1), `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 延时触发信源 A 的触发电平（手册 p.341） | 341 |
+| `:TRIGger:DELay:LEVel2` | `:TRIGger:DELay:LEVel2?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 延时触发信源 B 的触发电平（手册 p.342） | 342 |
+| `:TRIGger:DELay:LIMit` | `:TRIGger:DELay:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 延时触发的限制条件类型（手册 p.343） | 343 |
+| `:TRIGger:DELay:SLOPe` | `:TRIGger:DELay:SLOPe?` | `<slope_type>` = `{RISing\|FALLing}` | documented; 延时触发信源 A 的斜率类型（手册 p.341） | 341 |
+| `:TRIGger:DELay:SLOPe2` | `:TRIGger:DELay:SLOPe2?` | `<slope_type>` = `{RISing\|FALLing}` | documented; 延时触发信源 B 的斜率类型（手册 p.341） | 341 |
+| `:TRIGger:DELay:SOURce` | `:TRIGger:DELay:SOURce?` | `<state>` = `{X\|L\|H}`, one entry per source, mapped in the order C1-C<n>, D0-D15; `X` = don't care, `H` = high, `L` = low | documented; 延时触发信源 A 的状态（手册 p.340） | 340 |
+| `:TRIGger:DELay:SOURce2` | `:TRIGger:DELay:SOURce2?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 延时触发信源 B 的信源（手册 p.340） | 340 |
+| `:TRIGger:DELay:TLOWer` | `:TRIGger:DELay:TLOWer?` | `<value>` = Real (NR3); no range listed. Must not exceed the upper limit (`:TRIGger:DELay:TUPPer`); not usable when the limit type is `<=` | documented; 延时触发限制条件的下限值（手册 p.343） | 343 |
+| `:TRIGger:DELay:TUPPer` | `:TRIGger:DELay:TUPPer?` | `<value>` = Real (NR3); no range listed. Must not be below the lower limit (`:TRIGger:DELay:TLOWer`); not usable when the limit type is `>=` | documented; 延时触发限制条件的上限值（手册 p.343） | 343 |
+| `:TRIGger:DROPout` | `:TRIGger:DROPout?` | — | documented; 章节标题，本节无独立参数；超时触发的参数都在其子命令中（手册 p.315） | 315 |
+| `:TRIGger:DROPout:COUPling` | `:TRIGger:DROPout:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 超时触发的耦合方式（手册 p.315） | 315 |
+| `:TRIGger:DROPout:HLDEVent` | `:TRIGger:DROPout:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 超时触发的触发释抑事件数（手册 p.315） | 315 |
+| `:TRIGger:DROPout:HLDTime` | `:TRIGger:DROPout:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 超时触发的触发释抑时间（手册 p.316） | 316 |
+| `:TRIGger:DROPout:HOLDoff` | `:TRIGger:DROPout:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 超时触发的触发释抑类型（手册 p.316） | 316 |
+| `:TRIGger:DROPout:HSTart` | `:TRIGger:DROPout:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 超时触发的触发释抑启动条件（手册 p.317） | 317 |
+| `:TRIGger:DROPout:LEVel` | `:TRIGger:DROPout:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 超时触发的触发电平（手册 p.317） | 317 |
+| `:TRIGger:DROPout:NREJect` | `:TRIGger:DROPout:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 超时触发的噪声抑制开关（手册 p.318） | 318 |
+| `:TRIGger:DROPout:SLOPe` | `:TRIGger:DROPout:SLOPe?` | `<state>` = `{RISing\|FALLing}` | documented; 超时触发的斜率类型（手册 p.318） | 318 |
+| `:TRIGger:DROPout:SOURce` | `:TRIGger:DROPout:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 超时触发的触发源（手册 p.319） | 319 |
+| `:TRIGger:DROPout:TIME` | `:TRIGger:DROPout:TIME?` | `<time>` = Real (NR3); range depends on model - SDS800X HD: [2.00E-09, 4.20E+00] s | documented; 超时触发的超时时间（手册 p.319） | 319 |
+| `:TRIGger:DROPout:TYPE` | `:TRIGger:DROPout:TYPE?` | `<type>` = `{EDGE\|STATe}` (edge / state) | documented; 超时触发的超时类型（手册 p.320） | 320 |
+| `:TRIGger:EDGE` | `:TRIGger:EDGE?` | — | documented; 章节标题，本节无独立参数；边沿触发的参数都在其子命令中（手册 p.274） | 274 |
+| `:TRIGger:EDGE:COUPling` | `:TRIGger:EDGE:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 边沿触发的耦合方式（手册 p.274） | 274 |
+| `:TRIGger:EDGE:HLDEVent` | `:TRIGger:EDGE:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 边沿触发的触发释抑事件数（手册 p.274） | 274 |
+| `:TRIGger:EDGE:HLDTime` | `:TRIGger:EDGE:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 边沿触发的触发释抑时间（手册 p.275） | 275 |
+| `:TRIGger:EDGE:HOLDoff` | `:TRIGger:EDGE:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 边沿触发的触发释抑类型（手册 p.275） | 275 |
+| `:TRIGger:EDGE:HSTart` | `:TRIGger:EDGE:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 边沿触发的触发释抑启动条件（手册 p.276） | 276 |
+| `:TRIGger:EDGE:IMPedance` | `:TRIGger:EDGE:IMPedance?` | `<ohm>` = `{ONEMeg\|FIFTy}` (1 MOhm / 50 Ohm); only valid when the trigger source is `EXT` or `EXT/5` | documented; 边沿触发的触发源阻抗（手册 p.276） | 276 |
+| `:TRIGger:EDGE:LEVel` | `:TRIGger:EDGE:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 边沿触发的触发电平（手册 p.277） | 277 |
+| `:TRIGger:EDGE:NREJect` | `:TRIGger:EDGE:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 边沿触发的噪声抑制开关（手册 p.278） | 278 |
+| `:TRIGger:FLEXray:BAUD` | `:TRIGger:FLEXray:BAUD?` | `<baud>` = `{2500kbps\|5Mbps\|10Mbps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 1000000 to 20000000 | documented; FlexRay 总线触发的波特率（手册 p.392） | 392 |
+| `:TRIGger:FLEXray:CONDition` | `:TRIGger:FLEXray:CONDition?` | `<condition>` = `{TSS\|FRAMe\|SYMBol\|ERRor}` (transmission start sequence / frame / symbol / error) | documented; FlexRay 总线触发的触发条件（手册 p.392） | 392 |
+| `:TRIGger:FLEXray:FRAMe:COMPare` | `:TRIGger:FLEXray:FRAMe:COMPare?` | `<type>` = `{ANY\|EQUal\|GREaterthan\|LESSthan}` | documented; FlexRay 触发的帧比较类型（手册 p.393） | 393 |
+| `:TRIGger:FLEXray:FRAMe:CYCLe` | `:TRIGger:FLEXray:FRAMe:CYCLe?` | `<cycle>` = Integer (NR1), 0 to 63 | documented; FlexRay 触发的周期数量（手册 p.393） | 393 |
+| `:TRIGger:FLEXray:FRAMe:ID` | `:TRIGger:FLEXray:FRAMe:ID?` | `<id>` = Integer (NR1), 0 to 2048; 2048 stands for any value (`0xXXX`) | documented; FlexRay 触发的 ID（手册 p.393） | 393 |
+| `:TRIGger:FLEXray:FRAMe:REPetition` | `:TRIGger:FLEXray:FRAMe:REPetition?` | `<times>` = `{1\|2\|4\|8\|16\|32\|64}` | documented; FlexRay 触发的重复系数（手册 p.394） | 394 |
+| `:TRIGger:FLEXray:SOURce` | `:TRIGger:FLEXray:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; FlexRay 总线触发的信源（手册 p.394） | 394 |
+| `:TRIGger:FLEXray:Source` | `:TRIGger:FLEXray:Source?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 手册该页的命令格式拼作 `Source`、描述与示例用 `SOURce`；FlexRay 总线触发的信源（手册 p.394） | 394 |
+| `:TRIGger:FLEXray:THReshold` | `:TRIGger:FLEXray:THReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; FlexRay 总线触发的阈值（手册 p.395） | 395 |
+| `:TRIGger:FREQuency` | `:TRIGger:FREQuency?` | — | documented; 查询硬件频率计：频率有效时以 Hz 返回，默认 3 位有效数字、最多 7 位，精度由 `:FORMat:DATA` 设定；手册该页只给返回格式，无输入参数（手册 p.271） | 271 |
+| `:TRIGger:IIC` | `:TRIGger:IIC?` | — | documented; 章节标题，本节无独立参数；IIC 总线触发的参数都在其子命令中（手册 p.357） | 357 |
+| `:TRIGger:IIC:ADDRess` | `:TRIGger:IIC:ADDRess?` | `<addr>` = Integer (NR1), 0 to 1024; 1024 stands for any value (`0xXX`) | documented; IIC 总线触发的地址（手册 p.357） | 357 |
+| `:TRIGger:IIC:ALENgth` | `:TRIGger:IIC:ALENgth?` | `<length>` = `{7BIT\|10BIT}` | documented; IIC 总线触发的地址长度（手册 p.357） | 357 |
+| `:TRIGger:IIC:CONDition` | `:TRIGger:IIC:CONDition?` | `<condition>` = `{STARt\|STOP\|RESTart\|NACK\|EEPRom\|7ADDRess\|10ADDRess\|DLENgth}` | documented; IIC 总线触发的触发条件（手册 p.358） | 358 |
+| `:TRIGger:IIC:DAT2` | `:TRIGger:IIC:DAT2?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; IIC 总线触发的数据字节 2（手册 p.358） | 358 |
+| `:TRIGger:IIC:DATA` | `:TRIGger:IIC:DATA?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; IIC 总线触发的数据字节 1（手册 p.358） | 358 |
+| `:TRIGger:IIC:DLENgth` | `:TRIGger:IIC:DLENgth?` | `<length>` = Integer (NR1), 1 to 12 | documented; IIC 总线触发的数据长度（手册 p.359） | 359 |
+| `:TRIGger:IIC:LIMit` | `:TRIGger:IIC:LIMit?` | `<limit_type>` = `{EQUal\|GREaterthan\|LESSthan}`; only when the trigger condition is `EEPRom` | documented; IIC 触发条件为 EEPROM 时的限制条件类型（手册 p.359） | 359 |
+| `:TRIGger:IIC:RWBit` | `:TRIGger:IIC:RWBit?` | `<type>` = `{WRITe\|READ\|ANY}`; only when the trigger condition is 7/10 address & data | documented; IIC 触发条件为 7/10 位地址+数据时的读写位（手册 p.360） | 360 |
+| `:TRIGger:IIC:SCLSource` | `:TRIGger:IIC:SCLSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIC 总线触发的 SCL 信源（手册 p.360） | 360 |
+| `:TRIGger:IIC:SCLThreshold` | `:TRIGger:IIC:SCLThreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIC 总线触发的 SCL 阈值（手册 p.361） | 361 |
+| `:TRIGger:IIC:SDASource` | `:TRIGger:IIC:SDASource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIC 总线触发的 SDA 信源（手册 p.361） | 361 |
+| `:TRIGger:IIC:SDAThreshold` | `:TRIGger:IIC:SDAThreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIC 总线触发的 SDA 阈值（手册 p.362） | 362 |
+| `:TRIGger:IIS:AVARiant` | `:TRIGger:IIS:AVARiant?` | `<type>` = `{I2S\|LJ\|RJ}` | documented; IIS 总线触发的音频格式（手册 p.401） | 401 |
+| `:TRIGger:IIS:BCLKSource` | `:TRIGger:IIS:BCLKSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIS 总线触发的时钟源（BCLK）（手册 p.401） | 401 |
+| `:TRIGger:IIS:BCLKThreshold` | `:TRIGger:IIS:BCLKThreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIS 总线触发的时钟阈值（手册 p.402） | 402 |
+| `:TRIGger:IIS:BITorder` | `:TRIGger:IIS:BITorder?` | `<order>` = `{LSM\|MSB}` | documented; IIS 总线触发的比特流格式（手册该页拼作 `LSM`）（手册 p.402） | 402 |
+| `:TRIGger:IIS:CHANnel` | `:TRIGger:IIS:CHANnel?` | `<channel>` = `{LEFT\|RIGHT}` | documented; IIS 总线触发的通道（手册 p.403） | 403 |
+| `:TRIGger:IIS:COMPare` | `:TRIGger:IIS:COMPare?` | `<type>` = `{EQUal\|GREaterthan\|LESSthan}` | documented; IIS 总线触发的比较类型（手册 p.403） | 403 |
+| `:TRIGger:IIS:CONDition` | `:TRIGger:IIS:CONDition?` | `<condition>` = `{DATA\|MUTE\|CLIP\|GLITch\|RISing\|FALLing}` | documented; IIS 总线触发的触发条件（手册 p.403） | 403 |
+| `:TRIGger:IIS:DLENgth` | `:TRIGger:IIS:DLENgth?` | `<value>` = Integer (NR1); the valid range depends on the channel bit count and the start bit (e.g. 32-bit channel with start bit 2: 1 to 30) | documented; IIS 总线触发的数据位数（手册 p.404） | 404 |
+| `:TRIGger:IIS:DSource` | `:TRIGger:IIS:DSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIS 总线触发的数据源（手册 p.404） | 404 |
+| `:TRIGger:IIS:DTHReshold` | `:TRIGger:IIS:DTHReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIS 总线触发的数据源阈值（手册 p.405） | 405 |
+| `:TRIGger:IIS:LATChedge` | `:TRIGger:IIS:LATChedge?` | `<slope>` = `{RISing\|FALLing}`; data is latched on the selected clock edge | documented; IIS 总线触发的时钟采样边沿（手册 p.406） | 406 |
+| `:TRIGger:IIS:LATChegde` | `:TRIGger:IIS:LATChegde?` | `<slope>` = `{RISing\|FALLing}`; data is latched on the selected clock edge | documented; 手册标题拼作 `:TRIGger:IIS:LATChedge`，本行为其目录拼写；IIS 触发的时钟采样边沿（手册 p.406） | 406 |
+| `:TRIGger:IIS:LCH` | `:TRIGger:IIS:LCH?` | `<level>` = `{LOW\|HIGH}`; `LOW` selects the left channel while WS is low, `HIGH` selects it while WS is high | documented; IIS 总线触发的左声道极性（手册 p.406） | 406 |
+| `:TRIGger:IIS:VALue` | `:TRIGger:IIS:VALue?` | `<value>` = Integer (NR1); manual lists no range on this page. Ignored when the data length is 8 and the value is 256 | documented; IIS 总线触发的数据值（手册 p.407） | 407 |
+| `:TRIGger:IIS:WSSource` | `:TRIGger:IIS:WSSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; IIS 总线触发的帧时钟（WS）源（手册 p.407） | 407 |
+| `:TRIGger:IIS:WSTHreshold` | `:TRIGger:IIS:WSTHreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; IIS 总线触发的帧时钟（WS）阈值（手册 p.408） | 408 |
+| `:TRIGger:INTerval` | `:TRIGger:INTerval?` | — | documented; 章节标题，本节无独立参数；间隔触发的参数都在其子命令中（手册 p.308） | 308 |
+| `:TRIGger:INTerval:COUPling` | `:TRIGger:INTerval:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 间隔触发的耦合方式（手册 p.308） | 308 |
+| `:TRIGger:INTerval:HLDEVent` | `:TRIGger:INTerval:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 间隔触发的触发释抑事件数（手册 p.308） | 308 |
+| `:TRIGger:INTerval:HLDTime` | `:TRIGger:INTerval:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 间隔触发的触发释抑时间（手册 p.309） | 309 |
+| `:TRIGger:INTerval:HOLDoff` | `:TRIGger:INTerval:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 间隔触发的触发释抑类型（手册 p.309） | 309 |
+| `:TRIGger:INTerval:HSTart` | `:TRIGger:INTerval:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 间隔触发的触发释抑启动条件（手册 p.310） | 310 |
+| `:TRIGger:INTerval:LEVel` | `:TRIGger:INTerval:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 间隔触发的触发电平（手册 p.310） | 310 |
+| `:TRIGger:INTerval:LIMit` | `:TRIGger:INTerval:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 间隔触发的限制条件类型（手册 p.311） | 311 |
+| `:TRIGger:INTerval:NREJect` | `:TRIGger:INTerval:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 间隔触发的噪声抑制开关（手册 p.312） | 312 |
+| `:TRIGger:INTerval:SLOPe` | `:TRIGger:INTerval:SLOPe?` | `<state>` = `{RISing\|FALLing}` | documented; 间隔触发的斜率类型（手册 p.312） | 312 |
+| `:TRIGger:INTerval:SOURce` | `:TRIGger:INTerval:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 间隔触发的触发源（手册 p.312） | 312 |
+| `:TRIGger:INTerval:TLOWer` | `:TRIGger:INTerval:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 间隔触发限制条件的下限值（手册 p.313） | 313 |
+| `:TRIGger:INTerval:TUPPer` | `:TRIGger:INTerval:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 间隔触发限制条件的上限值（手册 p.311） | 311 |
+| `:TRIGger:LIN` | `:TRIGger:LIN?` | — | documented; 章节标题，本节无独立参数；LIN 总线触发的参数都在其子命令中（手册 p.385） | 385 |
+| `:TRIGger:LIN:BAUD` | `:TRIGger:LIN:BAUD?` | `<baud>` = `{600bps\|1200bps\|2400bps\|4800bps\|9600bps\|19200bps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 300 to 20000000 | documented; LIN 总线触发的波特率（手册 p.385） | 385 |
+| `:TRIGger:LIN:CONDition` | `:TRIGger:LIN:CONDition?` | `<condition>` = `{BReak\|ID\|ID_AND_DATA\|DATA_ERROR}` | documented; LIN 总线触发的触发条件（手册 p.385） | 385 |
+| `:TRIGger:LIN:DAT2` | `:TRIGger:LIN:DAT2?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; LIN 总线触发的数据字节 2（手册 p.386） | 386 |
+| `:TRIGger:LIN:DATA` | `:TRIGger:LIN:DATA?` | `<data>` = Integer (NR1), 0 to 256; 256 stands for any value (`0xXX`) | documented; LIN 总线触发的数据字节 1（手册 p.386） | 386 |
+| `:TRIGger:LIN:ERRor:CHECksum` | `:TRIGger:LIN:ERRor:CHECksum?` | `<state>` = `{0\|1}` (0 = checksum check off, 1 = on) | documented; LIN 触发条件为错误时的校验和检测开关（手册 p.387） | 387 |
+| `:TRIGger:LIN:ERRor:DLENgth` | `:TRIGger:LIN:ERRor:DLENgth?` | `<length>` = Integer (NR1), 1 to 8 | documented; LIN 触发条件为错误且开启校验和检测时的错误帧数据长度（手册 p.387） | 387 |
+| `:TRIGger:LIN:ERRor:ID` | `:TRIGger:LIN:ERRor:ID?` | `<id>` = Integer (NR1), 0 to 63 | documented; LIN 触发条件为错误时的错误帧 ID（手册 p.388） | 388 |
+| `:TRIGger:LIN:ERRor:PARity` | `:TRIGger:LIN:ERRor:PARity?` | `<state>` = `{0\|1}` (0 = header parity check off, 1 = on) | documented; LIN 触发条件为错误时的报头奇偶校验开关（手册 p.388） | 388 |
+| `:TRIGger:LIN:ERRor:SYNC` | `:TRIGger:LIN:ERRor:SYNC?` | `<state>` = `{0\|1}` | documented; LIN 触发条件为错误时的同步字节检测开关（手册 p.389） | 389 |
+| `:TRIGger:LIN:ID` | `:TRIGger:LIN:ID?` | `<id>` = Integer (NR1), 0 to 64; 64 stands for any value (`0xXX`) | documented; LIN 触发条件为 ID 时的 ID（手册 p.389） | 389 |
+| `:TRIGger:LIN:SOURce` | `:TRIGger:LIN:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; LIN 总线触发的信源（手册 p.390） | 390 |
+| `:TRIGger:LIN:STANdard` | `:TRIGger:LIN:STANdard?` | `<version>` = `{0\|1}` (0 = Rev1.3, 1 = Rev2.x) | documented; LIN 触发条件为错误且开启数据校验时的协议版本（手册 p.390） | 390 |
+| `:TRIGger:LIN:Source` | `:TRIGger:LIN:Source?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 手册该页的命令格式拼作 `Source`、描述与示例用 `SOURce`；LIN 总线触发的信源（手册 p.390） | 390 |
+| `:TRIGger:LIN:THReshold` | `:TRIGger:LIN:THReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; LIN 总线触发的阈值（手册 p.390） | 390 |
+| `:TRIGger:NEDGe` | `:TRIGger:NEDGe?` | — | documented; 章节标题，本节无独立参数；第 N 边沿触发的参数都在其子命令中（手册 p.345） | 345 |
+| `:TRIGger:NEDGe:EDGE` | `:TRIGger:NEDGe:EDGE?` | `<value>` = Integer (NR1), 1 to 65535 | documented; 第 N 边沿触发的边沿数（手册 p.346） | 346 |
+| `:TRIGger:NEDGe:HLDEVent` | `:TRIGger:NEDGe:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 第 N 边沿触发的触发释抑事件数（手册 p.348） | 348 |
+| `:TRIGger:NEDGe:HLDEvent` | `:TRIGger:NEDGe:HLDEvent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 手册示例把 `:TRIGger:NEDGe:HLDEVent` 写成 `HLDEvent`（手册笔误），本行即该示例拼写；第 N 边沿触发的触发释抑事件数（手册 p.349） | 349 |
+| `:TRIGger:NEDGe:HLDTime` | `:TRIGger:NEDGe:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s (manual prints it as `{8.00E-09,3.00E+01}`) | documented; 第 N 边沿触发的触发释抑时间（手册 p.348） | 348 |
+| `:TRIGger:NEDGe:HOLDoff` | `:TRIGger:NEDGe:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 第 N 边沿触发的触发释抑类型（手册 p.347） | 347 |
+| `:TRIGger:NEDGe:HSTart` | `:TRIGger:NEDGe:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 第 N 边沿触发的触发释抑启动条件（手册 p.348） | 348 |
+| `:TRIGger:NEDGe:IDLE` | `:TRIGger:NEDGe:IDLE?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 2.00E+01] s | documented; 第 N 边沿触发的空闲时间（手册 p.346） | 346 |
+| `:TRIGger:NEDGe:LEVel` | `:TRIGger:NEDGe:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 第 N 边沿触发的触发电平（手册 p.347） | 347 |
+| `:TRIGger:NEDGe:NREJect` | `:TRIGger:NEDGe:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 第 N 边沿触发的噪声抑制开关（手册 p.349） | 349 |
+| `:TRIGger:NEDGe:SLOPe` | `:TRIGger:NEDGe:SLOPe?` | `<slope_type>` = `{RISing\|FALLing}` | documented; 第 N 边沿触发的斜率类型（手册 p.345） | 345 |
+| `:TRIGger:NEDGe:SOURce` | `:TRIGger:NEDGe:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 第 N 边沿触发的触发源（手册 p.345） | 345 |
+| `:TRIGger:PATTern` | `:TRIGger:PATTern?` | — | documented; 章节标题，本节无独立参数；码型触发的参数都在其子命令中（手册 p.329） | 329 |
+| `:TRIGger:PATTern:HLDEVent` | `:TRIGger:PATTern:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 码型触发的触发释抑事件数（手册 p.329） | 329 |
+| `:TRIGger:PATTern:HLDTime` | `:TRIGger:PATTern:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 码型触发的触发释抑时间（手册 p.329） | 329 |
+| `:TRIGger:PATTern:HOLDoff` | `:TRIGger:PATTern:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 码型触发的触发释抑类型（手册 p.330） | 330 |
+| `:TRIGger:PATTern:HSTart` | `:TRIGger:PATTern:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 码型触发的触发释抑启动条件（手册 p.330） | 330 |
+| `:TRIGger:PATTern:INPut` | `:TRIGger:PATTern:INPut?` | `<logic>` = `{X\|L\|H}`, one entry per source, mapped in the order C1-C<n>, D0-D15; `X` = don't care, `H` = high, `L` = low | documented; 码型触发源的逻辑状态（手册 p.331） | 331 |
+| `:TRIGger:PATTern:LEVel` | `:TRIGger:PATTern:LEVel?` | `<source>` = `{C<n>}` (`<n>` = channel index NR1), `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 码型触发源的逻辑电平（手册 p.331） | 331 |
+| `:TRIGger:PATTern:LIMit` | `:TRIGger:PATTern:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 码型触发的限制条件类型（手册 p.332） | 332 |
+| `:TRIGger:PATTern:LOGic` | `:TRIGger:PATTern:LOGic?` | `<logic_type>` = `{AND\|OR\|NAND\|NOR}` | documented; 码型触发的逻辑关系（手册 p.333） | 333 |
+| `:TRIGger:PATTern:TLOWer` | `:TRIGger:PATTern:TLOWer?` | `<value>` = Real (NR3); no range listed. Must not exceed the upper limit (`:TRIGger:PATTern:TUPPer`); not usable when the limit type is `<=` | documented; 码型触发限制条件的下限值（手册 p.333） | 333 |
+| `:TRIGger:PATTern:TUPPer` | `:TRIGger:PATTern:TUPPer?` | `<value>` = Real (NR3); no range listed. Must not be below the lower limit (`:TRIGger:PATTern:TLOWer`); not usable when the limit type is `>=` | documented; 码型触发限制条件的上限值（手册 p.333） | 333 |
+| `:TRIGger:PULSe` | `:TRIGger:PULSe?` | — | documented; 章节标题，本节无独立参数；脉宽触发的参数都在其子命令中（手册 p.288） | 288 |
+| `:TRIGger:PULSe:COUPling` | `:TRIGger:PULSe:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 脉宽触发的耦合方式（手册 p.288） | 288 |
+| `:TRIGger:PULSe:HLDEVent` | `:TRIGger:PULSe:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 脉宽触发的触发释抑事件数（手册 p.288） | 288 |
+| `:TRIGger:PULSe:HLDTime` | `:TRIGger:PULSe:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 脉宽触发的触发释抑时间（手册 p.289） | 289 |
+| `:TRIGger:PULSe:HOLDoff` | `:TRIGger:PULSe:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 脉宽触发的触发释抑类型（手册 p.289） | 289 |
+| `:TRIGger:PULSe:HSTart` | `:TRIGger:PULSe:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 脉宽触发的触发释抑启动条件（手册 p.290） | 290 |
+| `:TRIGger:PULSe:LEVel` | `:TRIGger:PULSe:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 脉宽触发的触发电平（手册 p.290） | 290 |
+| `:TRIGger:PULSe:LIMit` | `:TRIGger:PULSe:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 脉宽触发的限制条件类型（手册 p.291） | 291 |
+| `:TRIGger:PULSe:NREJect` | `:TRIGger:PULSe:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 脉宽触发的噪声抑制开关（手册 p.292） | 292 |
+| `:TRIGger:PULSe:POLarity` | `:TRIGger:PULSe:POLarity?` | `<polarity_type>` = `{POSitive\|NEGative}` | documented; 脉宽触发的极性（手册 p.292） | 292 |
+| `:TRIGger:PULSe:SOURce` | `:TRIGger:PULSe:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 脉宽触发的触发源（手册 p.292） | 292 |
+| `:TRIGger:PULSe:TLOWer` | `:TRIGger:PULSe:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 脉宽触发限制条件的下限值（手册 p.293） | 293 |
+| `:TRIGger:PULSe:TUPPer` | `:TRIGger:PULSe:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 脉宽触发限制条件的上限值（手册 p.291） | 291 |
+| `:TRIGger:QUALified` | `:TRIGger:QUALified?` | — | documented; 章节标题，本节无独立参数；前提边沿触发的参数都在其子命令中（手册 p.335） | 335 |
+| `:TRIGger:QUALified:ELEVel` | `:TRIGger:QUALified:ELEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 前提边沿触发的边沿触发电平（手册 p.335） | 335 |
+| `:TRIGger:QUALified:ELVel` | `:TRIGger:QUALified:ELVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 手册该节标题拼作 `:TRIGger:QUALified:ELEVel`、命令格式却写作 `:TRIGger:QUALified:ELVel`；前提边沿触发的边沿触发电平（手册 p.335） | 335 |
+| `:TRIGger:QUALified:ESLope` | `:TRIGger:QUALified:ESLope?` | `<type>` = `{RISing\|FALLing}` | documented; 前提边沿触发的边沿触发斜率类型（手册 p.335） | 335 |
+| `:TRIGger:QUALified:ESource` | `:TRIGger:QUALified:ESource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 前提边沿触发的边沿触发信源（手册 p.336） | 336 |
+| `:TRIGger:QUALified:LIMit` | `:TRIGger:QUALified:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 前提边沿触发的限制条件类型（手册 p.336） | 336 |
+| `:TRIGger:QUALified:QLEVel` | `:TRIGger:QUALified:QLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 前提边沿触发的前提信号电平（手册 p.337） | 337 |
+| `:TRIGger:QUALified:QSource` | `:TRIGger:QUALified:QSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 前提边沿触发的前提信号信源（手册 p.337） | 337 |
+| `:TRIGger:QUALified:TLOWer` | `:TRIGger:QUALified:TLOWer?` | `<value>` = Real (NR3); no range listed. Must not exceed the upper limit; not usable when the limit type is `<=`. Only valid when the qualifier type is level+time or edge+time | documented; 前提边沿触发限制条件的下限值（手册 p.338） | 338 |
+| `:TRIGger:QUALified:TUPPer` | `:TRIGger:QUALified:TUPPer?` | `<value>` = Real (NR3); no range listed. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 前提边沿触发限制条件的上限值（手册 p.337） | 337 |
+| `:TRIGger:QUALified:TYPE` | `:TRIGger:QUALified:TYPE?` | `<type>` = `{STATe\|STATE_DLY\|EDGE\|EDGE_DLY}`; `<option>` = `{LOW\|HIGH}` when the type is `STATe`/`STATE_DLY`, `{RISing\|FALLing}` when it is `EDGE`/`EDGE_DLY` | documented; 前提边沿触发的前提类型（手册 p.339） | 339 |
+| `:TRIGger:RUNT` | `:TRIGger:RUNT?` | — | documented; 章节标题，本节无独立参数；欠幅触发的参数都在其子命令中（手册 p.321） | 321 |
+| `:TRIGger:RUNT:COUPling` | `:TRIGger:RUNT:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 欠幅触发的耦合方式（手册 p.321） | 321 |
+| `:TRIGger:RUNT:HLDEVent` | `:TRIGger:RUNT:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 欠幅触发的触发释抑事件数（手册 p.321） | 321 |
+| `:TRIGger:RUNT:HLDTime` | `:TRIGger:RUNT:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s (manual heading misspells it `:TRIGger:RUNt:HLDTime`) | documented; 欠幅触发的触发释抑时间（手册 p.322） | 322 |
+| `:TRIGger:RUNT:HLEVel` | `:TRIGger:RUNT:HLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 欠幅触发的触发高电平（手册 p.322） | 322 |
+| `:TRIGger:RUNT:HOLDoff` | `:TRIGger:RUNT:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 欠幅触发的触发释抑类型（手册 p.323） | 323 |
+| `:TRIGger:RUNT:HSTart` | `:TRIGger:RUNT:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 欠幅触发的触发释抑启动条件（手册 p.323） | 323 |
+| `:TRIGger:RUNT:LIMit` | `:TRIGger:RUNT:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 欠幅触发的限制条件类型（手册 p.324） | 324 |
+| `:TRIGger:RUNT:LLEVel` | `:TRIGger:RUNT:LLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:TRIGger:RUNT:HLEVel`) | documented; 欠幅触发的触发低电平（手册 p.325） | 325 |
+| `:TRIGger:RUNT:NREJect` | `:TRIGger:RUNT:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 欠幅触发的噪声抑制开关（手册 p.325） | 325 |
+| `:TRIGger:RUNT:POLarity` | `:TRIGger:RUNT:POLarity?` | `<polarity_type>` = `{POSitive\|NEGative}` | documented; 欠幅触发的极性（手册 p.326） | 326 |
+| `:TRIGger:RUNT:SOURce` | `:TRIGger:RUNT:SOURce?` | `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; 欠幅触发的触发源（手册 p.326） | 326 |
+| `:TRIGger:RUNT:TLOWer` | `:TRIGger:RUNT:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 欠幅触发限制条件的下限值（手册 p.327） | 327 |
+| `:TRIGger:RUNT:TUPPer` | `:TRIGger:RUNT:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 欠幅触发限制条件的上限值（手册 p.324） | 324 |
+| `:TRIGger:RUNt:HLDTime` | `:TRIGger:RUNt:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 手册该节标题把 `:TRIGger:RUNT:HLDTime` 印成 `RUNt`，本行即该拼写；欠幅触发的触发释抑时间（手册 p.322） | 322 |
+| `:TRIGger:SENT:SOURce` | `:TRIGger:SENT:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SENT 总线触发的信源（手册 p.409） | 409 |
+| `:TRIGger:SENT:THReshold` | `:TRIGger:SENT:THReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SENT 总线触发的阈值（手册 p.409） | 409 |
+| `:TRIGger:SHOL:TUPPer` | `:TRIGger:SHOL:TUPPer?` | `<value>` = Real (NR3); no range listed. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 手册示例把 `:TRIGger:SHOLd:TUPPer` 写成 `SHOL`（手册笔误），本行即该示例拼写；建立/保持触发限制条件的上限值（手册 p.355） | 355 |
+| `:TRIGger:SHOLd` | `:TRIGger:SHOLd?` | — | documented; 章节标题，本节无独立参数；建立/保持触发的参数都在其子命令中（手册 p.351） | 351 |
+| `:TRIGger:SHOLd:CSource` | `:TRIGger:SHOLd:CSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 建立/保持触发的时钟信源（手册 p.351） | 351 |
+| `:TRIGger:SHOLd:CTHReshold` | `:TRIGger:SHOLd:CTHReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 建立/保持触发的时钟阈值（手册 p.352） | 352 |
+| `:TRIGger:SHOLd:DSource` | `:TRIGger:SHOLd:DSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 建立/保持触发的数据信源（手册 p.353） | 353 |
+| `:TRIGger:SHOLd:DTHReshold` | `:TRIGger:SHOLd:DTHReshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 建立/保持触发的数据源阈值（手册 p.353） | 353 |
+| `:TRIGger:SHOLd:LEVel` | `:TRIGger:SHOLd:LEVel?` | `<level_value>` = `{LOW\|HIGH}` | documented; 建立/保持触发的数据源电平状态（手册 p.354） | 354 |
+| `:TRIGger:SHOLd:LIMit` | `:TRIGger:SHOLd:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 建立/保持触发的限制条件类型（手册 p.354） | 354 |
+| `:TRIGger:SHOLd:SLOPe` | `:TRIGger:SHOLd:SLOPe?` | `<state>` = `{RISing\|FALLing}` | documented; 建立/保持触发的斜率类型（手册 p.352） | 352 |
+| `:TRIGger:SHOLd:TLOWer` | `:TRIGger:SHOLd:TLOWer?` | `<value>` = Real (NR3); no range listed. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 建立/保持触发限制条件的下限值（手册 p.355） | 355 |
+| `:TRIGger:SHOLd:TUPPer` | `:TRIGger:SHOLd:TUPPer?` | `<value>` = Real (NR3); no range listed. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 建立/保持触发限制条件的上限值（手册 p.355） | 355 |
+| `:TRIGger:SHOLd:TYPE` | `:TRIGger:SHOLd:TYPE?` | `<type>` = `{SETup\|HOLD}` | documented; 建立/保持触发的类型（手册 p.351） | 351 |
+| `:TRIGger:SLOPe` | `:TRIGger:SLOPe?` | — | documented; 章节标题，本节无独立参数；斜率触发的参数都在其子命令中（手册 p.280） | 280 |
+| `:TRIGger:SLOPe:COUPling` | `:TRIGger:SLOPe:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 斜率触发的耦合方式（手册 p.280） | 280 |
+| `:TRIGger:SLOPe:HLDEVent` | `:TRIGger:SLOPe:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 斜率触发的触发释抑事件数（手册 p.280） | 280 |
+| `:TRIGger:SLOPe:HLDTime` | `:TRIGger:SLOPe:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 斜率触发的触发释抑时间（手册 p.281） | 281 |
+| `:TRIGger:SLOPe:HLEVel` | `:TRIGger:SLOPe:HLEVel?` | `<high_level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 斜率触发的触发高电平（手册 p.281） | 281 |
+| `:TRIGger:SLOPe:HOLDoff` | `:TRIGger:SLOPe:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 斜率触发的触发释抑类型（手册 p.282） | 282 |
+| `:TRIGger:SLOPe:HSTart` | `:TRIGger:SLOPe:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 斜率触发的触发释抑启动条件（手册 p.282） | 282 |
+| `:TRIGger:SLOPe:LIMit` | `:TRIGger:SLOPe:LIMit?` | `<type>` = `{LESSthan\|GREATerthan\|INNer\|OUTer}` (`<=`, `>=`, inside the time range, outside the time range) | documented; 斜率触发的限制条件类型（手册 p.283） | 283 |
+| `:TRIGger:SLOPe:LLEVel` | `:TRIGger:SLOPe:LLEVel?` | `<low_level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:TRIGger:SLOPe:HLEVel`) | documented; 斜率触发的触发低电平（手册 p.284） | 284 |
+| `:TRIGger:SLOPe:NREJect` | `:TRIGger:SLOPe:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 斜率触发的噪声抑制开关（手册 p.284） | 284 |
+| `:TRIGger:SLOPe:SLOPe` | `:TRIGger:SLOPe:SLOPe?` | `<slope_type>` = `{RISing\|FALLing}` | documented; 斜率触发的斜率类型（手册 p.285） | 285 |
+| `:TRIGger:SLOPe:SOURce` | `:TRIGger:SLOPe:SOURce?` | `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; 斜率触发的触发源（手册 p.285） | 285 |
+| `:TRIGger:SLOPe:TLOWer` | `:TRIGger:SLOPe:TLOWer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not exceed the upper limit; not usable when the limit type is `<=` | documented; 斜率触发限制条件的下限值（手册 p.286） | 286 |
+| `:TRIGger:SLOPe:TUPPer` | `:TRIGger:SLOPe:TUPPer?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-2.00E-09, 2.00E+01] s. Must not be below the lower limit; not usable when the limit type is `>=` | documented; 斜率触发限制条件的上限值（手册 p.283） | 283 |
+| `:TRIGger:SPI` | `:TRIGger:SPI?` | — | documented; 章节标题，本节无独立参数；SPI 总线触发的参数都在其子命令中（手册 p.363） | 363 |
+| `:TRIGger:SPI:BITorder` | `:TRIGger:SPI:BITorder?` | `<bit_order>` = `{LSM\|MSB}` (`LSM` = least significant bit first, `MSB` = most significant bit first) | documented; SPI 总线触发的比特流格式（手册 p.363） | 363 |
+| `:TRIGger:SPI:CLKSource` | `:TRIGger:SPI:CLKSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线触发的 CLK（时钟）信源（手册 p.363） | 363 |
+| `:TRIGger:SPI:CLKThreshold` | `:TRIGger:SPI:CLKThreshold?` | `<clk_threshold>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线触发的 CLK（时钟）阈值（手册 p.364） | 364 |
+| `:TRIGger:SPI:CSSource` | `:TRIGger:SPI:CSSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线触发的 CS（片选）信源（手册 p.364） | 364 |
+| `:TRIGger:SPI:CSTYpe` | `:TRIGger:SPI:CSTYpe?` | `<type>` = `{NCS\|CS\|TIMeout[,<time>]}`; `NCS` frames on chip select low, `CS` on chip select high (both need a CS source and threshold), `TIMeout` needs no CS source but `<time>` = Real (NR3), 1.00E-07 to 5.00E-03 (minimum clock-idle time) | documented; SPI 总线触发的片选类型（手册 p.366） | 366 |
+| `:TRIGger:SPI:CSThreshold` | `:TRIGger:SPI:CSThreshold?` | `<threshold>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线触发的 CS（片选）阈值（手册 p.365） | 365 |
+| `:TRIGger:SPI:DATA` | `:TRIGger:SPI:DATA?` | `<data>` = `{0\|1\|X}` per bit; the number of values must match the length set by `:TRIGger:SPI:DLENgth`, bits are assigned from the most significant down | documented; SPI 总线触发的数据码型（手册 p.366） | 366 |
+| `:TRIGger:SPI:DLENgth` | `:TRIGger:SPI:DLENgth?` | `<data_length>` = Integer (NR1), 4 to 96 | documented; SPI 总线触发的数据长度（手册 p.367） | 367 |
+| `:TRIGger:SPI:LATC` | `:TRIGger:SPI:LATC?` | `<slope>` = `{RISing\|FALLing}` | documented; `LATChedge` 的短形式；手册该节命令格式把长、短拼写混写（命令格式 `:TRIGger:SPI:CLK:LATChedge`、查询 `:TRIGger:SPI:LATC?`）；SPI 触发的时钟采样边沿（手册 p.367） | 367 |
+| `:TRIGger:SPI:LATChedge` | `:TRIGger:SPI:LATChedge?` | `<slope>` = `{RISing\|FALLing}` | documented; SPI 总线触发的 CLK（时钟）采样边沿（手册 p.367） | 367 |
+| `:TRIGger:SPI:MISOSource` | `:TRIGger:SPI:MISOSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线触发的 MISO 信源（手册 p.367） | 367 |
+| `:TRIGger:SPI:MISOThreshold` | `:TRIGger:SPI:MISOThreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线触发的 MISO 阈值（手册 p.368） | 368 |
+| `:TRIGger:SPI:MOSISource` | `:TRIGger:SPI:MOSISource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线触发的 MOSI 信源（手册 p.369） | 369 |
+| `:TRIGger:SPI:MOSIThreshold` | `:TRIGger:SPI:MOSIThreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线触发的 MOSI 阈值（手册 p.369） | 369 |
+| `:TRIGger:SPI:NCSSource` | `:TRIGger:SPI:NCSSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; SPI 总线触发的 NCS 信源（手册 p.370） | 370 |
+| `:TRIGger:SPI:NCSThreshold` | `:TRIGger:SPI:NCSThreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; SPI 总线触发的 NCS 阈值（手册 p.370） | 370 |
+| `:TRIGger:SPI:TTYPe` | `:TRIGger:SPI:TTYPe?` | `<trigger_type>` = `{MISO\|MOSI}` | documented; SPI 总线触发的触发源类型（手册 p.371） | 371 |
+| `:TRIGger:STATus` | `:TRIGger:STATus?` | — | documented; 只读查询当前触发状态，返回 `{Arm\|Ready\|Auto\|Trig'd\|Stop\|Roll}`；手册该页无输入参数（手册 p.272） | 272 |
+| `:TRIGger:STOP` | `:TRIGger:STOP?` | — | documented; 事件命令（无参数），把示波器置为 Stop，等同前面板 Run/Stop 键的 Stop（手册 p.272） | 272 |
+| `:TRIGger:UART` | `:TRIGger:UART?` | — | documented; 章节标题，本节无独立参数；UART 总线触发的参数都在其子命令中（手册 p.372） | 372 |
+| `:TRIGger:UART:BAUD` | `:TRIGger:UART:BAUD?` | `<baud>` = `{600bps\|1200bps\|2400bps\|4800bps\|9600bps\|19200bps\|38400bps\|57600bps\|115200bps\|CUSTom[,<value>]}`; `<value>` = Integer (NR1), 300 to 20000000 | documented; UART 总线触发的波特率（手册 p.372） | 372 |
+| `:TRIGger:UART:BITorder` | `:TRIGger:UART:BITorder?` | `<order>` = `{LSM\|MSB}` (`LSM` = least significant bit first, `MSB` = most significant bit first) | documented; UART 总线触发的比特流格式（手册 p.372） | 372 |
+| `:TRIGger:UART:CONDition` | `:TRIGger:UART:CONDition?` | `<condition>` = `{STARt\|STOP\|DATA\|ERRor}` | documented; UART 总线触发的触发条件（手册 p.373） | 373 |
+| `:TRIGger:UART:DATA` | `:TRIGger:UART:DATA?` | `<data>` = Integer (NR1); the value count must match the length set by `:TRIGger:UART:DLENgth`, and "any value" is the maximum plus 1 (e.g. 256 for an 8-bit length) | documented; UART 总线触发的数据（手册 p.373） | 373 |
+| `:TRIGger:UART:DLENgth` | `:TRIGger:UART:DLENgth?` | `<value>` = Integer (NR1), 5 to 8 | documented; UART 总线触发的数据长度（手册 p.374） | 374 |
+| `:TRIGger:UART:IDLE` | `:TRIGger:UART:IDLE?` | `<idle>` = `{LOW\|HIGH}` | documented; UART 总线触发的空闲电平（手册 p.374） | 374 |
+| `:TRIGger:UART:LIMit` | `:TRIGger:UART:LIMit?` | `<limit_type>` = `{EQUal\|GREaterthan\|LESSthan}`; only when the trigger condition is `DATA` | documented; UART 触发条件为 DATA 时的限制条件（手册 p.375） | 375 |
+| `:TRIGger:UART:PARity` | `:TRIGger:UART:PARity?` | `<parity>` = `{NONE\|ODD\|EVEN\|MARK\|SPACe}` (none / odd / even / mark = 1 / space = 0) | documented; UART 总线触发的奇偶校验（手册 p.375） | 375 |
+| `:TRIGger:UART:RXSource` | `:TRIGger:UART:RXSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; UART 总线触发的 RX 信源（手册 p.376） | 376 |
+| `:TRIGger:UART:RXTHreshold` | `:TRIGger:UART:RXTHreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; UART 总线触发的 RX 阈值（手册 p.376） | 376 |
+| `:TRIGger:UART:STOP` | `:TRIGger:UART:STOP?` | `<bit>` = `{1\|1.5\|2}` | documented; UART 总线触发的停止位数（手册 p.377） | 377 |
+| `:TRIGger:UART:TTYPe` | `:TRIGger:UART:TTYPe?` | `<trigger_type>` = `{RX\|TX}` | documented; UART 总线触发的触发源类型（手册 p.377） | 377 |
+| `:TRIGger:UART:TXSource` | `:TRIGger:UART:TXSource?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; UART 总线触发的 TX 信源（手册 p.378） | 378 |
+| `:TRIGger:UART:TXTHreshold` | `:TRIGger:UART:TXTHreshold?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; UART 总线触发的 TX 阈值（手册 p.378） | 378 |
+| `:TRIGger:VIDeo` | `:TRIGger:VIDeo?` | — | documented; 章节标题，本节无独立参数；视频触发的参数都在其子命令中（手册 p.295） | 295 |
+| `:TRIGger:VIDeo:FCNT` | `:TRIGger:VIDeo:FCNT?` | `<field_cnt>` = `{1\|2\|4\|8}` | documented; 视频触发自定义标准下的场数（手册 p.295） | 295 |
+| `:TRIGger:VIDeo:FIELd` | `:TRIGger:VIDeo:FIELd?` | `<field>` = `{1\|2}`; only valid for the NTSC, PAL, 1080i/50 and 1080i/60 standards | documented; 视频触发的同步触发场数（手册 p.295） | 295 |
+| `:TRIGger:VIDeo:FRATe` | `:TRIGger:VIDeo:FRATe?` | `<field>` = `{25Hz\|30Hz\|50Hz\|60Hz}` | documented; 视频触发自定义标准下的帧速率（手册 p.296） | 296 |
+| `:TRIGger:VIDeo:INTerlace` | `:TRIGger:VIDeo:INTerlace?` | `<field>` = `{1\|2\|4\|8}` | documented; 视频触发自定义标准下的交错比例（手册 p.296） | 296 |
+| `:TRIGger:VIDeo:LCNT` | `:TRIGger:VIDeo:LCNT?` | `<line_cnt>` = Integer (NR1), 300 to 2000 | documented; 视频触发自定义标准下的行数（手册 p.296） | 296 |
+| `:TRIGger:VIDeo:LEVel` | `:TRIGger:VIDeo:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 视频触发的触发电平（手册 p.297） | 297 |
+| `:TRIGger:VIDeo:LINE` | `:TRIGger:VIDeo:LINE?` | `<line>` = Integer (NR1); per-standard limits: NTSC field1 1-263 / field2 1-262, PAL 1-313 / 1-312, 720P50/60 1-750, 1080P50/60 1-1125, 1080i50/60 1-563 / 1-562 | documented; 视频触发非自定义标准下的同步触发行数（手册 p.298） | 298 |
+| `:TRIGger:VIDeo:SOURce` | `:TRIGger:VIDeo:SOURce?` | `<source>` = `{C<n>}`; no digital source | documented; 视频触发的触发源（手册 p.298） | 298 |
+| `:TRIGger:VIDeo:STANdard` | `:TRIGger:VIDeo:STANdard?` | `<standard>` = `{NTSC\|PAL\|P720L50\|P720L60\|P1080L50\|P1080L60\|I1080L50\|I1080L60\|CUSTom}` | documented; 视频触发的标准类型（手册 p.299） | 299 |
+| `:TRIGger:VIDeo:SYNC` | `:TRIGger:VIDeo:SYNC?` | `<sync>` = `{SELect\|ANY}`; `SELect` triggers on the chosen field and line, `ANY` on any line that meets the condition | documented; 视频触发的同步模式（手册 p.295） | 295 |
+| `:TRIGger:WIND:HLDTime` | `:TRIGger:WIND:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 手册该节命令格式把查询写作 `:TRIGger:WIND:HLDTime?`（短拼写），本行即该拼写；窗口触发的触发释抑时间（手册 p.303） | 303 |
+| `:TRIGger:WIND:HOLDoff` | `:TRIGger:WIND:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 手册该节命令格式写作 `:TRIGger:WIND:HOLDoff`（短拼写），本行即该拼写；窗口触发的触发释抑类型（手册 p.304） | 304 |
+| `:TRIGger:WINDow` | `:TRIGger:WINDow?` | — | documented; 章节标题，本节无独立参数；窗口触发的参数都在其子命令中（手册 p.301） | 301 |
+| `:TRIGger:WINDow:CLEVel` | `:TRIGger:WINDow:CLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 窗口触发的相对中心电平（手册 p.301） | 301 |
+| `:TRIGger:WINDow:COUPling` | `:TRIGger:WINDow:COUPling?` | `<mode>` = `{DC\|AC\|LFREJect\|HFREJect}`; `DC` passes all components, `AC` blocks DC, `LFREJect` is a high-pass and `HFREJect` a low-pass (cut-off frequencies in the datasheet) | documented; 窗口触发的耦合方式（手册 p.301） | 301 |
+| `:TRIGger:WINDow:DLEVel` | `:TRIGger:WINDow:DLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 窗口触发的相对电平范围（手册 p.302） | 302 |
+| `:TRIGger:WINDow:HLDEVent` | `:TRIGger:WINDow:HLDEVent?` | `<value>` = Integer (NR1), 1 to 100000000 | documented; 窗口触发的触发释抑事件数（手册 p.303） | 303 |
+| `:TRIGger:WINDow:HLDTime` | `:TRIGger:WINDow:HLDTime?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [8.00E-09, 3.00E+01] s | documented; 窗口触发的触发释抑时间（手册 p.303） | 303 |
+| `:TRIGger:WINDow:HLEVel` | `:TRIGger:WINDow:HLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The high level must not be below the low level (`:TRIGger:WINDow:LLEVel`) | documented; 窗口触发的绝对高电平（手册 p.304） | 304 |
+| `:TRIGger:WINDow:HOLDoff` | `:TRIGger:WINDow:HOLDoff?` | `<holdoff_type>` = `{OFF\|EVENts\|TIME}`; `EVENts` = number of trigger events, `TIME` = wait time after a trigger before the trigger circuit re-arms | documented; 窗口触发的触发释抑类型（手册 p.304） | 304 |
+| `:TRIGger:WINDow:HSTart` | `:TRIGger:WINDow:HSTart?` | `<start_holdoff>` = `{LAST_TRIG\|ACQ_START}`; `LAST_TRIG` starts counting at the previous trigger, `ACQ_START` at the first sample that meets the trigger condition | documented; 窗口触发的触发释抑启动条件（手册 p.305） | 305 |
+| `:TRIGger:WINDow:LLEVel` | `:TRIGger:WINDow:LLEVel?` | `<value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset]. The low level must not exceed the high level (`:TRIGger:WINDow:HLEVel`) | documented; 窗口触发的绝对低电平（手册 p.305） | 305 |
+| `:TRIGger:WINDow:NREJect` | `:TRIGger:WINDow:NREJect?` | `<state>` = `{OFF\|ON}` | documented; 窗口触发的噪声抑制开关（手册 p.306） | 306 |
+| `:TRIGger:WINDow:SOURce` | `:TRIGger:WINDow:SOURce?` | `<source>` = `{C<n>}` (`<n>` = analog channel NR1); no digital source | documented; 窗口触发的触发源（手册 p.307） | 307 |
+| `:TRIGger:WINDow:TYPE` | `:TRIGger:WINDow:TYPE?` | `<type>` = `{ABSolute\|RELative}`; `ABSolute` sets the high and low trigger levels independently, `RELative` moves them together or scales their distance | documented; 窗口触发的窗口类型（手册 p.307） | 307 |
+| `:WAVeform:DATA` | `:WAVeform:DATA?` | — | documented; 只读查询 `:WAVeform:SOURce` 指定源的波形数据；手册该页无输入参数（手册 p.418） | 418 |
+| `:WAVeform:MAXPoint` | `:WAVeform:MAXPoint?` | — | documented; 只读查询单片数据的点数（大记录长度需分片读取）；手册该页无输入参数（手册 p.413） | 413 |
+| `:WAVeform:PRE` | `:WAVeform:PRE?` | — | documented; `PREamble` 的短形式，只读查询 `:WAVeform:SOURce` 指定源的波形参数；手册该页无输入参数（手册 p.418） | 418 |
+| `:WAVeform:PREamble` | `:WAVeform:PREamble?` | — | documented; 只读查询 `:WAVeform:SOURce` 指定源的波形参数（含分片所需字段）；手册该页无输入参数（手册 p.412） | 412 |
+| `:WAVeform:SEQuence` | `:WAVeform:SEQuence?` | `<value1>` = frame number, Integer (NR1); 0 returns all frames. `<value2>` = start frame, Integer (NR1), used to read all frames in slices when the total exceeds the memory limit. Defaults: 1 with segmented acquisition on, the last frame with history on, otherwise 4294967295; the range depends on the current segment count | documented; 分段采集时读取哪一帧波形（手册 p.422） | 422 |
