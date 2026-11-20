@@ -664,7 +664,7 @@ but no range, and nothing was filled in from outside the manual.
 | `:SEARch:COUNT` | `:SEARch:COUNT?` | — | documented; 只读查询当前屏幕内搜索事件总数，返回整型 NR1；手册该页无输入参数（手册 p.236） | 236 |
 | `:SEARch:EDGE` | `:SEARch:EDGE?` | — | documented; 章节标题，本节无独立参数；边沿搜索的参数都在其子命令中（手册 p.237） | 237 |
 | `:SEARch:EDGE:LEVel` | `:SEARch:EDGE:LEVel?` | `<level_value>` = Real (NR3); range depends on model - SDS800X HD: [-4.1*vertical scale - vertical offset, 4.1*vertical scale - vertical offset] | documented; 边沿搜索的搜索电平（手册 p.238） | 238 |
-| `:SEARch:EDGE:SLOPe` | `:SEARch:EDGE:SLOPe?` | `<slope_type>` = `{RISing\|FALLing\|ALTernate}` (rising / falling / either edge) | documented; 边沿搜索的斜率（手册 p.237） | 237 |
+| `:SEARch:EDGE:SLOPe` | `:SEARch:EDGE:SLOPe?` | `<slope_type>` = `{RISing\|FALLing\|ALTernate}`（上升 / 下降 / 任意边沿） | documented; 边沿搜索的斜率。**手册 p.237 的「命令格式」行误印为 `:SEARch:EDGE:SOURce <slope_type>`**，按手册笔误处理，不要照抄该拼写。 | 237 |
 | `:SEARch:EDGE:SOURce` | `:SEARch:EDGE:SOURce?` | `<source>` = `{C<n>\|D<d>}`; `<n>` = analog channel NR1, `<d>` = digital channel NR1 | documented; 边沿搜索的信源（手册 p.237） | 237 |
 | `:SEARch:EVENt` | `:SEARch:EVENt?` | — | documented; 只读查询采集停止时定位的事件帧号，返回整型 NR1；手册该页无输入参数（手册 p.236） | 236 |
 | `:SEARch:INTerval` | `:SEARch:INTerval?` | — | documented; 章节标题，本节无独立参数；间隔搜索的参数都在其子命令中（手册 p.248） | 248 |
