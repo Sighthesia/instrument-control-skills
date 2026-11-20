@@ -96,45 +96,30 @@ framing and field names; do not claim that the example wire format is a vendor
 standard. Its synthetic protocol has no sentinel value; when adapting it, add the
 instrument's enumerated non-values before the first numeric conversion.
 
-## Coverage Audit Tooling
+## Counting a Manual's Commands
 
-`scripts/` ships two standard-library tools so a coverage claim can be re-run
-instead of re-implemented. Neither touches an instrument.
+No extraction script ships with this Skill: one tool that guesses at document
+layout is wrong for the next manual, and a wrong coverage number is worse than no
+number. Count by hand against the manual's own command list, and record the
+method next to the count:
 
-```bash
-# manual -> paged text + a command/page TSV (authority from body headings and TOC)
-python3 scripts/extract_command_pages.py ref/<manual>.pdf \
-    --out-text /tmp/manual.txt --out-tsv /tmp/manual.tsv
+1. Take the list from the manual's command chapter or contents page, not from a
+   search for syntax lines. Optional-root families (`[:SOURce[<n>]]:…`,
+   `[:SENSe[1]]:…`) start with `[` and a `:`-anchored search misses all of them.
+2. Count the set form and the query form separately when the manual prints both,
+   and say which number the index header reports.
+3. Treat a parent heading that only wraps child commands as a heading, not as a
+   command: check whether the manual prints a syntax line for it.
+4. Triage every residual by hand. Placeholder spelling (`:FUNCtion<x>` vs
+   `:FUNCtion1:`), a short form (`:CHAN1:SCAL`), an example line, and a wrapping
+   parent are not gaps; keep a residual only when the manual documents a command
+   the index does not list.
+5. Record the result with its date and the manual revision, and re-do it when the
+   manual revision changes.
 
-# TSV vs an index: gaps, subsystem table, and a classification per gap
-python3 scripts/diff_command_index.py --manual /tmp/manual.tsv \
-    --index skills/<skill>/references/command-reference.md --report /tmp/audit.md
-
-# index vs the commands the code actually sends
-python3 scripts/diff_command_index.py --drift \
-    --index skills/<skill>/references/command-reference.md --code skills/<skill>/scripts
-```
-
-Run with the default flags first. `--allow-indented` and `--table-mode` exist for
-manuals that print commands inside a table cell rather than as a heading followed
-by a syntax line; in that mode the extractor also picks up parameter-table rows
-and prose, so every residual must be triaged by hand. Set `--min-page` to the
-first page of the command chapter to bound it.
-
-The gap classification (`placeholder-variant`, `short-form`, `example-line`,
-`wrapped-heading`, `true-gap`) is a triage aid, not a verdict: only `true-gap` is
-a defect, and a `wrapped-heading` result means the manual's parent heading wraps
-children and is not a sendable command. Never widen the matcher to lower the
-number. `--drift` reports commands the code sends but the index does not list, and
-(hint only) rows labelled `hardware-verified` that the code never sends.
-
-`assets/index-audit/` holds two deliberately separate synthetic fixtures: the
-extractor's input and a hand-maintained TSV for the diff tests (never output of
-the other). Neither contains vendor text.
-
-The tools cannot tell you that a command which answers on the instrument is
-missing from the manual; that class belongs in a `measured-only` section, labelled
-`UNVERIFIED` against the manual.
+The limit worth stating: a list cannot show that a command answering on the
+instrument is absent from the manual. That class belongs in a `measured-only`
+section, labelled `UNVERIFIED` against the manual.
 
 ## Integrity Method
 

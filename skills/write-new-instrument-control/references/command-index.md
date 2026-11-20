@@ -36,23 +36,24 @@ the manual. The gap was not hidden; it was declared and then read as complete.
 - A parent heading that only wraps child commands is not a command. Say so in a
   note rather than adding it as a third form.
 
-## Machine comparison
+## Comparing against the index
 
-Keep the manual extraction as paged text with page markers. Normalize both sides
-before comparing as sets:
+There is no shipped comparison script: a matcher tuned to one manual's layout is
+wrong for the next, and a number nobody can reproduce is worse than no number.
+Compare by hand, with these rules, and keep the working list:
 
-1. lowercase;
-2. drop a trailing `?`;
-3. drop `[` and `]`;
-4. replace every `<...>` placeholder with `<n>`;
-5. collapse numeric instance indices (`CHAN1` to `CHAN`);
-6. compare SCPI short and long mnemonics as prefixes, not as strings.
-
-The residual must be zero, or every residual must be itemized with a reason:
-placeholder renamed, short form of a listed row, compound example line, or
-wrapped heading. Re-read the manual page for each residual before accepting the
-reason. Fuzzy matching is not a substitute: one audit found 12 distinct commands
-hidden behind similarly named siblings until each was checked by hand.
+1. Normalize both sides the same way: ignore case, drop a trailing `?`, drop `[`
+   and `]`, treat `<n>`/`<x>`/`<m>` and a numeric instance index as the same
+   placeholder, and match a short mnemonic to its long form as a prefix.
+2. Walk the manual's list in order and mark each entry: covered, or a residual.
+3. Triage every residual individually: a renamed placeholder, a short form of a
+   listed row, a compound example line, or a wrapping parent heading is not a gap.
+   Keep only what the manual documents and the index lacks.
+4. Never widen the matching to reduce the residual. Fuzzy matching is not a
+   substitute: one audit found 12 distinct commands hidden behind similarly named
+   siblings until each was checked by hand.
+5. Record the count, the method, the manual revision, and the date in the index
+   header, and re-do it when the manual revision changes.
 
 ## Status per row, sections apart
 

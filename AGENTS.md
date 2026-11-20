@@ -56,8 +56,9 @@ re-derive those rules from memory.
 - Record manual defects instead of copying them: a wrong mnemonic in a heading
   or a space spliced into a keyword is noted against the corrected form, not
   reproduced as a command.
-- Keep the generated tab-separated form/page list under `artifacts/` so the audit
-  can be re-run; commit only the index, never extracted manual text.
+- Keep the working list used for the count under `artifacts/` (it is git-ignored)
+  and commit only the index, never extracted or copied manual text. Re-do the
+  count when the manual revision changes.
 
 ## Consistency checks (after every change)
 
@@ -66,21 +67,20 @@ re-derive those rules from memory.
 python3 ~/.agents/skills/skill-creator/scripts/quick_validate.py skills/<skill-name>
 
 # 2. Run the Skill's offline unit tests; they never open a socket
+#    (skills without scripts/ run their bundled examples instead, if any)
 python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
 
 # 3. CLI discovery must list exactly the directories under skills/
 npx skills@latest add . --list
 ```
 
-- Every Skill has `scripts/test_*.py`; the command above covers them all. A
-  Skill whose logic lives in `assets/` (the authoring guide's bundled examples)
-  also runs
+- Device Skills carry `scripts/test_*.py`; the authoring guide has no `scripts/`,
+  so run its bundled examples:
   `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
-- Coverage claims are re-checked, not re-argued: `skills/write-new-instrument-control/scripts/extract_command_pages.py`
-  turns a manual into a page-cited TSV and `diff_command_index.py` reports the gap
-  classification (or `--drift` compares the index with the commands the code
-  sends). `true-gap` is a defect; the other classes are not. Never widen the
-  matcher to lower the number.
+- A command count is a manual reading, not a script output: no extraction tool is
+  shipped, because one heuristic cannot be right for a heading-per-command manual
+  and a command-table manual. Count against the manual's own list, triage every
+  residual by hand, and record the method and date with the number.
 - A passing offline test run is not hardware evidence and must not upgrade an
   evidence label.
 - `README.md` and `README.zh-CN.md` must describe the same Skill set and rules
