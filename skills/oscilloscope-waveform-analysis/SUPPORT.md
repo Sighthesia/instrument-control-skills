@@ -1,6 +1,6 @@
 # Parser Support Record
 
-- Parser status: `offline-tested`
+- Parser status: `documented` (offline-tested; see per-claim hardware rows below)
 - Hardware verification: `partial` — see the per-claim table below, not a Skill-level claim
 - Verified instruments cited below: `RIGOL TECHNOLOGIES,DS1074Z,DS1ZA171004155,00.04.02.SP4` (raw TCP `5555`, 2026-11-20); `Siglent Technologies,SDS824X HD,SDS08A0Q909185,4.8.12.1.1.6.5` (SCPI raw TCP `5025`, 2026-11-21); `GW Instek GDS-1000B` documented only, no instrument exercised
 - Runtime dependency: `numpy` 2.0 or newer. The device-control Skills remain standard-library-only and hand over a file; no script in this Skill opens a socket or sends a SCPI command.

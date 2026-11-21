@@ -10,6 +10,9 @@ those samples prove. It is offline only: it opens no socket, sends zero SCPI
 commands, and imports no module from a device-control Skill. Its one runtime
 dependency is `numpy` (2.0 or newer); the device-control Skills stay
 standard-library-only and hand over a file rather than calling into this one.
+Evidence labels follow the conservative repository scale (`documented` <
+`hardware-verified` = `firmware-scoped`) and apply per claim; see
+[SUPPORT.md](SUPPORT.md).
 
 Every accepted input is normalized by `scripts/waveform_bundle.py:load_capture`
 into one `capture` mapping, so all eight analyzer subcommands and the evidence

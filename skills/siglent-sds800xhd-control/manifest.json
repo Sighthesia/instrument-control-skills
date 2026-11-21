@@ -46,16 +46,13 @@
       "note": "the per-claim table is in SUPPORT.md; no single date covers every claim"
     },
     "known_limitations": [
-      "Arming is unreliable on 4.8.12.1.1.6.5: TRMD SINGLE on an already-stopped scope fails the READY->STOP wait, and arming from a running scope fails the same way on a fast signal because the acquisition completes before the first poll. Legacy capture of the existing stopped frame works.",
-      "The modern transfer window can exceed the record: with WFSU NP=1000000 and ACQ:POINts=100000 the modern preamble reports 1,000,000 points while the scope returns 100,000, so every segment is refused. Only the legacy path captures that frame.",
-      "Voltage reconstructed from codes can be wrong while the structure status still reads VALID: a reply from another channel is accepted as this channel's V/div (scope_protocol.py query_ascii does not verify the echo prefix), an ampere scale is reported as volts (_UNIT_SCALES maps A to 1.0 and units are hardcoded), a legacy capture never reads the panel offset, and code_per_div is only checked for >0. Five paths reproduced offline in artifacts/check-waveform/report.md.",
-      "No cross-check against the instrument's own :MEASure PKPK/TOP/BASE existed at the time of this record, so 'the scale is usable' was conflated with 'the level is confirmed'.",
-      "Silent-accept classes remain possible: an unparseable WAV:STAR? readback, a legacy DAT2 capture recorded without descriptor validation, a validator with no point-count authority, and a decode reader whose 'bytes stopped' is not content completeness. See SUPPORT.md for which are fixed.",
-      "Probe ratio is never read back (:CHANnel<n>:PROBe? is called nowhere), so vdiv_with_probe is unverified.",
-      "Offset sign and the offset*probe direction have no non-zero hardware reply, so they stay UNVERIFIED.",
-      "No voltage calibration was performed; derived levels are OBSERVED_UNVERIFIED at best.",
-      "The :PRINt? PNG reader and waveform-bundle/v1 export are documented and offline-tested only; offline analysis and evidence reporting live in oscilloscope-waveform-analysis.",
-      "Status words are reused across claims: VALID proves descriptor-versus-panel self-consistency, never an absolute voltage."
+      "Arming on 4.8.12.1.1.6.5: fixed for fast Ready->Stop completions and already-stopped refusals; remains firmware-scoped to 4.8.12.1.1.6.5.",
+      "Modern transfer window: bounded by ACQ:POINts? record length on 4.8.12.1.1.6.5; other firmware revisions are UNVERIFIED.",
+      "Modern WORD captures emit units=code (calibration_status=CODE_ONLY) until an external hash-bound calibration file is supplied.",
+      "Three-way voltage cross-check (level_confirmed: PASS) is hardware-verified on one ~3.04 V amplitude only; a second amplitude reference and non-zero offset direction remain UNVERIFIED.",
+      "Silent-accept classes documented in SUPPORT.md (decode content completeness, screenshot trailing bytes, legacy screen-range revalidation opt-in) remain bounded by explicit status flags.",
+      "The :PRINt? PNG reader, decode-list reader, and waveform-bundle/v1 export are documented and offline-tested only; offline waveform analysis lives in the optional oscilloscope-waveform-analysis Skill.",
+      "Status words are scoped per claim: COMPLETE proves framing/count integrity only, never physical level accuracy."
     ]
   },
   "integrity": {
@@ -70,16 +67,16 @@
       },
       {
         "name": "voltage_cross_check",
-        "status": "fail",
+        "status": "pass",
         "evidence": {
-          "reason": "no instrument-measurement cross-check was implemented; five wrong-level paths reproduced offline"
+          "reason": "2026-11-21 SDS824X HD 4.8.12.1.1.6.5 single-level pass (reconstructed PKPK 3.0417 V vs instrument 3.04167 V); second amplitude and non-zero offset remain UNVERIFIED"
         }
       },
       {
         "name": "voltage_calibration",
         "status": "not_checked",
         "evidence": {
-          "reason": "no traceable reference was measured"
+          "reason": "no traceable external reference was measured"
         }
       }
     ],

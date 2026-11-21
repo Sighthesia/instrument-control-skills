@@ -178,6 +178,8 @@ python3 scripts/gds1000b_protocol.py identity assets/fixtures/identity.txt
 python3 scripts/gds1000b_protocol.py measure assets/fixtures/measure-frequency.txt --quantity frequency
 python3 scripts/gds1000b_protocol.py error-queue assets/fixtures/error-none.txt
 python3 scripts/gds1000b_protocol.py waveform assets/fixtures/waveform-valid.bin --csv-out wave.csv
+# Live session can also export a portable waveform-bundle/v1 (calibration_status=UNVERIFIED) alongside raw bytes:
+# python3 scripts/gds1000b_session.py --serial <port> waveform --channel 1 --out ch1.bin --bundle-out ch1.bundle.json
 python3 scripts/gds1000b_protocol.py waveform-header assets/fixtures/waveform-valid.bin
 ```
 
@@ -185,7 +187,7 @@ Stages: `read_frame` -> `parse_metadata` -> `extract_payload` -> `normalize` ->
 `validate`. Waveform stages: `parse_waveform_header` -> `parse_ieee_block` ->
 `normalize_waveform` -> `validate`; `iter_samples` uses
 `struct.iter_unpack(">h", payload)`. The high-level `parse_identity`,
-`parse_measurement`, `parse_error_queue`, and `parse_waveform` compose the
+`parse_measurement`, `parse_error_queue`, `parse_waveform`, and `export_waveform_bundle` (`waveform-bundle/v1`, always emitting `calibration_status = UNVERIFIED`) compose the
 stages; intermediate results remain inspectable.
 
 Optional live transport: `scripts/gds1000b_session.py` (lazy pyserial/socket

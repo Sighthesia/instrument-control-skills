@@ -266,6 +266,8 @@ python3 scripts/ds1000z_protocol.py error-queue assets/fixtures/error-queue-unde
 python3 scripts/ds1000z_protocol.py measurement assets/fixtures/measurement-vpp.txt --quantity vpp
 python3 scripts/ds1000z_protocol.py preamble assets/fixtures/preamble-norm.txt
 python3 scripts/ds1000z_protocol.py waveform assets/fixtures/waveform-norm-ch1.bin --csv-out wave.csv
+# Live session can also export a portable waveform-bundle/v1 alongside raw bytes:
+# python3 scripts/ds1000z_session.py --host <ip> waveform --channel 1 --out ch1.bin --bundle-out ch1.bundle.json
 python3 scripts/ds1000z_protocol.py screenshot assets/fixtures/screenshot-compact.bin --out screen.bmp
 python3 scripts/ds1000z_protocol.py block assets/fixtures/waveform-norm-block.bin
 python3 scripts/ds1000z_protocol.py cursor assets/fixtures/cursor-manual-values.txt --mode MAN
@@ -274,7 +276,7 @@ python3 scripts/ds1000z_protocol.py cursor assets/fixtures/cursor-manual-values.
 Stages: `read_frame` -> `parse_metadata` -> `extract_payload` -> `normalize` ->
 `validate`. Waveform stages: `parse_preamble` -> `parse_ieee_block` /
 `parse_block` -> `normalize_waveform` -> `validate`, with `iter_codes`,
-`sample_voltage`, and `waveform_to_csv` for the per-point view. Intermediate
+`sample_voltage`, `waveform_to_csv`, and `export_waveform_bundle` (`waveform-bundle/v1`) for the per-point and portable-bundle views. Intermediate
 results stay inspectable.
 
 `scripts/ds1000z_session.py` is the live transport (standard-library `socket`,
