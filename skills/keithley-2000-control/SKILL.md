@@ -344,16 +344,15 @@ registers, and an explicit end-of-sequence check.
 
 Use these statuses conservatively:
 
-- `COMPLETE`: framing, required fields, expected count, and applicable status
-  checks pass for the stated claim.
-- `INCOMPLETE`: required response, unit, count, terminator, or sequence evidence
-  is missing.
-- `INVALID`: framing, numeric, ordering, or declared/observed constraints
-  contradict the raw bytes.
-- `UNVERIFIED`: parsing succeeded but freshness, calibration, fuse state,
-  configuration, or acquisition completeness is not proven.
-- `UNSUPPORTED`: this Skill does not implement the response format or feature
-  prerequisite.
+- `COMPLETE`: every applicable **structural and count** check passes for the stated claim (framing, required fields, point/row counts, terminator); it never means the data is correct, covers what the caller wanted, or is within calibration.
+- `INCOMPLETE`: a required byte, terminator, field, point, segment, or status element is missing.
+- `INVALID`: framing, counts, or type constraints contradict the observed bytes.
+- `UNVERIFIED`: parsing found no contradiction, but the available evidence cannot prove completeness, units, calibration, or acquisition state.
+- `UNSUPPORTED`: this Skill does not implement that response shape or feature.
+
+A structural status never stands in for a different claim: **bytes complete**,
+**scale usable**, **same frame**, and **the number is a physical level** are four
+separate conclusions. Where an artifact reports one of them, it names it.
 
 Never call a valid-looking number calibrated, fresh, complete, or hardware
 verified without the corresponding evidence. Keep `documented`,

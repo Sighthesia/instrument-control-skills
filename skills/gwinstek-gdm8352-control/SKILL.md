@@ -197,12 +197,15 @@ do not interpret later readings as GDM-8352 data.
 
 ## Integrity statuses
 
-- `COMPLETE`: framing and every required field agree with the stated claim.
-- `INCOMPLETE`: a terminator, field, or value is missing.
-- `INVALID`: the bytes contradict a framing, numeric, unit, or identity rule.
-- `UNVERIFIED`: parsing succeeded but a semantic or completeness claim cannot be
-  proven (second `READ?` display, unitless response, return layout).
-- `UNSUPPORTED`: the query or response shape is not implemented.
+- `COMPLETE`: every applicable **structural and count** check passes for the stated claim (framing, required fields, point/row counts, terminator); it never means the data is correct, covers what the caller wanted, or is within calibration.
+- `INCOMPLETE`: a required byte, terminator, field, point, segment, or status element is missing.
+- `INVALID`: framing, counts, or type constraints contradict the observed bytes.
+- `UNVERIFIED`: parsing found no contradiction, but the available evidence cannot prove completeness, units, calibration, or acquisition state.
+- `UNSUPPORTED`: this Skill does not implement that response shape or feature.
+
+A structural status never stands in for a different claim: **bytes complete**,
+**scale usable**, **same frame**, and **the number is a physical level** are four
+separate conclusions. Where an artifact reports one of them, it names it.
 
 Never pad, truncate, clamp, interpolate, guess a missing calibration, or merge a
 failed/retried read into a complete result.

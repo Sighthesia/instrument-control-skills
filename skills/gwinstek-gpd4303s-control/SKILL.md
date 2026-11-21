@@ -217,15 +217,15 @@ Exit codes: `0` parsed, `1` an integrity failure (`INVALID`/`INCOMPLETE`/
 
 ## Integrity statuses
 
-- `COMPLETE`: framing, required fields, and the unit/quantity agreement hold for
-  the stated claim.
-- `INCOMPLETE`: a terminator, field, or unit is missing, so the value cannot be
-  attributed.
-- `INVALID`: framing, numeric, unit, or identity constraints contradict the raw
-  bytes.
-- `UNVERIFIED`: parsing succeeded, but completeness or semantics (the `STATUS?`
-  bit order, sequential V/I reads, uncalibrated read-back) cannot be proven.
-- `UNSUPPORTED`: the response shape or message is not one this Skill implements.
+- `COMPLETE`: every applicable **structural and count** check passes for the stated claim (framing, required fields, point/row counts, terminator); it never means the data is correct, covers what the caller wanted, or is within calibration.
+- `INCOMPLETE`: a required byte, terminator, field, point, segment, or status element is missing.
+- `INVALID`: framing, counts, or type constraints contradict the observed bytes.
+- `UNVERIFIED`: parsing found no contradiction, but the available evidence cannot prove completeness, units, calibration, or acquisition state.
+- `UNSUPPORTED`: this Skill does not implement that response shape or feature.
+
+A structural status never stands in for a different claim: **bytes complete**,
+**scale usable**, **same frame**, and **the number is a physical level** are four
+separate conclusions. Where an artifact reports one of them, it names it.
 
 Never silently pad, truncate, clamp, interpolate, or guess. A parsed value is
 not proof of a calibrated output or of a de-energised terminal.

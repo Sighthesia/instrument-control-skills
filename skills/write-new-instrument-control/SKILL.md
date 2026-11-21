@@ -133,15 +133,15 @@ analysis_allowed: code-domain-only
 
 Use these primary statuses:
 
-- `COMPLETE`: all applicable structural checks pass and required evidence exists
-  for the stated claim.
-- `INCOMPLETE`: required bytes, samples, segments, records, or end markers are
-  missing.
-- `INVALID`: framing, metadata, checksum, ordering, or type constraints contradict
-  the observed artifact.
-- `UNVERIFIED`: parsing succeeded, but evidence cannot prove completeness, units,
-  calibration, or acquisition state.
-- `UNSUPPORTED`: the new Skill deliberately does not implement the format or claim.
+- `COMPLETE`: every applicable **structural and count** check passes for the stated claim (framing, required fields, point/row counts, terminator); it never means the data is correct, covers what the caller wanted, or is within calibration.
+- `INCOMPLETE`: a required byte, terminator, field, point, segment, or status element is missing.
+- `INVALID`: framing, counts, or type constraints contradict the observed bytes.
+- `UNVERIFIED`: parsing found no contradiction, but the available evidence cannot prove completeness, units, calibration, or acquisition state.
+- `UNSUPPORTED`: this Skill does not implement that response shape or feature.
+
+A structural status never stands in for a different claim: **bytes complete**,
+**scale usable**, **same frame**, and **the number is a physical level** are four
+separate conclusions. Where an artifact reports one of them, it names it.
 
 Individual checks use `pass`, `fail`, or `not_checked`. Compare declared and
 observed lengths, multiply element count by bytes per element, verify segment

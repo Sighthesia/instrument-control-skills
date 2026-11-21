@@ -288,15 +288,15 @@ with the observed before/after values in `mode_restore`.
 
 ## Integrity statuses
 
-- `COMPLETE`: framing, required fields, units, and applicable structural
-  checks pass for the stated claim.
-- `INCOMPLETE`: a required byte, terminator, field, point, or response element
-  is missing (including `9.9E37` and queue overflow).
-- `INVALID`: framing, numeric, field, or type constraints contradict the raw
-  bytes.
-- `UNVERIFIED`: parsing succeeded but calibration, freshness, undocumented
-  metadata, or hardware acceptance is not proven.
-- `UNSUPPORTED`: the response shape or feature is not implemented.
+- `COMPLETE`: every applicable **structural and count** check passes for the stated claim (framing, required fields, point/row counts, terminator); it never means the data is correct, covers what the caller wanted, or is within calibration.
+- `INCOMPLETE`: a required byte, terminator, field, point, segment, or status element is missing.
+- `INVALID`: framing, counts, or type constraints contradict the observed bytes.
+- `UNVERIFIED`: parsing found no contradiction, but the available evidence cannot prove completeness, units, calibration, or acquisition state.
+- `UNSUPPORTED`: this Skill does not implement that response shape or feature.
+
+A structural status never stands in for a different claim: **bytes complete**,
+**scale usable**, **same frame**, and **the number is a physical level** are four
+separate conclusions. Where an artifact reports one of them, it names it.
 
 Never silently pad, truncate, clamp, interpolate, or guess. Line responses keep
 the raw bytes as SHA-256 (and note whether the frame carried a terminator);
