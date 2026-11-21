@@ -59,8 +59,14 @@ where the raw reply is cited. Skills without a `SUPPORT.md` say so in their
 npx skills@latest add Sighthesia/instrument-control-skills
 ```
 
-Offline / manual: copy or symlink any Skill directory under `skills/` into an
-agent's skills directory (for OpenCode, e.g. `~/.config/opencode/skills/`).
+Every Skill under `skills/` is standalone and independently installable — no Skill
+requires another Skill to be installed. Device Skills export portable
+`waveform-bundle/v1` files (and raw captures) on their own; install
+`oscilloscope-waveform-analysis` only if you also want automated offline signal
+analysis.
+
+Offline / manual: copy or symlink any single Skill directory under `skills/` into
+an agent's skills directory (for OpenCode, e.g. `~/.config/opencode/skills/`).
 
 ## Contributing
 

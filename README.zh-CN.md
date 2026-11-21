@@ -54,7 +54,11 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 npx skills@latest add Sighthesia/instrument-control-skills
 ```
 
-离线 / 手动安装：把 `skills/` 下的某个 Skill 目录复制或软链接到 agent 的
+`skills/` 下每个 Skill 均完全独立、可单独安装，互不强制依赖。设备控制类 Skill
+可独立完成采集并导出通用 `waveform-bundle/v1`（及原始响应）；仅在需要自动化
+离线波形分析时再按需安装 `oscilloscope-waveform-analysis`。
+
+离线 / 手动安装：把 `skills/` 下的任意单个 Skill 目录复制或软链接到 agent 的
 skills 目录（OpenCode 例如 `~/.config/opencode/skills/`）。
 
 ## 贡献
