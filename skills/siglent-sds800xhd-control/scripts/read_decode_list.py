@@ -338,13 +338,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Exit code must say whether evidence exists, not merely that the run did not
     # raise: a query that answered nothing is not "zero events decoded".
-    queries = report.get("queries") or {}
-    answered = [item for item in queries.values() if isinstance(item, dict) and item.get("bytes")]
-    unanswered = [name for name, item in queries.items() if isinstance(item, dict) and not item.get("bytes")]
-    if not answered:
+    entries = [item for item in (report.get("queries") or []) if isinstance(item, dict)]
+    answered = [item for item in entries if item.get("bytes")]
+    if entries and not answered:
         print(
-            f"no decode evidence: {len(unanswered)} quer{'y' if len(unanswered) == 1 else 'ies'} "
-            "returned 0 bytes; this is not evidence of zero events",
+            f"no decode evidence: all {len(entries)} queries returned 0 bytes; "
+            "this is not evidence of zero events",
             file=sys.stderr,
         )
         return 3

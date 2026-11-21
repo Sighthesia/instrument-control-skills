@@ -1066,8 +1066,21 @@ def read_wav_segment(
     scope.write(f"WAV:POIN {count}", allow_after_stop=True)
     reported_start = _optional_int(scope.query_ascii("WAV:STAR?", allow_after_stop=True))
     reported_count = _optional_int(scope.query_ascii("WAV:POIN?", allow_after_stop=True))
-    if reported_start is not None and reported_start != start:
+    if reported_start is None:
+        # Fail closed. The readback is the only authority for which samples came
+        # back: without it a device that ignores WAV:STAR answers every segment
+        # with the same block, every length check passes, and the caller sees the
+        # record duplicated rather than missing.
+        raise ScopeProtocolError(
+            f"segment {start}: WAV:STAR? was unparseable, so the returned sample range is unknown; "
+            "refusing to treat this as a valid segment"
+        )
+    if reported_start != start:
         raise ScopeProtocolError(f"scope selected start {reported_start}; expected {start}")
+    if reported_count is not None and reported_count != count:
+        raise ScopeProtocolError(
+            f"segment {start}: scope reported {reported_count} points; requested {count}"
+        )
     block = scope.query_block("WAV:DATA?", allow_after_stop=True)
     actual_bytes = len(block.payload)
     if actual_bytes % bytes_per_point:
