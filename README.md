@@ -22,14 +22,17 @@ evidence labels.
 
 | Skill | Manual coverage | Auxiliary tooling |
 |---|---|---|
-| `siglent-sds800xhd-control` | Manual index: 873 rows (`grep -c '^|'`), parameters transcribed | 11 scripts: `waveform_analysis`, `waveform_scan`, `capture_scope` … |
-| `keithley-2000-control` | 11/11 panel functions; 287 index rows with transcribed parameters | `keithley2000_session`: dry run, raw capture, lock |
-| `gwinstek-gdm8352-control` | Read-only subset; writes refused; 173 index rows (`grep -c '^|'`) | `gdm8352_session`: dry run, whitelist, sha256 fixtures |
+| `siglent-sds800xhd-control` | Manual index: 873 rows, parameters transcribed | 11 scripts: `waveform_analysis`, `waveform_scan`, `capture_scope` … |
+| `keithley-2000-control` | 11/11 panel functions; 287 index rows, parameters transcribed | `keithley2000_session`: dry run, raw capture, lock |
+| `gwinstek-gdm8352-control` | Read-only subset; writes refused; 173 index rows | `gdm8352_session`: dry run, whitelist, sha256 fixtures |
 | `gwinstek-afg2225-control` | Partial: ARB/IEEE block builders and parsers; 13 unit tables | `afg2225_protocol`: ARB/IEEE block codec, error queue |
-| `gwinstek-gpd4303s-control` | Read-only subset; writes refused; 48 index rows (`grep -c '^|'`) | `gpd4303s_protocol`/`_session`: `STATUS?` decode, dry run |
-| `gwinstek-gds1000b-control` | Partial: measurements and waveform download; 450 index rows (`grep -c '^|'`) | `gds1000b_protocol`: IEEE block, offline waveform check |
-| `rigol-ds1000z-control` | Manual index: 500 rows (`grep -c '^|'`), parameters transcribed | `ds1000z_protocol`/`_session`: IEEE block, preamble-to-volts, BMP trim, cursor readout, lockstep TCP |
+| `gwinstek-gpd4303s-control` | Read-only subset; writes refused; 48 index rows | `gpd4303s_protocol`/`_session`: `STATUS?` decode, dry run |
+| `gwinstek-gds1000b-control` | Partial: measurements and waveform download; 450 index rows | `gds1000b_protocol`: IEEE block, offline waveform check |
+| `rigol-ds1000z-control` | Manual index: 500 rows, parameters transcribed | `ds1000z_protocol`/`_session`: IEEE block, preamble-to-volts, BMP trim, cursor readout, lockstep TCP |
 | `write-new-instrument-control` | n/a: no device commands | parser templates, framing examples, integrity statuses |
+
+Index row counts are `grep -c '^|'` over each Skill's committed
+`references/command-reference.md`; re-derive them rather than trusting this table.
 
 ## Hints and known issues
 
