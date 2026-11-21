@@ -305,6 +305,49 @@ def run_modern_probes(
     return probes
 
 
+MEASURE_METRICS = ("PKPK", "TOP", "BASE")
+
+
+def read_instrument_measurements(scope, channels, *, timeout_s: float = 4.0) -> dict:
+    """Record the instrument's own level readings for the captured channel.
+
+    Structural checks never prove a physical level, so the analysis needs an
+    independent number from the same acquisition. The reply shape on
+    `4.8.12.1.1.6.5` is a bare NR3 (`3.04167E+00`), and the raw text is kept so a
+    reader can see exactly what was compared.
+
+    After `Stop` this session refuses every write, including `MEAS:SOUR` (the
+    frozen-command rule), and `:MEASure:SOURce?` is not an implemented header on
+    this firmware. The reading is therefore taken from whatever source the front
+    panel selected and recorded under that channel only when it can be
+    established; otherwise it is recorded under `"unattributed"` so the analysis
+    never attributes it to the wrong channel.
+    """
+
+    recorded: dict[str, dict[str, object]] = {}
+    per_channel: dict[str, object] = {}
+    for metric in MEASURE_METRICS:
+        raw = scope.query_ascii(f":MEASure:SIMPle:VALue? {metric}", allow_after_stop=True)
+        value = numeric_response(raw)
+        if value is None:
+            continue
+        per_channel[metric.lower()] = {
+            "value": value,
+            "unit": "V",
+            "raw": raw.strip(),
+            "metric": metric,
+        }
+    if not per_channel:
+        return recorded
+    per_channel["queried_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    # A single-channel capture can be attributed safely; with several channels the
+    # source is unknowable after Stop, so the reading is not bound to any of them.
+    key = channels[0] if len(channels) == 1 else "unattributed"
+    per_channel["source_attribution"] = "single-captured-channel" if len(channels) == 1 else "unknown_after_stop"
+    recorded[key] = per_channel
+    return recorded
+
+
 def read_modern_channel(
     scope: ScopeSession,
     root: Path,
@@ -441,7 +484,11 @@ def read_legacy_channel(scope: ScopeSession, root: Path, channel: str, read_desc
     payload_path.write_bytes(block.payload)
     raw_path.write_bytes(block.raw)
     prefix_path.write_bytes(block.prefix)
-    result = {"channel": channel, "mode": scope.capture_mode, "payload_points": len(block.payload), "payload": str(payload_path), "raw_response": str(raw_path), "prefix": str(prefix_path), "sha256": block.sha256}
+    # The payload length is bytes, never points: DAT2 on this firmware carries
+    # two bytes per sample, so counting bytes as points doubles the record and
+    # makes every point-count comparison meaningless. The point count is derived
+    # from the descriptor width once DESC arrives.
+    result = {"channel": channel, "mode": scope.capture_mode, "payload_bytes": len(block.payload), "payload_points": None, "payload": str(payload_path), "raw_response": str(raw_path), "prefix": str(prefix_path), "sha256": block.sha256}
     result["configuration_snapshot"] = {
         "vdiv": scope.query_ascii(f"{channel}:VDIV?", allow_after_stop=True),
         "offset": scope.query_ascii(f"{channel}:OFST?", allow_after_stop=True),
@@ -472,12 +519,23 @@ def add_legacy_descriptors(scope: ScopeSession, root: Path, channel_results: lis
         result["descriptor_prefix"] = str(prefix_path)
         expected = result["descriptor"].get("wave_array_count")
         interval = result["descriptor"].get("sample_interval")
+        width = int(result["descriptor"].get("data_width_bytes") or 1)
+        payload_bytes = int(result.get("payload_bytes") or 0)
+        if width <= 0:
+            raise ScopeProtocolError(f"{channel}: descriptor reports {width} bytes per point")
+        if payload_bytes % width:
+            raise ScopeProtocolError(
+                f"{channel}: payload {payload_bytes} bytes is not divisible by {width} B/point"
+            )
+        result["payload_points"] = payload_bytes // width
         result["frame_report"] = validate_frame(
             scope_points=expected,
             scope_duration_s=expected * interval if expected and interval is not None else None,
             wavedesc_points=expected,
             sample_interval_s=interval,
             downloaded_points=result["payload_points"],
+            downloaded_payload_bytes=payload_bytes,
+            bytes_per_point=width,
         )
         result.pop("descriptor_pending", None)
 
@@ -613,6 +671,12 @@ def main() -> int:
         else:
             raise SystemExit("Use --trigger for a new capture or --existing-stopped for the current stopped frame")
         manifest["state_evidence"] = [asdict(entry) for entry in scope.state_log]
+        # Same acquisition, same channel: this is the only independent number the
+        # offline analysis can compare a reconstructed level against.
+        try:
+            manifest["instrument_measurements"] = read_instrument_measurements(scope, args.channels)
+        except ScopeProtocolError as exc:
+            manifest["instrument_measurements_error"] = f"{type(exc).__name__}: {exc}"
         if args.mode == "modern":
             snapshot = manifest["capture_configuration"]["acquisition"]
             scope_points = args.scope_record_points

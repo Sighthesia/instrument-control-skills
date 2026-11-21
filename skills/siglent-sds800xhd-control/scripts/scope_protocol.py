@@ -300,7 +300,18 @@ class ScopeSession:
             screenshot_query = normalized == ":PRINT? PNG"
             waveform_transfer_write = self.capture_mode == "configured_capture" and normalized.startswith(("WAV:SOUR ", "WAV:WIDT ", "WAV:BYT ", "WAV:INT ", "WAV:STAR ", "WAV:POIN ")) and ";" not in normalized
             legacy_waveform_query = ":WF? DAT2" in normalized or ":WF? DESC" in normalized
-            if not (query_only or screenshot_query or waveform_transfer_write or legacy_waveform_query):
+            # Argument-bearing measurement queries are read-only and remain valid
+            # on a frozen frame; the level they report is the only independent
+            # number a reconstructed voltage can be checked against. The metric
+            # list is closed so no configuration write can slip through.
+            measurement_query = bool(
+                re.fullmatch(
+                    r":MEASURE:SIMPLE:VALUE\? (PKPK|TOP|BASE|MAX|MIN|RMS|AVER|FREQ|PERIOD|DUTY)",
+                    normalized,
+                )
+            )
+            if not (query_only or screenshot_query or waveform_transfer_write
+                    or legacy_waveform_query or measurement_query):
                 raise ScopeProtocolError(f"command forbidden after Stop: {command}")
         if normalized == "ARM" or normalized.startswith("ARM "):
             raise ScopeProtocolError("ARM is forbidden on SDS824X HD firmware")
