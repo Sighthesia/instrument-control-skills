@@ -169,7 +169,7 @@ SYSTem:ERRor?        # 循环读到 0,"No error" 为止；手册未记录，但�
 
 - 截图：发送 `:PRINt? PNG` 或 `:PRINt? BMP`，使用**保字节**读取器保存 payload；不能使用 `readline()`，也不能套用 `read_ieee_block()`——固件 `4.8.12.1.1.6.5` 实测为裸 PNG（无块头），须按 `IEND` + `LF` 有界读取并保留 SHA-256。
 - 波形：使用 `WAVeform:PREamble?`、`WAVeform:MAXPoint?`、`WAVeform:STARt`、`WAVeform:POINt`、`WAVeform:DATA?` 分段下载。现有 `capture_scope.py` 会保存每段 payload、前缀、响应、元数据和 SHA-256，并验证点数、字节数及连续范围。
-- 分析：先保留 `waveform.bin` 和 manifest，再用 `analyze_waveform.py` 在电脑端做有界分析；不要用 CSV/降采样结果替代原始证据。
+- 分析：先保留 `waveform.bin` 和 manifest，再用通用分析 Skill `oscilloscope-waveform-analysis` 的 `analyze_waveform.py` 在电脑端做有界分析；不要用 CSV/降采样结果替代原始证据。
 
 最小的 raw socket 结构示例：
 

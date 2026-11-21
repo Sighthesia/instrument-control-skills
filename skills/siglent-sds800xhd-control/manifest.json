@@ -13,7 +13,7 @@
     "channels": 4
   },
   "source": {
-    "operation": "raw TCP SCPI session, capture and waveform download, measurement readback, screenshot readback, decode list readback, offline waveform analysis and evidence reporting",
+    "operation": "raw TCP SCPI session, capture and waveform download with waveform-bundle/v1 export, measurement readback, screenshot readback, and decode list readback",
     "transport": "raw TCP port 5025 (exercised on hardware); legacy shell port 5024 is not used",
     "manual": {
       "title": "SDS800XHD Series Programming Guide",
@@ -36,7 +36,7 @@
   "support": {
     "level": "firmware-scoped",
     "hardware_verified": true,
-    "scope_note": "hardware_verified covers the session, capture, waveform download and :MEASure paths only. The :PRINt? reader, waveform_evidence.py and the decode-list reader are documented and offline-tested, not exercised on a physical instrument.",
+    "scope_note": "hardware_verified covers the session, capture, waveform download and :MEASure paths only. The :PRINt? reader, waveform-bundle/v1 export and the decode-list reader are documented and offline-tested, not exercised on a physical instrument. Offline waveform analysis lives in the sibling oscilloscope-waveform-analysis Skill.",
     "hardware_evidence": {
       "model": "SDS824X HD",
       "serial": "SDS08A0Q909185",
@@ -54,7 +54,7 @@
       "Probe ratio is never read back (:CHANnel<n>:PROBe? is called nowhere), so vdiv_with_probe is unverified.",
       "Offset sign and the offset*probe direction have no non-zero hardware reply, so they stay UNVERIFIED.",
       "No voltage calibration was performed; derived levels are OBSERVED_UNVERIFIED at best.",
-      "The :PRINt? PNG reader and waveform_evidence.py are documented and offline-tested only.",
+      "The :PRINt? PNG reader and waveform-bundle/v1 export are documented and offline-tested only; offline analysis and evidence reporting live in oscilloscope-waveform-analysis.",
       "Status words are reused across claims: VALID proves descriptor-versus-panel self-consistency, never an absolute voltage."
     ]
   },

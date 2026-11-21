@@ -60,10 +60,10 @@ Use `structure` as the fact layer before stating whether a signal was absent, dr
 **Agent workflow gate:** for any record-wide conclusion about periodic signal presence, frequency/duty stability, phase changes, or anomalies, `structure` over the full original-resolution record is mandatory first. If its coverage or completeness flags are not complete, the result is not evidence for a record-wide conclusion. When complete cycles exist or phase change is part of the question, run `regimes` on the same full record and thresholds; do not replace it with a screenshot, summary, fixed-window count, or paged `events` result. Report every returned regime, transition, unresolved phase, and anomaly, and use bounded `window` reads only to inspect their referenced samples. A non-periodic record may be marked regime-analysis-not-applicable only with the supporting structure evidence stated.
 
 ```text
-python3 scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-codes 20 35
-python3 scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-volts 0.8 2.0 --cluster-gap-s 0.002 --max-edges 20000
-python3 scripts/analyze_waveform.py regimes --capture /path/to/capture --channel C4 --threshold-codes 20 35 --measures auto --min-cycles-per-side 5
-python3 scripts/analyze_waveform.py regimes --capture /path/to/capture --channel C4 --threshold-codes 20 35 --measures duty_cycle,high_width_s --relative-tolerance 0.08
+python3 ../oscilloscope-waveform-analysis/scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-codes 20 35
+python3 ../oscilloscope-waveform-analysis/scripts/analyze_waveform.py structure --capture /path/to/capture --channel C4 --threshold-volts 0.8 2.0 --cluster-gap-s 0.002 --max-edges 20000
+python3 ../oscilloscope-waveform-analysis/scripts/analyze_waveform.py regimes --capture /path/to/capture --channel C4 --threshold-codes 20 35 --measures auto --min-cycles-per-side 5
+python3 ../oscilloscope-waveform-analysis/scripts/analyze_waveform.py regimes --capture /path/to/capture --channel C4 --threshold-codes 20 35 --measures duty_cycle,high_width_s --relative-tolerance 0.08
 ```
 
 The analyzer scans every original sample (`stride_used=1`) and emits the ordered threshold edge table, paired high-level pulses, pulse clusters, and classification basis. Each edge records its sample, interpolated crossing time, before/after codes, adjacent same-direction interval, and one-sample timing uncertainty. Each pulse references its edge IDs and sample/time span. A pulse touching a scan boundary without both threshold crossings is `INCOMPLETE`; its width is a lower bound, never padded or inferred. Clusters group observed pulses by low-level gap, with the default gap derived from observed pulse periods when available; cluster grouping is descriptive and does not replace the underlying edge/pulse table.

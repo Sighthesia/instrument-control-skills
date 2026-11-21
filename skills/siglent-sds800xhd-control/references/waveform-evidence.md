@@ -5,8 +5,8 @@ Load this reference when a capture must be described as an evidence package inst
 Do not read a million waveform points to answer those questions. Run the report, read its five axes, read its limitations and conflicts, and inspect only the bounded windows it returns.
 
 ```bash
-python3 scripts/waveform_evidence.py --capture /path/to/capture --channel C1 --out /outside/path/evidence.json
-python3 scripts/waveform_evidence.py --capture /path/to/capture --channel C1 \
+python3 ../oscilloscope-waveform-analysis/scripts/waveform_evidence.py --capture /path/to/capture --channel C1 --out /outside/path/evidence.json
+python3 ../oscilloscope-waveform-analysis/scripts/waveform_evidence.py --capture /path/to/capture --channel C1 \
     --range-start 150000 --range-end 175000 \
     --max-sample-interval-s 2e-6 --sampling-requirement-source "task states 500 kSa/s minimum" \
     --candidate-windows 4 --candidate-window-points 1024 \

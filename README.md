@@ -16,19 +16,21 @@ evidence labels.
 | [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | DC power supply | ✅ GPD-4303S |
 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | Oscilloscope | — |
 | [`rigol-ds1000z-control`](skills/rigol-ds1000z-control/SKILL.md) | Oscilloscope | ✅ DS1074Z |
+| [`oscilloscope-waveform-analysis`](skills/oscilloscope-waveform-analysis/SKILL.md) | Offline waveform analysis | — (offline; tested with DS1074Z / SDS824X HD fixtures) |
 | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | Authoring guide | — |
 
 ## Capabilities
 
 | Skill | Manual coverage | Auxiliary tooling |
 |---|---|---|
-| `siglent-sds800xhd-control` | Manual index: 873 rows, parameters transcribed | 11 scripts: `waveform_analysis`, `waveform_scan`, `capture_scope` … |
+| `siglent-sds800xhd-control` | Manual index: 873 rows, parameters transcribed | 7 scripts: `capture_scope` (`waveform-bundle/v1`), `scope_protocol`, `configure_scope`, `screenshot_capture`, `read_decode_list` … |
 | `keithley-2000-control` | 11/11 panel functions; 287 index rows, parameters transcribed | `keithley2000_session`: dry run, raw capture, lock |
 | `gwinstek-gdm8352-control` | Read-only subset; writes refused; 173 index rows | `gdm8352_session`: dry run, whitelist, sha256 fixtures |
 | `gwinstek-afg2225-control` | Partial: ARB/IEEE block builders and parsers; 13 unit tables | `afg2225_protocol`: ARB/IEEE block codec, error queue |
 | `gwinstek-gpd4303s-control` | Read-only subset; writes refused; 48 index rows | `gpd4303s_protocol`/`_session`: `STATUS?` decode, dry run |
-| `gwinstek-gds1000b-control` | Partial: measurements and waveform download; 450 index rows | `gds1000b_protocol`: IEEE block, offline waveform check |
-| `rigol-ds1000z-control` | Manual index: 500 rows, parameters transcribed | `ds1000z_protocol`/`_session`: IEEE block, preamble-to-volts, BMP trim, cursor readout, lockstep TCP |
+| `gwinstek-gds1000b-control` | Partial: measurements and waveform download; 450 index rows | `gds1000b_protocol`/`_session`: IEEE block, `waveform-bundle/v1` export, offline check |
+| `rigol-ds1000z-control` | Manual index: 500 rows, parameters transcribed | `ds1000z_protocol`/`_session`: IEEE block, `waveform-bundle/v1` export, BMP trim, cursor readout, lockstep TCP |
+| `oscilloscope-waveform-analysis` | n/a: vendor-neutral offline analyzer (`numpy`) | `analyze_waveform`, `waveform_bundle`, `waveform_analysis`, `waveform_scan`, `waveform_evidence`: `waveform-bundle/v1` / CSV / NPZ, pulse structure, regimes, ringing, verdict gate, SVG |
 | `write-new-instrument-control` | n/a: no device commands | parser templates, framing examples, integrity statuses |
 
 Index row counts are `grep -c '^|'` over each Skill's committed

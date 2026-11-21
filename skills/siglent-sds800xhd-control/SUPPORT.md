@@ -14,7 +14,7 @@
 | Capture and waveform download (descriptor, segments, hashes) | `hardware-verified` | capture manifest records and the frame/segment reports in `scripts/scope_protocol.py` |
 | `:MEASure` readings | `hardware-verified` | `references/signal-discovery-and-measurement.md` |
 | `:PRINt?` PNG screenshot reader | `documented` + offline-tested | `SKILL.md:141`, `:256` — explicit "not yet exercised against a physical instrument" |
-| `waveform_evidence.py` five-axis report | `documented` + offline-tested | `SKILL.md:266` — same caveat |
+| `waveform-bundle/v1` export (`capture_scope.py`) | `documented` + offline-tested | offline tests in `scripts/test_scope_protocol.py`; offline analysis & five-axis evidence live in `oscilloscope-waveform-analysis` |
 | Reconstituted voltages from codes | `hardware-verified` for the cross-check, `OBSERVED_UNVERIFIED` for absolute accuracy | 2026-11-21: reconstructed PKPK 3.0417 V vs the instrument's 3.04167 V (\|diff\| 0.00003 <= tolerance 0.0611, `level_confirmed: PASS`); a fabricated 5.0 V reconstruction on the same capture is `FAIL`. Scale derived from descriptor `vdiv=0.1 x probe=10` = panel `1.00E+00V`, `code_per_div=7680`. Evidence: `artifacts/hw-verify/2026-11-21-sds824xhd.md` (local). |
 | Probe ratio readback | `hardware-verified` | `:CHANnel1:PROB?` answers `1.00E+01` (10x). The long forms `:CHANnel1:VDIV?`/`:OFST?` are `-113 Undefined header`; only `C1:VDIV?`/`C1:OFST?` work and they echo `C1:VDIV 1.00E+00V`. |
 | Decode list contents | `UNVERIFIED` for completeness | `row_count`/`raw_sha256`/`terminator` were not recorded by the reader at the time of writing |
