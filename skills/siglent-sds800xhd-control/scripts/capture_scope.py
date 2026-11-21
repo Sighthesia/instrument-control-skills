@@ -99,6 +99,43 @@ def channel_mapping_declaration(text: Optional[str]) -> dict:
     }
 
 
+def wait_armed_capture(scope, *, ready_timeout_s: float, stop_timeout_s: float, poll_s: float) -> dict:
+    """Wait for a single-shot acquisition, tolerating a fast trigger.
+
+    On a live signal the acquisition can complete between the `TRMD SINGLE` write
+    and the first poll, so the READY state is never observed. That is a successful
+    capture, not a failure: the frame exists and `SAST?` reads Stop. Polling only
+    for Ready first would report "Stop observed before Ready" and throw the frame
+    away — the defect reproduced on 2026-11-21 with a 1 kHz square.
+    """
+
+    deadline = time.monotonic() + ready_timeout_s + stop_timeout_s
+    saw_ready = False
+    while time.monotonic() < deadline:
+        observed = scope.query_state()
+        state = observed.normalized
+        if state == "ROLL":
+            raise ScopeProtocolError(
+                "scope is in Roll mode (:ACQuire:MODE ROLL); Roll never reaches Ready, "
+                "so it cannot support the Ready -> Stop single-shot flow. Leave Roll "
+                "(:ACQuire:MODE YT) before arming a capture"
+            )
+        if state == "READY":
+            saw_ready = True
+        elif state == "STOP":
+            return {
+                "saw_ready": saw_ready,
+                "fast_stop_before_ready": not saw_ready,
+                "raw": observed.raw,
+                "normalized": state,
+            }
+        time.sleep(poll_s)
+    raise ScopeProtocolError(
+        "timed out waiting for the single-shot acquisition to stop "
+        f"(ready={saw_ready}); check the trigger condition or raise --stop-timeout"
+    )
+
+
 def wait_state(scope: ScopeSession, wanted: str, timeout_s: float, poll_s: float) -> dict:
     """Poll ``SAST?`` until the canonical state matches ``wanted``.
 
@@ -278,7 +315,13 @@ def run_modern_probes(
 
     probes: list[dict] = []
     for index, requested in enumerate(probe_points):
+        # A probe may not ask for more points than the record holds: on a 100 kpt
+        # record the default 1,000,000-point probe makes the scope answer with
+        # 100,000 and the mismatch looks like a transfer failure.
         count = min(requested, max_points)
+        record_points = preamble.get("record_points_authority")
+        if record_points:
+            count = min(count, int(record_points))
         if count <= 0:
             continue
         segment, metadata = read_modern_segment(
@@ -390,6 +433,25 @@ def read_modern_channel(
     preamble_block = scope.query_block("WAV:PRE?", allow_after_stop=True)
     preamble = parse_wavedesc(preamble_block.payload)
     expected_points = preamble["wave_array_count"]
+    # `WAV:PRE?` describes the *transfer window* (`WFSU NP`), not the acquired
+    # record: with WFSU NP=1000000 and ACQ:POINts=100000 the preamble claims
+    # 1,000,000 points and the scope answers with 100,000, so a window based on
+    # the preamble refuses every segment. When the caller knows the record length,
+    # that is the authority for how many points can exist.
+    record_points = None
+    if scope_record_points is not None:
+        try:
+            record_points = int(float(scope_record_points))
+        except (TypeError, ValueError):
+            record_points = None
+    if record_points and record_points > 0:
+        # Publish the record length unconditionally: the probe sizes and the
+        # segment window both have to be bounded by it, not only when the
+        # transfer window happens to be larger.
+        preamble["record_points_authority"] = record_points
+        if expected_points > record_points:
+            preamble["transfer_window_points"] = expected_points
+            expected_points = record_points
     bytes_per_point = width_selection["bytes_per_point"]
     if preamble["data_width_bytes"] != bytes_per_point:
         raise ScopeProtocolError(
@@ -397,8 +459,13 @@ def read_modern_channel(
         )
     if bytes_per_point == 2 and preamble["byte_order"] != "LSB":
         raise ScopeProtocolError(f"requested LSB WORD transfer, WAVEDESC reports {preamble['byte_order']}")
-    if preamble["wave_array_1_bytes"] != expected_points * bytes_per_point:
-        raise ScopeProtocolError(f"WAVEDESC reports {expected_points} points but {preamble['wave_array_1_bytes']} bytes at {bytes_per_point} B/point")
+    declared_bytes = preamble["wave_array_1_bytes"]
+    if declared_bytes not in (expected_points * bytes_per_point,
+                              preamble["wave_array_count"] * bytes_per_point):
+        raise ScopeProtocolError(
+            f"WAVEDESC reports {preamble['wave_array_count']} points but {declared_bytes} bytes "
+            f"at {bytes_per_point} B/point"
+        )
     max_points_text = scope.query_ascii("WAV:MAXP?", allow_after_stop=True)
     max_points_value = numeric_response(max_points_text)
     if max_points_value is None or max_points_value <= 0:
@@ -661,9 +728,25 @@ def main() -> int:
         if trigger_strategy is not None:
             manifest["capture_configuration"]["left_aligned_trigger"] = trigger_strategy
         if args.trigger:
+            # Arming from an already-stopped scope cannot produce a Ready -> Stop
+            # transition: the wait would see Stop first and report a confusing
+            # "Stop observed before Ready". Say what to do instead.
+            before = scope.query_state()
+            if before.normalized == "STOP":
+                raise ScopeProtocolError(
+                    "scope is already Stop, so arming a single shot cannot produce a "
+                    "Ready -> Stop transition; read the existing frame with "
+                    "--existing-stopped, or put the scope back in run mode first"
+                )
             scope.write("TRMD SINGLE")
-            manifest["ready_state"] = wait_state(scope, "READY", args.ready_timeout, args.poll)
-            manifest["stop_state"] = wait_state(scope, "STOP", args.stop_timeout, args.poll)
+            armed = wait_armed_capture(
+                scope,
+                ready_timeout_s=args.ready_timeout,
+                stop_timeout_s=args.stop_timeout,
+                poll_s=args.poll,
+            )
+            manifest["armed_transition"] = armed
+            manifest["stop_state"] = {"wanted": "STOP", "raw": armed["raw"], "normalized": armed["normalized"]}
         elif args.existing_stopped:
             existing = scope_assume_existing_stop(scope)
             manifest["existing_stop_state"] = {"raw": existing.raw, "normalized": existing.normalized}

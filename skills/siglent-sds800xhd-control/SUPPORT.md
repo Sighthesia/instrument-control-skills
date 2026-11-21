@@ -21,14 +21,18 @@
 
 ## Known defects (open at the time of this record)
 
-- **Arming is unreliable (open, hardware-verified 2026-11-21).** `TRMD SINGLE` on an
-  already-stopped scope makes the READY→STOP wait see Stop first ("Stop observed
-  before Ready"); arming from a running scope fails the same way on a 1 kHz signal
-  because the acquisition completes before the first poll.
-- **Modern transfer window can exceed the record (open, hardware-verified
-  2026-11-21).** `WFSU NP=1000000` with `ACQ:POINts=100000` makes the modern
-  preamble report 1,000,000 points while the scope returns 100,000, so every
-  segment is refused on that frame. Only the legacy path captures it.
+- **Arming (fixed 2026-11-21, hardware-verified).** A single shot that completes
+  before the first `SAST?` poll no longer discards the frame, and arming an
+  already-stopped scope is refused with an instruction to use
+  `--existing-stopped`.
+- **Modern transfer window (fixed 2026-11-21, hardware-verified).** When `WFSU NP`
+  exceeds `ACQ:POINts` the preamble reports the transfer window, not the record;
+  the record length is now the authority for both the segment window and the
+  probe sizes (frame and segment COMPLETE, 100000 points).
+- **Modern WORD captures report `units: code`.** No `code_scale_v` is derived from
+  `code_per_div*256`, so `scale_usable` and `level_confirmed` stay `UNKNOWN`
+  (`level_reason: code_scale_unknown`) until an external calibration file is
+  supplied. Absolute levels are confirmed only on the byte-domain path.
 - **Voltage path can report a wrong level as valid.** Five independent paths were
   reproduced offline — including a reply from another channel accepted as this
   channel's V/div, an ampere scale reported as volts, and a legacy capture whose

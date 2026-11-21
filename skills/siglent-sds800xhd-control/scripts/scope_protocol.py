@@ -248,6 +248,10 @@ class ScopeSession:
         self.stopped = False
         self.ready_seen = False
         self.roll_seen = False
+        # A single-shot arm can complete before the first SAST? poll, so a Stop
+        # with no observed Ready is a successful capture when we armed it.
+        self.armed_single_shot = False
+        self.fast_stop_before_ready = False
         self.expected_channels: set[str] = {"C1", "C2", "C3", "C4"}
         self.dat2_channels: set[str] = set()
         self.capture_mode = "immutable_capture"
@@ -319,6 +323,9 @@ class ScopeSession:
     def write(self, command: str, *, allow_after_stop: bool = False, explicit_release: bool = False) -> None:
         io = self._require_open()
         self._check_allowed(command, explicit_release=explicit_release)
+        normalized_command = command.strip().upper()
+        if normalized_command.startswith("TRMD SINGLE"):
+            self.armed_single_shot = True
         wire = command.rstrip("\r\n").encode("ascii") + b"\n"
         self.sock.sendall(wire)  # type: ignore[union-attr]
         self.events.append(CommandEvent(command=command.rstrip("\r\n"), sent_at=time.time()))
@@ -370,7 +377,11 @@ class ScopeSession:
             self.roll_seen = True
         elif normalized == "STOP":
             if not self.ready_seen:
-                raise ScopeProtocolError("Stop observed before Ready")
+                if not self.armed_single_shot:
+                    raise ScopeProtocolError("Stop observed before Ready")
+                # The armed acquisition finished before the first poll: keep the
+                # frame and record how it was reached instead of discarding it.
+                self.fast_stop_before_ready = True
             self.stopped = True
         return observed
 
