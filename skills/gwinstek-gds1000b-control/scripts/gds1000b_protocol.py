@@ -1152,6 +1152,251 @@ def waveform_to_csv(
 
 
 # ---------------------------------------------------------------------------
+# waveform-bundle/v1 export
+# ---------------------------------------------------------------------------
+
+BUNDLE_SCHEMA = "waveform-bundle/v1"
+BUNDLE_VENDOR = "gwinstek"
+# SKILL.md and references/capture-and-waveform.md fix this Skill's evidence label:
+# the documented `(code / 25) * Vertical Scale` conversion is never
+# hardware-verified here, so a bundle must never claim a VERIFIED scale.
+BUNDLE_CALIBRATION_STATUS = "UNVERIFIED"
+BUNDLE_CALIBRATION_SOURCE = "gds1000b_header"
+BUNDLE_SCALE_REASONS = ("gds1000b_voltage_scale_unverified_on_hardware",)
+BUNDLE_ADC_MIN_CODE = -32768
+BUNDLE_ADC_MAX_CODE = 32767
+_BUNDLE_CHANNEL_RE = re.compile(r"^(?:CH)?([1-4])$", re.IGNORECASE)
+
+
+def _write_bytes_atomic(destination: Path, data: bytes) -> None:
+    """Write bytes through a temporary file so a failure leaves no half file."""
+
+    temporary = destination.with_name(destination.name + ".tmp")
+    try:
+        temporary.write_bytes(data)
+        temporary.replace(destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _bundle_channel_label(channel: int | str | None) -> str | None:
+    """Return the ``CH<X>`` label a bundle records for one channel."""
+
+    if channel is None:
+        return None
+    match = _BUNDLE_CHANNEL_RE.fullmatch(str(channel).strip())
+    if not match:
+        raise ProtocolError(f"channel must be 1-4 or CH1-CH4, got {channel!r}", "INVALID")
+    return f"CH{match.group(1)}"
+
+
+def _bundle_stem(name: str | None, channel: str | None) -> str:
+    """Return the file stem shared by ``<name>.bin`` and ``<name>.bundle.json``."""
+
+    if name is None:
+        return f"waveform-{channel.lower()}" if channel else "waveform"
+    stem = str(name).strip()
+    if not stem or stem in {".", ".."} or "\\" in stem or Path(stem).name != stem:
+        raise ProtocolError(f"bundle name must be a plain file stem, got {name!r}", "INVALID")
+    return stem
+
+
+def _bundle_timebase(artifact: dict[str, Any]) -> float | None:
+    """Return the recorded ``Horizontal Scale`` in s/div, or ``None``."""
+
+    text = (artifact.get("header") or {}).get("Horizontal Scale")
+    if not text:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) and value > 0 else None
+
+
+def _bundle_model(idn: str | None) -> str | None:
+    """Return the model field of a ``*IDN?`` response, or ``None``."""
+
+    if not isinstance(idn, str):
+        return None
+    fields = [part.strip() for part in idn.split(",")]
+    return fields[1] if len(fields) > 1 and fields[1] else None
+
+
+def _bundle_provenance(raw_file: str | Path | None, directory: Path, response_sha256: str) -> dict[str, Any]:
+    """Describe the exported response and, when one was kept, the raw file.
+
+    ``raw_sha256`` starts as the hash of the response that was parsed; when a
+    raw file is named it is read back and hashed instead, so the bundle never
+    records a hash that does not describe the file it names.
+    """
+
+    provenance: dict[str, Any] = {
+        "raw_file": None,
+        "raw_sha256": response_sha256,
+        "new_transition_proven": None,
+        "screen_range": None,
+        "screenshot": None,
+    }
+    if raw_file is None:
+        return provenance
+    raw_path = Path(raw_file)
+    provenance["raw_sha256"] = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+    provenance["raw_file"] = (
+        raw_path.name if raw_path.resolve().parent == directory.resolve() else str(raw_file)
+    )
+    return provenance
+
+
+def export_waveform_bundle(
+    raw: bytes,
+    *,
+    out_dir: str | Path,
+    name: str | None = None,
+    channel: int | str | None = None,
+    idn: str | None = None,
+    captured_at: str | None = None,
+    raw_file: str | Path | None = None,
+    instrument_measurements: dict[str, Any] | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Write one ``waveform-bundle/v1`` pair and return the export summary.
+
+    ``<name>.bin`` holds the payload bytes exactly as received (``>i2``,
+    ``byte_offset=0``) and ``<name>.bundle.json`` references it, so the offline
+    analysis Skill can read this capture without importing this module.
+    ``name`` defaults to ``waveform`` or ``waveform-ch<n>``.
+
+    The vertical block states the documented conversion verbatim: ``zero_code``
+    and ``offset_v`` stay ``0.0`` and ``code_scale_v`` is ``Vertical Scale / 25``,
+    so ``(sample - zero_code) * code_scale_v + offset_v`` reproduces
+    ``sample_value(code, vertical_scale)``. The scale itself stays
+    ``UNVERIFIED``: this Skill never claims a hardware-verified voltage
+    transfer function.
+
+    Anything short of a ``COMPLETE`` parse is refused with ``ProtocolError``
+    (a ``ValueError``); no fragment of a bundle is written.
+    """
+
+    artifact = parse_waveform(bytes(raw))
+    status = artifact["status"]
+    if status != "COMPLETE":
+        reasons = "; ".join(artifact.get("reasons") or []) or "integrity checks did not all pass"
+        raise ProtocolError(
+            f"waveform cannot be exported as a {BUNDLE_SCHEMA} bundle: status {status} ({reasons})",
+            status,
+        )
+
+    vertical_scale = artifact["vertical_scale"]
+    sampling_period = artifact["sampling_period"]
+    if vertical_scale is None or sampling_period is None:
+        raise ProtocolError(
+            "waveform records no Vertical Scale or no Sampling Period; a bundle cannot state a vertical or time axis",
+            "INCOMPLETE",
+        )
+
+    payload = parse_waveform_header(bytes(raw))["block"].payload
+    points = len(payload) // 2
+    payload_sha256 = hashlib.sha256(payload).hexdigest()
+
+    channel_label = _bundle_channel_label(channel)
+    if channel_label is None:
+        channel_label = str(artifact.get("source") or "").strip() or None
+    stem = _bundle_stem(name, channel_label)
+    if instrument_measurements is not None and not isinstance(instrument_measurements, dict):
+        raise ProtocolError("instrument_measurements must be a mapping", "INVALID")
+
+    directory = Path(out_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    payload_path = directory / f"{stem}.bin"
+    bundle_path = directory / f"{stem}.bundle.json"
+    if not overwrite:
+        for existing in (payload_path, bundle_path):
+            if existing.exists():
+                raise FileExistsError(f"refusing to overwrite {existing}")
+
+    bundle = {
+        "schema": BUNDLE_SCHEMA,
+        "source": {
+            "vendor": BUNDLE_VENDOR,
+            "model": _bundle_model(idn),
+            "idn": idn,
+            "channel": channel_label,
+            "captured_at": captured_at,
+        },
+        "data": {
+            "file": payload_path.name,
+            # The payload is written alone at offset 0, so the slice hash and the
+            # file hash address the same bytes.
+            "sha256": payload_sha256,
+            "file_sha256": payload_sha256,
+            "dtype": ">i2",
+            "points": points,
+            "byte_offset": 0,
+            "byte_length": len(payload),
+            "width_bytes": 2,
+        },
+        "time_axis": {
+            "sample_interval_s": sampling_period,
+            "time_origin_s": 0.0,
+            "timebase_s": _bundle_timebase(artifact),
+            # The header's Horizontal Position is a trigger position, not a
+            # converted time offset, so no seconds value is claimed here.
+            "horizontal_offset_s": None,
+            "reference": "descriptor",
+            "origin_formula": "time_origin_s + sample_index * sample_interval_s",
+        },
+        "vertical": {
+            "units": "V",
+            "scale_usable": True,
+            "zero_code": 0.0,
+            "code_scale_v": vertical_scale / float(AD_FACTOR),
+            "offset_v": 0.0,
+            "vdiv_v_per_div": vertical_scale,
+            "adc_min_code": BUNDLE_ADC_MIN_CODE,
+            "adc_max_code": BUNDLE_ADC_MAX_CODE,
+            "full_scale_code": None,
+            "calibration_status": BUNDLE_CALIBRATION_STATUS,
+            "calibration_source": BUNDLE_CALIBRATION_SOURCE,
+            "scale_reasons": list(BUNDLE_SCALE_REASONS),
+        },
+        "integrity": {
+            "status": "COMPLETE",
+            "bytes_complete": True,
+            "checks": [f"{check['name']}:{check['status']}" for check in artifact["checks"]],
+            "status_meaning": "payload framing/count integrity only",
+        },
+        "provenance": _bundle_provenance(raw_file, directory, artifact["raw_sha256"]),
+        "instrument_measurements": (
+            None if instrument_measurements is None else dict(instrument_measurements)
+        ),
+    }
+    bundle_bytes = (json.dumps(bundle, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode(
+        "utf-8"
+    )
+
+    _write_bytes_atomic(payload_path, payload)
+    _write_bytes_atomic(bundle_path, bundle_bytes)
+    return {
+        "schema": BUNDLE_SCHEMA,
+        "status": "COMPLETE",
+        "path": str(bundle_path),
+        "payload_path": str(payload_path),
+        "channel": channel_label,
+        "points": points,
+        "byte_length": len(payload),
+        "dtype": ">i2",
+        "payload_sha256": payload_sha256,
+        "file_sha256": bundle["data"]["file_sha256"],
+        "bundle_sha256": hashlib.sha256(bundle_bytes).hexdigest(),
+        "sample_interval_s": sampling_period,
+        "code_scale_v": bundle["vertical"]["code_scale_v"],
+        "calibration_status": BUNDLE_CALIBRATION_STATUS,
+    }
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 

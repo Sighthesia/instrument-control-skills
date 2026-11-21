@@ -23,6 +23,7 @@ from gds1000b_protocol import (  # noqa: E402
     IEEEBlock,
     ProtocolError,
     encode_ieee_block,
+    export_waveform_bundle,
     extract_payload,
     iter_samples,
     main,
@@ -54,6 +55,16 @@ def _header() -> bytes:
 
 def _with_header(header: bytes, block: bytes) -> bytes:
     return header + b"Waveform Data;" + block
+
+
+def _waveform_codes(codes, *, vertical_scale: float | None = None) -> bytes:
+    """Build one waveform response for the given codes and optional scale."""
+
+    header = _header().decode("ascii").replace("Memory Length,4", f"Memory Length,{len(codes)}")
+    if vertical_scale is not None:
+        header = header.replace("Vertical Scale,5.000E-01", f"Vertical Scale,{vertical_scale:.3E}")
+    block = encode_ieee_block(struct.pack(f">{len(codes)}h", *codes))
+    return _with_header(header.encode("ascii"), block)
 
 
 class FrameTests(unittest.TestCase):
@@ -669,6 +680,222 @@ class CliTests(unittest.TestCase):
     def test_truncated_exit(self):
         code, _ = self._run(["waveform", str(FIXTURES / "waveform-truncated.bin")])
         self.assertEqual(code, 1)
+
+
+class WaveformBundleTests(unittest.TestCase):
+    """waveform-bundle/v1 export: verbatim sample parity and fail-closed refusal."""
+
+    def _export(self, directory, raw, **kwargs):
+        return export_waveform_bundle(raw, out_dir=Path(directory), **kwargs)
+
+    def _bundle(self, result) -> dict:
+        return json.loads(Path(result["path"]).read_text(encoding="utf-8"))
+
+    def test_bundle_pair_and_manifest(self):
+        raw = _waveform_fixture()
+        payload_sha256 = hashlib.sha256(struct.pack(">4h", 0, 25, -25, 50)).hexdigest()
+        with tempfile.TemporaryDirectory() as tmp:
+            raw_path = Path(tmp) / "raw-ch2.bin"
+            raw_path.write_bytes(raw)
+            result = self._export(
+                tmp,
+                raw,
+                channel=2,
+                idn="GW INSTEK,GDS-1102B,GEU123456,V1.00",
+                captured_at="2026-11-21T00:00:00Z",
+                raw_file=raw_path,
+            )
+            self.assertEqual(
+                sorted(item.name for item in Path(tmp).iterdir()),
+                ["raw-ch2.bin", "waveform-ch2.bin", "waveform-ch2.bundle.json"],
+            )
+            payload = Path(result["payload_path"]).read_bytes()
+            self.assertEqual(payload, struct.pack(">4h", 0, 25, -25, 50))
+            bundle = self._bundle(result)
+            self.assertEqual(bundle["schema"], "waveform-bundle/v1")
+            self.assertEqual(
+                bundle["source"],
+                {
+                    "vendor": "gwinstek",
+                    "model": "GDS-1102B",
+                    "idn": "GW INSTEK,GDS-1102B,GEU123456,V1.00",
+                    "channel": "CH2",
+                    "captured_at": "2026-11-21T00:00:00Z",
+                },
+            )
+            self.assertEqual(
+                bundle["data"],
+                {
+                    "file": "waveform-ch2.bin",
+                    "sha256": payload_sha256,
+                    "file_sha256": hashlib.sha256(payload).hexdigest(),
+                    "dtype": ">i2",
+                    "points": 4,
+                    "byte_offset": 0,
+                    "byte_length": 8,
+                    "width_bytes": 2,
+                },
+            )
+            self.assertEqual(bundle["time_axis"]["sample_interval_s"], 5e-7)
+            self.assertEqual(bundle["time_axis"]["time_origin_s"], 0.0)
+            self.assertEqual(bundle["time_axis"]["timebase_s"], 5e-4)
+            self.assertIsNone(bundle["time_axis"]["horizontal_offset_s"])
+            self.assertEqual(bundle["time_axis"]["reference"], "descriptor")
+            self.assertEqual(
+                bundle["vertical"],
+                {
+                    "units": "V",
+                    "scale_usable": True,
+                    "zero_code": 0.0,
+                    "code_scale_v": 0.5 / float(AD_FACTOR),
+                    "offset_v": 0.0,
+                    "vdiv_v_per_div": 0.5,
+                    "adc_min_code": -32768,
+                    "adc_max_code": 32767,
+                    "full_scale_code": None,
+                    "calibration_status": "UNVERIFIED",
+                    "calibration_source": "gds1000b_header",
+                    "scale_reasons": ["gds1000b_voltage_scale_unverified_on_hardware"],
+                },
+            )
+            self.assertEqual(bundle["integrity"]["status"], "COMPLETE")
+            self.assertTrue(bundle["integrity"]["bytes_complete"])
+            self.assertIn("ieee_block_length:pass", bundle["integrity"]["checks"])
+            self.assertEqual(
+                bundle["provenance"],
+                {
+                    "raw_file": "raw-ch2.bin",
+                    "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                    "new_transition_proven": None,
+                    "screen_range": None,
+                    "screenshot": None,
+                },
+            )
+            self.assertIsNone(bundle["instrument_measurements"])
+            self.assertEqual(result["status"], "COMPLETE")
+            self.assertEqual(result["channel"], "CH2")
+            self.assertEqual(result["points"], 4)
+            self.assertEqual(result["payload_sha256"], payload_sha256)
+            self.assertEqual(result["calibration_status"], "UNVERIFIED")
+            self.assertEqual(
+                result["bundle_sha256"],
+                hashlib.sha256(Path(result["path"]).read_bytes()).hexdigest(),
+            )
+
+    def test_sample_voltage_and_time_parity(self):
+        raw = _waveform_fixture()
+        artifact = parse_waveform(raw, include_samples=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._export(tmp, raw)
+            bundle = self._bundle(result)
+            vertical = bundle["vertical"]
+            time_axis = bundle["time_axis"]
+            self.assertEqual(waveform_to_csv(raw, Path(tmp) / "wave.csv")["rows"], bundle["data"]["points"])
+            rows = [line.split(",") for line in (Path(tmp) / "wave.csv").read_text().splitlines()[1:]]
+            for code in artifact["samples"]:
+                volts = (code - vertical["zero_code"]) * vertical["code_scale_v"] + vertical["offset_v"]
+                self.assertLessEqual(abs(volts - sample_value(code, artifact["vertical_scale"], float(AD_FACTOR))), 1e-12)
+            for index, row in enumerate(rows):
+                volts = (int(row[1]) - vertical["zero_code"]) * vertical["code_scale_v"] + vertical["offset_v"]
+                self.assertLessEqual(abs(volts - float(row[2])), 1e-12)
+                time_s = time_axis["time_origin_s"] + index * time_axis["sample_interval_s"]
+                self.assertLessEqual(abs(time_s - int(row[0]) * artifact["sampling_period"]), 1e-12)
+            self.assertEqual(artifact["samples"], [0, 25, -25, 50])
+
+    def test_voltage_parity_across_documented_scales(self):
+        codes = (-32767, -12345, -25, -1, 0, 1, 25, 50, 12345, 32767)
+        for scale in (0.01, 0.1, 0.5, 1.0, 2.0, 5.0):
+            raw = _waveform_codes(codes, vertical_scale=scale)
+            self.assertEqual(parse_waveform(raw)["status"], "COMPLETE")
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(scale=scale):
+                vertical = self._bundle(self._export(tmp, raw))["vertical"]
+                self.assertEqual(vertical["code_scale_v"], scale / float(AD_FACTOR))
+                self.assertEqual(vertical["vdiv_v_per_div"], scale)
+                for code in codes:
+                    # The two expressions differ only by float64 rounding.
+                    volts = (code - vertical["zero_code"]) * vertical["code_scale_v"] + vertical["offset_v"]
+                    self.assertLessEqual(abs(volts - sample_value(code, scale, float(AD_FACTOR))), 1e-12)
+
+    def test_channel_defaults_and_measurements(self):
+        measurement = {"metric": "PKPK", "value": 3.04167, "unit": "V", "source_query": "C1:PAVA? PKPK"}
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._export(tmp, _waveform_fixture(), instrument_measurements=measurement)
+            bundle = self._bundle(result)
+            self.assertEqual(result["path"], str(Path(tmp) / "waveform-ch1.bundle.json"))
+            # No --channel: the header's own Source field labels the bundle.
+            self.assertEqual(bundle["source"]["channel"], "CH1")
+            self.assertIsNone(bundle["source"]["idn"])
+            self.assertIsNone(bundle["source"]["model"])
+            self.assertIsNone(bundle["source"]["captured_at"])
+            self.assertEqual(bundle["instrument_measurements"], measurement)
+            # No raw file kept: the hash still identifies the response that was parsed.
+            self.assertIsNone(bundle["provenance"]["raw_file"])
+            self.assertEqual(bundle["provenance"]["raw_sha256"], hashlib.sha256(_waveform_fixture()).hexdigest())
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._export(tmp, _waveform_codes((0, 1), vertical_scale=2.0), name="trace")
+            self.assertEqual(result["path"], str(Path(tmp) / "trace.bundle.json"))
+            self.assertEqual(result["payload_path"], str(Path(tmp) / "trace.bin"))
+
+    def test_raw_file_outside_the_bundle_directory_is_recorded_by_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw_path = Path(tmp) / "captures" / "raw.bin"
+            raw_path.parent.mkdir()
+            raw_path.write_bytes(_waveform_fixture())
+            bundle = self._bundle(self._export(Path(tmp) / "bundle", _waveform_fixture(), raw_file=raw_path))
+            self.assertEqual(bundle["provenance"]["raw_file"], str(raw_path))
+            self.assertEqual(bundle["provenance"]["raw_sha256"], hashlib.sha256(_waveform_fixture()).hexdigest())
+
+    def test_overwrite_refusal_and_permission(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first = self._export(tmp, _waveform_fixture())
+            payload_before = Path(first["payload_path"]).read_bytes()
+            bundle_before = Path(first["path"]).read_bytes()
+            with self.assertRaises(FileExistsError):
+                self._export(tmp, _waveform_codes((7, 8)))
+            self.assertEqual(Path(first["payload_path"]).read_bytes(), payload_before)
+            self.assertEqual(Path(first["path"]).read_bytes(), bundle_before)
+            second = self._export(tmp, _waveform_codes((7, 8)), overwrite=True)
+            self.assertEqual(self._bundle(second)["data"]["points"], 2)
+
+    def test_refuses_non_complete_captures(self):
+        for fixture in (
+            "waveform-truncated.bin",
+            "waveform-bad-header.bin",
+            "waveform-odd.bin",
+            "waveform-headerless.bin",
+        ):
+            raw = (FIXTURES / fixture).read_bytes()
+            with self.subTest(fixture=fixture), tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(ProtocolError) as caught:
+                    export_waveform_bundle(raw, out_dir=Path(tmp))
+                self.assertIsInstance(caught.exception, ValueError)
+                self.assertNotEqual(caught.exception.status, "COMPLETE")
+                self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_refuses_capture_without_sampling_period(self):
+        header = _header().decode("ascii").replace("Sampling Period,5.000E-07;", "")
+        raw = _with_header(header.encode("ascii"), encode_ieee_block(struct.pack(">4h", 0, 25, -25, 50)))
+        # The parser tolerates the gap with a reason; a bundle cannot state a time axis.
+        self.assertEqual(parse_waveform(raw)["status"], "COMPLETE")
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ProtocolError) as caught:
+                export_waveform_bundle(raw, out_dir=Path(tmp))
+            self.assertEqual(caught.exception.status, "INCOMPLETE")
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_refuses_bad_channel_name_and_measurements(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ProtocolError):
+                export_waveform_bundle(_waveform_fixture(), out_dir=Path(tmp), channel=5)
+            with self.assertRaises(ProtocolError):
+                export_waveform_bundle(_waveform_fixture(), out_dir=Path(tmp), name="../escape")
+            with self.assertRaises(ProtocolError):
+                export_waveform_bundle(
+                    _waveform_fixture(),
+                    out_dir=Path(tmp),
+                    instrument_measurements=[{"metric": "PKPK", "value": 1.0}],
+                )
+            self.assertEqual(list(Path(tmp).iterdir()), [])
 
 
 class ManifestTests(unittest.TestCase):

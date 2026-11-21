@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import hashlib
 import io
+import json
+import struct
 import sys
 import tempfile
 import unittest
@@ -314,6 +317,45 @@ class FileSafetyTests(unittest.TestCase):
             self.assertEqual(out.read_bytes(), b"operator data")
 
 
+class WaveformBundleSessionTests(unittest.TestCase):
+    def test_waveform_writes_bundle_next_to_raw(self):
+        session = FakeSession(state="1")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "raw.bin"
+            bundle_dir = Path(tmp) / "bundle"
+            with contextlib.redirect_stdout(io.StringIO()) as printed:
+                self.assertEqual(cmd_waveform(session, 2, out, bundle_out=bundle_dir), 0)
+            self.assertEqual(out.read_bytes(), WAVEFORM)
+            self.assertEqual(
+                sorted(item.name for item in bundle_dir.iterdir()),
+                ["waveform-ch2.bin", "waveform-ch2.bundle.json"],
+            )
+            bundle = json.loads((bundle_dir / "waveform-ch2.bundle.json").read_text(encoding="utf-8"))
+            self.assertEqual(bundle["schema"], "waveform-bundle/v1")
+            self.assertEqual(bundle["source"]["channel"], "CH2")
+            self.assertEqual(bundle["data"]["points"], 4)
+            self.assertEqual(bundle["vertical"]["calibration_status"], "UNVERIFIED")
+            # The raw response is saved beside, not inside, the bundle directory.
+            self.assertEqual(bundle["provenance"]["raw_file"], str(out))
+            self.assertEqual(bundle["provenance"]["raw_sha256"], hashlib.sha256(WAVEFORM).hexdigest())
+            self.assertEqual(
+                (bundle_dir / "waveform-ch2.bin").read_bytes(),
+                struct.pack(">4h", 0, 25, -25, 50),
+            )
+            self.assertEqual(json.loads(printed.getvalue())["bundle"]["points"], 4)
+
+    def test_refused_bundle_keeps_the_raw_response(self):
+        truncated = (FIXTURES / "waveform-truncated.bin").read_bytes()
+        session = FakeSession(state="1", block=truncated)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "raw.bin"
+            bundle_dir = Path(tmp) / "bundle"
+            with self.assertRaises(ValueError):
+                cmd_waveform(session, 1, out, bundle_out=bundle_dir)
+            self.assertEqual(out.read_bytes(), truncated)
+            self.assertFalse(bundle_dir.exists())
+
+
 class CliTests(unittest.TestCase):
     def _run(self, argv):
         out = io.StringIO()
@@ -343,6 +385,15 @@ class CliTests(unittest.TestCase):
             code, _, _ = self._run(["--dry-run", "waveform", "--out", str(out)])
             self.assertEqual(code, 0)
             self.assertFalse(out.exists())
+
+    def test_waveform_dry_run_no_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_dir = Path(tmp) / "bundle"
+            code, _, _ = self._run(
+                ["--dry-run", "waveform", "--out", str(Path(tmp) / "raw.bin"), "--bundle-out", str(bundle_dir)]
+            )
+            self.assertEqual(code, 0)
+            self.assertFalse(bundle_dir.exists())
 
     def test_save_image_rejects_long_name(self):
         code, _, err = self._run(["--dry-run", "save-image", "--path", "Disk:/123456789.PNG"])

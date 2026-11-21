@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gds1000b_protocol import (  # noqa: E402
     ProtocolError,
+    export_waveform_bundle,
     parse_error_queue,
     parse_identity,
     parse_measurement,
@@ -449,6 +450,7 @@ def cmd_waveform(
     *,
     overwrite: bool = False,
     allow_unready: bool = False,
+    bundle_out: Path | None = None,
 ) -> int:
     _validate_channel(channel)
     if not session.dry_run and not allow_unready:
@@ -461,6 +463,16 @@ def cmd_waveform(
     save_raw(Path(path), raw, overwrite=overwrite)
     result = parse_waveform(raw)
     result["raw_path"] = str(path)
+    if bundle_out is not None:
+        # The raw response is saved first: a refused bundle must not cost the
+        # caller the one byte-exact artifact of the capture.
+        result["bundle"] = export_waveform_bundle(
+            raw,
+            out_dir=bundle_out,
+            channel=channel,
+            raw_file=Path(path),
+            overwrite=overwrite,
+        )
     _print_json(result)
     return 0 if result["status"] not in {"INVALID", "INCOMPLETE", "UNSUPPORTED"} else 1
 
@@ -514,6 +526,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_wave.add_argument("--out", required=True)
     p_wave.add_argument("--overwrite", action="store_true")
     p_wave.add_argument("--allow-unready", action="store_true")
+    p_wave.add_argument(
+        "--bundle-out",
+        type=Path,
+        metavar="DIR",
+        help="also write a waveform-bundle/v1 pair (<name>.bin + <name>.bundle.json) into this directory",
+    )
 
     p_capture = sub.add_parser("capture")
     p_capture.add_argument("--channel", type=int, default=1)
@@ -573,6 +591,7 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.out),
                 overwrite=args.overwrite,
                 allow_unready=args.allow_unready,
+                bundle_out=args.bundle_out,
             )
         if args.subcommand == "capture":
             return cmd_capture(
