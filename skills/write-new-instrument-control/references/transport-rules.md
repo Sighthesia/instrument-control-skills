@@ -33,9 +33,10 @@ Do not copy one instrument's timings into another Skill.
 
 - For a definite-length block, read until the declared length (plus the
   documented terminator) is present or an overall deadline expires.
-- Never end a block read on one idle gap. A live 1 152 054-byte transfer stalled
-  after 51 200 bytes; an idle-timeout reader truncated it there and the short
-  buffer still looked like a block.
+- Never end a block read on one idle gap. A large definite-length transfer can
+  stall mid-flight for longer than any line timeout; a reader that ends on the gap
+  returns a short buffer that still looks like a block, because its header and its
+  first samples are intact.
 - Never resize a block to the bytes received. A short block is `INCOMPLETE` with
   declared and observed lengths.
 - Bytes past the declared length are kept and reported. Trimming to a file

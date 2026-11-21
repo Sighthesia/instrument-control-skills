@@ -11,16 +11,10 @@ syntax: a pattern anchored on `:` misses every optional-root family, because
 those syntax lines begin with `[` (`[:SOURce[<n>]]:...`, `[:SENSe[1]]:...`,
 `[:TRACe[<n>]]:...`).
 
-Measured in this repository when indexes were audited against their manuals:
-
-| Skill | Documented forms | Rows before the audit |
-|---|---:|---:|
-| `gwinstek-gds1000b-control` | 343 | 121 |
-| `siglent-sds800xhd-control` | 780 headings | 215 |
-| `keithley-2000-control` | 161 in scope | 124 |
-
-Every one of those files said in its header that it did not enumerate the rest of
-the manual. The gap was not hidden; it was declared and then read as complete.
+The failure mode this creates is not a hidden gap but a declared one: a header
+that says "this lists the commands the scripts use" reads as an index of the
+manual because that is what a file named *command reference* is assumed to be.
+The reader then stops looking, and the omission becomes invisible.
 
 ## What counts as a form
 
@@ -90,9 +84,10 @@ against the manual, and never call them documented.
 
 - The sendable column carries the correct spelling; a note quotes the printed
   text with its page and the correction.
-- Observed in this repository: a page heading printed `:DVD:MODe` while its body
-  documented `:DVM:MODe`, and one offset command was printed with a stray space
-  inside the path.
+- Typical shapes: a heading whose mnemonic is transposed relative to the body it
+  introduces, a path printed with a stray space inside it, and a duplicated name
+  that looks like a second command. Each is one defect with one corrected form, not
+  two commands.
 - A repair that the manual does not state is an inference. Label it inferred and
   verify it on hardware before the row can become `hardware-verified`.
 - Preserve duplicated or mislabelled names as printed and add a note (`12C` vs

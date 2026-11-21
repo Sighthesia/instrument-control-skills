@@ -35,9 +35,11 @@ into a plausible measurement.
   the value was observed.
 - Report a sentinel as a `null` field with a reason, and make the enclosing
   status `INCOMPLETE`. Never map it to `0`, `NaN`, the minimum, or "no signal".
-- Expect more than one shape. Observed in this repository: `9.9E37` for "no
-  result" on a measurement query, `4294967295` (uint32 -1) for "not set" on a
-  position query, and an overflow token that the manual documents without a unit.
+- Expect more than one shape. Common ones are a large decimal such as `9.9E37`
+  for "no result", an all-ones integer such as `4294967295` (uint32 -1) for "not
+  set", and an overflow token the manual documents without a unit. Which one a
+  query returns is instrument- and firmware-specific; record the observed shapes
+  in the sentinel table rather than assuming one.
 - The manual may be silent about the sentinel. If so, report a suspected sentinel
   as `assumed`, prove it by observation on the instrument, and never introduce a
   magnitude cutoff the manual does not state.

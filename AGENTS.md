@@ -81,11 +81,12 @@ python3 -m unittest discover -s skills/<skill-name>/scripts -p 'test_*.py'
 - Device Skills carry `scripts/test_*.py`; the authoring guide has no `scripts/`,
   so run its bundled examples:
   `python3 -m unittest discover -s skills/write-new-instrument-control/assets/examples -p 'test_*.py'`.
-- The suite protects parsing, not prose. It catches a sentinel read as a number, a
-  block truncated at an idle gap, a voltage formula that drops a term, a retry that
-  hides a desynchronised reply (verified by injecting those four bugs: all caught).
-  It cannot catch a wrong page number, a mis-copied range, or a stale README
-  figure — those are review work.
+- The suite protects parsing, not prose. By construction it can catch a sentinel
+  read as a number, a block truncated at an idle gap, a voltage formula that drops
+  a term, and a retry that hides a desynchronised reply; it cannot catch a wrong
+  page number, a mis-copied range, or a stale README figure. Those are review
+  work, and injecting a mutation is the way to confirm which side of the line a
+  given test sits on.
 - A command count is a manual reading, not a script output: no extraction tool is
   shipped, because one heuristic cannot be right for a heading-per-command manual
   and a command-table manual. Count against the manual's own list, triage every

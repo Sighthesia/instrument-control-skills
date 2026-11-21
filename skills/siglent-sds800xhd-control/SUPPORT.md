@@ -33,16 +33,17 @@
   `code_per_div*256`, so `scale_usable` and `level_confirmed` stay `UNKNOWN`
   (`level_reason: code_scale_unknown`) until an external calibration file is
   supplied. Absolute levels are confirmed only on the byte-domain path.
-- **Voltage path can report a wrong level as valid.** Five independent paths were
-  reproduced offline — including a reply from another channel accepted as this
+- **Voltage path can report a wrong level as valid.** Independent paths reproduce
+  this offline — including a reply from another channel accepted as this
   channel's V/div, an ampere scale reported as volts, and a legacy capture whose
   panel offset is never read. See `artifacts/check-waveform/report.md` and its
   reproduction script; they are local-only (git-ignored).
-- **Eleven silent-accept paths** let incomplete data carry a usable status — for
-  example an unparseable `WAV:STAR?` readback, a legacy DAT2 capture that writes a
-  manifest and exits 0 without validating the descriptor, and a decode list that
-  reports `likely_complete` for a header-only reply. See
-  `artifacts/check-integrity/report.md`.
+- **Silent-accept paths** let incomplete data carry a usable status. The classes
+  seen here are: a readback that cannot be parsed so the check is skipped, a
+  legacy capture that records success without validating the descriptor, a
+  validator with no point-count authority that still says `COMPLETE`, and a decode
+  reader that calls "the bytes stopped" complete. Some are fixed; the local audit
+  report in `artifacts/` (git-ignored) lists the rest.
 - **Status words are reused across claims**: `VALID` proves descriptor-versus-panel
   self-consistency, never an absolute voltage.
 
