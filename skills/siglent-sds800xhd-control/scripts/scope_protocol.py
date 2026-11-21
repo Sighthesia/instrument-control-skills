@@ -1465,13 +1465,17 @@ def validate_segments(
         cursor = max(cursor, segment.end_exclusive)
         total += segment.actual_points
     downloaded_bytes = sum(segment.payload_length for segment in ordered)
-    if expected_points is not None and total != expected_points:
+    if expected_points is None:
+        # No expected total means coverage cannot be proven; zero segments would
+        # otherwise report COMPLETE with nothing downloaded.
+        reasons.append("no expected point count: segment coverage is unprovable")
+    elif total != expected_points:
         reasons.append(f"downloaded {total} points, descriptor expects {expected_points}")
     if expected_payload_bytes is not None and downloaded_bytes != expected_payload_bytes:
         reasons.append(f"downloaded {downloaded_bytes} bytes, expected {expected_payload_bytes}")
     if any(not segment.valid for segment in ordered):
         reasons.append("one or more segments are invalid")
-    valid = not reasons and (expected_points is None or cursor == expected_points)
+    valid = not reasons and expected_points is not None and cursor == expected_points
     return {
         "status": "COMPLETE" if valid else "INVALID",
         "expected_points": expected_points,
@@ -1551,8 +1555,13 @@ def validate_frame(
             raise ValueError(f"{name} must be a finite duration >= {minimum}")
         return number
 
-    scope_points = integer(scope_points, "screen/scope point count", 1)
-    wavedesc_points = integer(wavedesc_points, "WAVEDESC point count", 1)
+    # Both sides are optional: a caller may have only the descriptor, only the
+    # screen count, or neither, and the reason list says which case it was. A
+    # literal 0 stays invalid (it is not a point count); only None means absent.
+    scope_points = integer(scope_points, "screen/scope point count", 1) if scope_points is not None else None
+    wavedesc_points = (
+        integer(wavedesc_points, "WAVEDESC point count", 1) if wavedesc_points is not None else None
+    )
     downloaded_points = integer(downloaded_points, "downloaded point count", 0)
     if downloaded_points is None:
         raise ValueError("downloaded point count is required")
@@ -1589,7 +1598,11 @@ def validate_frame(
         expected = wavedesc_points if wavedesc_points is not None else scope_points
         if scope_points is not None and wavedesc_points is not None and scope_points != wavedesc_points:
             reasons.append(f"screen record {scope_points} differs from WAVEDESC {wavedesc_points}")
-    if expected is not None and downloaded_points != expected:
+    if expected is None:
+        # With no point authority on either side the structure cannot be proven;
+        # saying COMPLETE here would be a claim without evidence.
+        reasons.append("no point-count authority (neither WAVEDESC nor screen record)")
+    elif downloaded_points != expected:
         reasons.append(f"downloaded {downloaded_points} points, expected {expected}")
     if expected_payload_bytes is not None and downloaded_payload_bytes != expected_payload_bytes:
         reasons.append(f"downloaded {downloaded_payload_bytes} bytes, expected {expected_payload_bytes}")

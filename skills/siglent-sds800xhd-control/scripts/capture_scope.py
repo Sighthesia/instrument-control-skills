@@ -566,6 +566,14 @@ def read_legacy_channel(scope: ScopeSession, root: Path, channel: str, read_desc
     }
     if read_descriptor:
         result["descriptor_pending"] = True
+    else:
+        # The payload is saved unvalidated when descriptors are not requested.
+        # Record that fact; the analysis path refuses such a capture anyway.
+        result["descriptor_not_requested"] = True
+        result["frame_report"] = {
+            "status": "UNVERIFIED",
+            "reasons": ["descriptor_not_requested: payload saved without WAVEDESC validation"],
+        }
     return result
 
 
@@ -586,6 +594,19 @@ def add_legacy_descriptors(scope: ScopeSession, root: Path, channel_results: lis
         result["descriptor_prefix"] = str(prefix_path)
         expected = result["descriptor"].get("wave_array_count")
         interval = result["descriptor"].get("sample_interval")
+        # Passing `expected` as both sides of the screen comparison made the check
+        # a tautology. Read the live on-screen count and let it be the independent
+        # side; `screen` semantics keeps a screen/download difference as reported
+        # evidence instead of a transfer failure.
+        screen_points = None
+        try:
+            reply = scope.query_ascii("ACQ:POIN?", allow_after_stop=True)
+            value = numeric_response(reply)
+            # A non-positive reply is not a point count; treat it as absent rather
+            # than passing an invalid number into the validator.
+            screen_points = int(value) if value is not None and value >= 1 else None
+        except ScopeProtocolError:
+            screen_points = None
         width = int(result["descriptor"].get("data_width_bytes") or 1)
         payload_bytes = int(result.get("payload_bytes") or 0)
         if width <= 0:
@@ -595,9 +616,11 @@ def add_legacy_descriptors(scope: ScopeSession, root: Path, channel_results: lis
                 f"{channel}: payload {payload_bytes} bytes is not divisible by {width} B/point"
             )
         result["payload_points"] = payload_bytes // width
+        result["screen_record_points"] = screen_points
         result["frame_report"] = validate_frame(
-            scope_points=expected,
-            scope_duration_s=expected * interval if expected and interval is not None else None,
+            scope_points=screen_points,
+            scope_points_semantics="screen",
+            scope_duration_s=None,
             wavedesc_points=expected,
             sample_interval_s=interval,
             downloaded_points=result["payload_points"],
