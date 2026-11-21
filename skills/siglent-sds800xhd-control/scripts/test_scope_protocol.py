@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import hashlib
+import json
 import struct
 import tempfile
 import unittest
@@ -33,6 +34,7 @@ from scope_protocol import (
 )
 from capture_scope import numeric_response
 from capture_scope import merge_segment_payloads
+from capture_scope import build_waveform_bundle, write_channel_bundles
 
 
 def block(payload: bytes, prefix: bytes = b"\x00DAT2,") -> bytes:
@@ -581,11 +583,14 @@ class ProtocolTests(unittest.TestCase):
         self.assertIsNone(numeric_response("25M"))
         self.assertEqual(numeric_response("25.0 Mpts"), 25_000_000.0)
 
-    def test_one_parser_serves_capture_and_analysis_paths(self):
+    def test_one_parser_serves_capture_and_protocol_paths(self):
+        # Both call sites must reach the same function object: the capture path
+        # re-exported its own left-to-right digit scan once, which turned
+        # "C1:VDIV 5.00E+00V" into 1.0 without any test noticing.
         from scope_protocol import parse_scpi_number
-        from waveform_analysis import parse_scpi_number as analysis_parser
+        import capture_scope
 
-        self.assertIs(analysis_parser, parse_scpi_number)
+        self.assertIs(capture_scope.parse_scpi_number, parse_scpi_number)
         for reply in ("C1:VDIV 5.00E+00V", "2.00E-01S", "ACQ:POIN? 20000000", "0.2"):
             self.assertEqual(numeric_response(reply), parse_scpi_number(reply))
 
@@ -787,6 +792,217 @@ class ProtocolTests(unittest.TestCase):
                 )
             self.assertFalse((channel_dir / "waveform-bad.bin").exists())
             self.assertFalse((channel_dir / "waveform-bad.bin.partial").exists())
+
+
+def bundle_result(
+    root: Path,
+    samples: bytes,
+    *,
+    width: int = 1,
+    channel: str = "C1",
+    frame_status: str = "COMPLETE",
+    preamble_overrides: dict | None = None,
+) -> dict:
+    """Build the parts of one modern channel result a bundle export reads."""
+
+    channel_dir = root / channel
+    channel_dir.mkdir(parents=True, exist_ok=True)
+    payload_path = channel_dir / "waveform.bin"
+    payload_path.write_bytes(samples)
+    points = len(samples) // width
+    preamble = {
+        "data_width_bytes": width,
+        "wave_array_count": points,
+        "sample_interval": 2e-7,
+        "timebase_s": 1e-4,
+        "horizontal_offset": 0.0,
+        "start": 0,
+        "vdiv": 0.5,
+        "probe": 10.0,
+        "offset": -0.8,
+        "code_per_div": 30.0,
+    }
+    preamble.update(preamble_overrides or {})
+    return {
+        "channel": channel,
+        "preamble": preamble,
+        "segment_report": {"status": "COMPLETE", "downloaded_points": points},
+        "frame_report": {"status": frame_status},
+        "merged_waveform": str(payload_path),
+        "merged_waveform_file": payload_path.relative_to(root).as_posix(),
+        "merged_waveform_bytes": len(samples),
+        "merged_waveform_sha256": hashlib.sha256(samples).hexdigest(),
+    }
+
+
+def bundle_manifest(*results: dict) -> dict:
+    """Build the manifest fields a bundle export reads, with a C1 panel snapshot."""
+
+    return {
+        "model": "SIGLENT SDS824X HD",
+        "idn": "Siglent,SDS824X HD,SDS8A1B2C3D4,4.8.12.1.1.6.5",
+        "captured_at": "2026-11-21T00:00:00Z",
+        "capture_configuration": {
+            "channels": {"C1": {"vdiv": "C1:VDIV 5.00E+00V", "offset": "C1:OFST -8.00E+00V"}}
+        },
+        "results": list(results),
+    }
+
+
+class WaveformBundleExportTests(unittest.TestCase):
+    """The bundle written beside manifest.json states only what was verified."""
+
+    def test_byte_bundle_reconstructs_panel_volts_from_the_recorded_scale(self):
+        # Samples are signed 8-bit codes: -128, 0, 127, 1.
+        samples = b"\x80\x00\x7f\x01"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = bundle_result(root, samples, width=1)
+            manifest = bundle_manifest(result)
+
+            written = write_channel_bundles(manifest, root)
+
+            self.assertEqual(len(written), 1)
+            self.assertEqual(result["bundle_file"], "C1.bundle.json")
+            bundle = json.loads((root / "C1.bundle.json").read_text(encoding="utf-8"))
+            self.assertEqual(bundle["schema"], "waveform-bundle/v1")
+            self.assertEqual(bundle["source"]["channel"], "C1")
+            self.assertEqual(bundle["source"]["vendor"], "siglent")
+
+            data = bundle["data"]
+            self.assertEqual(data["file"], "C1/waveform.bin")
+            self.assertEqual(data["dtype"], "i1")
+            self.assertEqual(data["width_bytes"], 1)
+            self.assertEqual(data["points"], 4)
+            self.assertEqual(data["byte_offset"], 0)
+            self.assertEqual(data["byte_length"], 4)
+            self.assertEqual(data["sha256"], hashlib.sha256(samples).hexdigest())
+            self.assertEqual(data["file_sha256"], data["sha256"])
+
+            vertical = bundle["vertical"]
+            self.assertEqual(vertical["units"], "V")
+            self.assertTrue(vertical["scale_usable"])
+            self.assertEqual(vertical["calibration_status"], "VERIFIED")
+            self.assertEqual(vertical["adc_min_code"], -128)
+            self.assertEqual(vertical["adc_max_code"], 127)
+            self.assertEqual(vertical["zero_code"], 0.0)
+            # descriptor VDIV 0.5 * probe 10 / 30 codes per div.
+            self.assertAlmostEqual(vertical["code_scale_v"], 5.0 / 30.0)
+            # The panel offset (-8.0 V) is subtracted by this device, so the
+            # additive bundle offset is its negation.
+            panel_offset = -8.0
+            self.assertAlmostEqual(vertical["offset_v"], -panel_offset)
+            for code in (-128, 0, 127, 1):
+                reconstructed = (code - vertical["zero_code"]) * vertical["code_scale_v"] + vertical["offset_v"]
+                self.assertAlmostEqual(reconstructed, code * vertical["code_scale_v"] - panel_offset)
+
+            time_axis = bundle["time_axis"]
+            self.assertAlmostEqual(time_axis["sample_interval_s"], 2e-7)
+            self.assertAlmostEqual(time_axis["time_origin_s"], -5e-4)
+            self.assertAlmostEqual(time_axis["timebase_s"], 1e-4)
+            self.assertEqual(time_axis["reference"], "descriptor")
+            self.assertEqual(bundle["integrity"]["status"], "COMPLETE")
+
+    def test_byte_bundle_prefers_the_panel_scale_over_a_placeholder_descriptor(self):
+        # The legacy descriptor has been observed reporting 2 V/div on every
+        # channel while the panel ran 5/2/2/1 V/div; the panel is authoritative.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = bundle_result(root, b"\x01\x02", width=1, preamble_overrides={"vdiv": 0.2})
+            bundle = build_waveform_bundle(bundle_manifest(result), result, out_dir=root)
+
+            self.assertIsNotNone(bundle)
+            vertical = bundle["vertical"]
+            self.assertEqual(vertical["calibration_status"], "VERIFIED")
+            self.assertAlmostEqual(vertical["vdiv_v_per_div"], 5.0)
+            self.assertAlmostEqual(vertical["code_scale_v"], 5.0 / 30.0)
+
+    def test_word_bundle_stays_in_the_code_domain(self):
+        # Little-endian int16 codes: -32768 and 32767.
+        samples = b"\x00\x80\xff\x7f"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = bundle_result(root, samples, width=2)
+            bundle = build_waveform_bundle(bundle_manifest(result), result, out_dir=root)
+
+            self.assertIsNotNone(bundle)
+            self.assertEqual(bundle["data"]["dtype"], "<i2")
+            self.assertEqual(bundle["data"]["points"], 2)
+            self.assertEqual(bundle["data"]["byte_length"], 4)
+            vertical = bundle["vertical"]
+            self.assertEqual(vertical["units"], "code")
+            self.assertFalse(vertical["scale_usable"])
+            self.assertIsNone(vertical["code_scale_v"])
+            self.assertIsNone(vertical["offset_v"])
+            self.assertEqual(vertical["calibration_status"], "CODE_ONLY")
+            self.assertIn("word_code_scale_unverified", vertical["scale_reasons"])
+            self.assertEqual(vertical["adc_min_code"], -32768)
+            self.assertEqual(vertical["adc_max_code"], 32767)
+
+    def test_incomplete_channel_gets_no_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = bundle_result(root, b"\x01\x02", width=1, frame_status="INCOMPLETE")
+            manifest = bundle_manifest(result)
+
+            self.assertIsNone(build_waveform_bundle(manifest, result, out_dir=root))
+            self.assertEqual(write_channel_bundles(manifest, root), [])
+            self.assertFalse((root / "C1.bundle.json").exists())
+            self.assertNotIn("bundle_file", result)
+
+            # A COMPLETE frame whose payload contradicts its own record is a
+            # capture defect, not a channel that quietly exports nothing.
+            incomplete_payload = bundle_result(root, b"\x01\x02", width=1)
+            (root / "C1" / "waveform.bin").write_bytes(b"\x01")
+            with self.assertRaises(ScopeProtocolError):
+                build_waveform_bundle(bundle_manifest(incomplete_payload), incomplete_payload, out_dir=root)
+
+    def test_bundle_records_instrument_measurement_and_transition_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = bundle_result(root, b"\x01\x02", width=1)
+            manifest = bundle_manifest(result)
+            manifest["instrument_measurements"] = {
+                "C1": {
+                    "pkpk": {
+                        "value": 3.04167,
+                        "unit": "V",
+                        "raw": "3.04167E+00",
+                        "metric": "PKPK",
+                        "source_query": ":MEASure:SIMPle:VALue? PKPK",
+                    },
+                    "queried_at": "2026-11-21T00:00:01Z",
+                    "source_attribution": "single-captured-channel",
+                }
+            }
+            manifest["armed_transition"] = {"saw_ready": True, "normalized": "STOP"}
+
+            bundle = build_waveform_bundle(manifest, result, out_dir=root)
+
+            self.assertEqual(
+                bundle["instrument_measurements"],
+                {
+                    "metric": "PKPK",
+                    "value": 3.04167,
+                    "unit": "V",
+                    "source_query": ":MEASure:SIMPle:VALue? PKPK",
+                },
+            )
+            provenance = bundle["provenance"]
+            self.assertIs(provenance["new_transition_proven"], True)
+            self.assertEqual(provenance["raw_file"], "C1/waveform.bin")
+            self.assertEqual(provenance["raw_sha256"], bundle["data"]["file_sha256"])
+            self.assertIsNone(provenance["screen_range"])
+            self.assertIsNone(provenance["screenshot"])
+
+            # A frame read without arming proves no new transition, and a
+            # capture carrying no measurement records none instead of a null.
+            manifest.pop("armed_transition")
+            manifest["existing_stop_claims_new_transition"] = False
+            manifest.pop("instrument_measurements")
+            bundle = build_waveform_bundle(manifest, result, out_dir=root)
+            self.assertIs(bundle["provenance"]["new_transition_proven"], False)
+            self.assertIsNone(bundle["instrument_measurements"])
 
 
 class SilentWriteTests(unittest.TestCase):

@@ -929,9 +929,9 @@ def configure_acquisition_context(
 # prefix. Either failure let the panel-snapshot cross-check silently skip while
 # calibration still reported VALID, which is how a placeholder descriptor VDIV
 # produced voltages scaled by 2.5x. Read the rightmost numeric token instead.
-# This is the single parser for every module: capture_scope.numeric_response and
-# waveform_analysis.parse_scpi_number are thin aliases so the three call sites
-# cannot drift apart again.
+# This is the single parser for every module in this Skill:
+# capture_scope.numeric_response is a thin alias so the capture and protocol call
+# sites cannot drift apart again.
 _SCPI_NUMBER_PREFIX = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?")
 # Multipliers are applied on top of the numeric part, so a suffixed magnitude
 # such as ``MSa/s`` scales. Bare base units map to 1.0.

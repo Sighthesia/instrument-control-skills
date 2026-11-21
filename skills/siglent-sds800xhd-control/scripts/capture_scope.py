@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import sys
 import time
 from dataclasses import asdict
@@ -41,6 +42,10 @@ from screenshot_capture import (
 
 
 CHANNELS = ("C1", "C2", "C3", "C4")
+BUNDLE_SCHEMA = "waveform-bundle/v1"
+# Representative ADC code range of a signed transfer, keyed by data width. A
+# bundle states its own bounds so a reader never infers them from a descriptor.
+BUNDLE_CODE_BOUNDS = {1: (-128, 127), 2: (-32768, 32767)}
 
 
 def numeric_response(value):
@@ -379,6 +384,9 @@ def read_instrument_measurements(scope, channels, *, timeout_s: float = 4.0) -> 
             "unit": "V",
             "raw": raw.strip(),
             "metric": metric,
+            # The exact query that produced the reading, so an exported bundle
+            # can name its own source instead of restating the metric alone.
+            "source_query": f":MEASure:SIMPle:VALue? {metric}",
         }
     if not per_channel:
         return recorded
@@ -535,6 +543,9 @@ def read_modern_channel(
     if segment_report["status"] == "COMPLETE":
         merged_path = merge_segment_payloads(root, channel, segment_files, "waveform.bin")
         result["merged_waveform"] = str(merged_path)
+        # The bundle references its payload relative to the capture directory, so
+        # the same artifact stays readable after the directory is moved.
+        result["merged_waveform_file"] = merged_path.relative_to(root).as_posix()
         result["merged_waveform_bytes"] = merged_path.stat().st_size
         result["merged_waveform_sha256"] = merge_segment_payloads.last_sha256
     return result
@@ -630,6 +641,282 @@ def add_legacy_descriptors(scope: ScopeSession, root: Path, channel_results: lis
         result.pop("descriptor_pending", None)
 
 
+def sha256_file(path: Path, chunk_bytes: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(chunk_bytes):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def bundle_channel_snapshot(manifest: dict, channel: str) -> dict:
+    """Return the panel snapshot recorded for one channel, if any."""
+
+    for root_key in ("capture_configuration", "pre_capture_snapshot"):
+        snapshot = manifest.get(root_key) or {}
+        found = (snapshot.get("channels") or {}).get(channel)
+        if found:
+            return found
+    return {}
+
+
+def bundle_vertical(manifest: dict, channel: str, preamble: dict, width: int) -> dict:
+    """Decide what voltage claim this capture can support, conservatively.
+
+    The descriptor scale is cross-checked against the captured panel snapshot
+    exactly as the offline analyzer does: a placeholder descriptor VDIV loses to
+    the panel value, an unparseable snapshot reply is a failed verification
+    rather than a skipped one, and the transfer width is never silently trusted.
+
+    A WORD (2-byte) transfer has no verified external code scale, so it stays in
+    the code domain whatever the descriptor scale says. The Siglent panel offset
+    is subtracted by this device's own conversion, while a bundle carries the
+    offset *added* after scaling, so the recorded value is its negation.
+    """
+
+    code_min, code_max = BUNDLE_CODE_BOUNDS[width]
+    vertical: dict = {
+        "units": "code",
+        "scale_usable": False,
+        "zero_code": 0.0,
+        "code_scale_v": None,
+        "offset_v": None,
+        "vdiv_v_per_div": None,
+        "adc_min_code": code_min,
+        "adc_max_code": code_max,
+        "full_scale_code": None,
+        "calibration_status": "CODE_ONLY",
+        "calibration_source": "none",
+        "scale_reasons": [],
+    }
+    if width == 2:
+        # WAV:WIDT WORD moves 16 bits per point in a code domain whose V/code
+        # divisor this Skill has never verified against an external reference;
+        # claiming volts here would invent a scale.
+        vertical["scale_reasons"] = ["word_code_scale_unverified"]
+        return vertical
+
+    descriptor_vdiv = parse_scpi_number(preamble.get("vdiv"))
+    probe = parse_scpi_number(preamble.get("probe"))
+    descriptor_offset = parse_scpi_number(preamble.get("offset"))
+    codes_per_div = parse_scpi_number(preamble.get("code_per_div"))
+    snapshot = bundle_channel_snapshot(manifest, channel)
+    raw_snapshot_vdiv = snapshot.get("vdiv")
+    raw_snapshot_offset = snapshot.get("offset")
+    snapshot_vdiv = parse_scpi_number(raw_snapshot_vdiv, default_unit="V")
+    snapshot_offset = parse_scpi_number(raw_snapshot_offset, default_unit="V")
+
+    issues: list[str] = []
+    if descriptor_vdiv is None or descriptor_vdiv <= 0:
+        issues.append("descriptor_vdiv_missing_or_invalid")
+    if probe is None or probe <= 0:
+        issues.append("descriptor_probe_missing_or_invalid")
+    if descriptor_offset is None:
+        issues.append("descriptor_offset_missing_or_invalid")
+    if codes_per_div is None or codes_per_div <= 0:
+        issues.append("descriptor_codes_per_div_missing_or_invalid")
+    effective_vdiv = descriptor_vdiv * probe if descriptor_vdiv and probe else None
+    effective_offset = descriptor_offset * probe if descriptor_offset is not None and probe else None
+    if raw_snapshot_vdiv is not None and snapshot_vdiv is None:
+        issues.append("capture_snapshot_vdiv_unparseable")
+    elif snapshot_vdiv is not None:
+        if effective_vdiv is None or not math.isclose(effective_vdiv, snapshot_vdiv, rel_tol=0.02, abs_tol=1e-9):
+            # The legacy WAVEDESC can carry a placeholder scale; the panel is
+            # authoritative, so adopt it and let the checks show the choice.
+            effective_vdiv = snapshot_vdiv
+    if raw_snapshot_offset is not None and snapshot_offset is None:
+        issues.append("capture_snapshot_offset_unparseable")
+    elif snapshot_offset is not None:
+        if effective_offset is None or not math.isclose(effective_offset, snapshot_offset, rel_tol=0.02, abs_tol=1e-9):
+            effective_offset = snapshot_offset
+
+    if issues or effective_vdiv is None or effective_offset is None or not codes_per_div:
+        vertical["scale_reasons"] = issues or ["descriptor_scale_unusable"]
+        return vertical
+    vertical.update(
+        {
+            "units": "V",
+            "scale_usable": True,
+            "code_scale_v": effective_vdiv / codes_per_div,
+            "offset_v": -effective_offset,
+            "vdiv_v_per_div": effective_vdiv,
+            "calibration_status": "VERIFIED",
+            "calibration_source": "siglent_descriptor",
+        }
+    )
+    return vertical
+
+
+def bundle_instrument_measurement(manifest: dict, channel: str) -> Optional[dict]:
+    """Return the instrument's own level reading in the flat bundle shape.
+
+    §2.4 records one measurement (``metric``/``value``/``unit``/``source_query``).
+    ``PKPK`` is preferred because it is the number the level cross-check
+    reconstructs; a capture without a usable reading records nothing rather than
+    a null placeholder.
+    """
+
+    measurements = manifest.get("instrument_measurements")
+    if not isinstance(measurements, dict):
+        return None
+    per_channel = measurements.get(channel)
+    if not isinstance(per_channel, dict):
+        return None
+    for metric in MEASURE_METRICS:
+        entry = per_channel.get(metric.lower())
+        if not isinstance(entry, dict):
+            continue
+        value = entry.get("value")
+        if value is None:
+            continue
+        return {
+            "metric": entry.get("metric") or metric,
+            "value": value,
+            "unit": entry.get("unit"),
+            "source_query": entry.get("source_query"),
+        }
+    return None
+
+
+def bundle_new_transition_proven(manifest: dict) -> Optional[bool]:
+    """State what the capture proved about the frame's acquisition state.
+
+    A `TRMD SINGLE` Ready -> Stop wait proves a new transition; reading an
+    already-stopped frame records the opposite claim, and any other path says
+    nothing.
+    """
+
+    if manifest.get("armed_transition"):
+        return True
+    if "existing_stop_claims_new_transition" in manifest:
+        return bool(manifest["existing_stop_claims_new_transition"])
+    return None
+
+
+def build_waveform_bundle(manifest: dict, result: dict, *, out_dir: Path) -> Optional[dict]:
+    """Build the ``waveform-bundle/v1`` document for one channel result.
+
+    Returns ``None`` for anything that is not a COMPLETE frame with a merged
+    payload on disk: an incomplete channel gets no bundle rather than one whose
+    integrity block a reader would have to refuse. A COMPLETE frame whose
+    payload contradicts the capture record (missing, wrong length, wrong hash)
+    is a capture defect and raises instead of passing as a bundle-less success.
+    """
+
+    channel = result.get("channel")
+    frame_report = result.get("frame_report") or {}
+    if frame_report.get("status") != "COMPLETE":
+        return None
+    merged_file = result.get("merged_waveform_file")
+    if not isinstance(merged_file, str) or not merged_file:
+        return None
+    preamble = result.get("preamble") or {}
+    try:
+        width = int(preamble["data_width_bytes"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ScopeProtocolError(f"{channel}: WAVEDESC carries no usable data width") from exc
+    if width not in BUNDLE_CODE_BOUNDS:
+        raise ScopeProtocolError(f"{channel}: unsupported bundle data width {width}")
+    segment_report = result.get("segment_report") or {}
+    try:
+        points = int(segment_report["downloaded_points"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ScopeProtocolError(f"{channel}: segment report carries no downloaded point count") from exc
+    if points <= 0:
+        raise ScopeProtocolError(f"{channel}: segment report records {points} downloaded points")
+    payload_path = out_dir / merged_file
+    expected_bytes = points * width
+    try:
+        payload_size = payload_path.stat().st_size
+    except OSError as exc:
+        raise ScopeProtocolError(f"{channel}: merged waveform {merged_file} is unreadable: {exc}") from exc
+    if payload_size != expected_bytes:
+        raise ScopeProtocolError(
+            f"{channel}: merged waveform holds {payload_size} bytes; {points} points of {width} B need {expected_bytes}"
+        )
+    payload_sha256 = sha256_file(payload_path)
+    recorded_sha256 = result.get("merged_waveform_sha256")
+    if not recorded_sha256 or str(recorded_sha256).lower() != payload_sha256:
+        raise ScopeProtocolError(f"{channel}: merged waveform SHA-256 disagrees with the capture record")
+
+    sample_interval = parse_scpi_number(preamble.get("sample_interval"))
+    timebase = parse_scpi_number(preamble.get("timebase_s"))
+    horizontal_offset = parse_scpi_number(preamble.get("horizontal_offset"))
+    if sample_interval is None or sample_interval <= 0 or timebase is None or horizontal_offset is None:
+        raise ScopeProtocolError(f"{channel}: WAVEDESC time fields cannot support a bundle time axis")
+    try:
+        record_start = int(preamble.get("start") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ScopeProtocolError(f"{channel}: WAVEDESC record start is not an integer") from exc
+    time_origin = horizontal_offset - timebase * 5.0 + record_start * sample_interval
+
+    return {
+        "schema": BUNDLE_SCHEMA,
+        "source": {
+            "vendor": "siglent",
+            "model": manifest.get("model"),
+            "idn": manifest.get("idn"),
+            "channel": channel,
+            "captured_at": manifest.get("captured_at"),
+        },
+        "data": {
+            "file": merged_file,
+            # The slice covers the whole referenced file, so both hashes agree;
+            # both are stated because a reader accepts either as the authority.
+            "sha256": payload_sha256,
+            "file_sha256": payload_sha256,
+            "dtype": "i1" if width == 1 else "<i2",
+            "points": points,
+            "byte_offset": 0,
+            "byte_length": expected_bytes,
+            "width_bytes": width,
+        },
+        "time_axis": {
+            "sample_interval_s": sample_interval,
+            "time_origin_s": time_origin,
+            "timebase_s": timebase,
+            "horizontal_offset_s": horizontal_offset,
+            "reference": "descriptor",
+            "origin_formula": "horizontal_offset - timebase_s * 5 + start * sample_interval",
+        },
+        "vertical": bundle_vertical(manifest, channel, preamble, width),
+        "integrity": {
+            "status": "COMPLETE",
+            "bytes_complete": True,
+            "checks": [
+                "frame_report_complete",
+                "merged_waveform_size",
+                "merged_waveform_sha256",
+                "byte_range_within_file",
+            ],
+            "status_meaning": "payload framing/count integrity only",
+        },
+        "provenance": {
+            "raw_file": merged_file,
+            "raw_sha256": payload_sha256,
+            "new_transition_proven": bundle_new_transition_proven(manifest),
+            "screen_range": frame_report.get("range_correspondence"),
+            "screenshot": manifest.get("screenshot"),
+        },
+        "instrument_measurements": bundle_instrument_measurement(manifest, channel),
+    }
+
+
+def write_channel_bundles(manifest: dict, out_dir: Path) -> list[dict]:
+    """Write ``<channel>.bundle.json`` beside ``manifest.json`` per channel."""
+
+    written: list[dict] = []
+    for result in manifest.get("results", []):
+        bundle = build_waveform_bundle(manifest, result, out_dir=out_dir)
+        if bundle is None:
+            continue
+        bundle_file = f"{result['channel']}.bundle.json"
+        save_json(out_dir / bundle_file, bundle)
+        result["bundle_file"] = bundle_file
+        written.append(bundle)
+    return written
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="192.168.10.2")
@@ -707,6 +994,7 @@ def main() -> int:
         "host": args.host,
         "port": args.port,
         "model": "SIGLENT SDS824X HD",
+        "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "mode": args.capture_mode,
         **channel_mapping,
         "channels": args.channels,
@@ -806,6 +1094,7 @@ def main() -> int:
         if args.screenshot:
             manifest["screenshot"] = capture_optional_screenshot(scope, args.out)
         manifest["command_log"] = [event.__dict__ for event in scope.events]
+        write_channel_bundles(manifest, args.out)
         save_json(args.out / "manifest.json", manifest)
         return 0
     except (ScopeProtocolError, OSError, ValueError) as exc:
