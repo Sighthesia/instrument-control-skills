@@ -1,0 +1,216 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "oscilloscope-waveform-analysis",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "vendor-neutral",
+    "model": "not applicable; this Skill sends no instrument command and opens no socket",
+    "interchange": "waveform-bundle/v1",
+    "exercised_captures": [
+      {
+        "vendor": "rigol",
+        "model": "DS1074Z",
+        "serial": "DS1ZA171004155",
+        "firmware": "00.04.02.SP4",
+        "interface": "raw TCP 5555",
+        "date": "2026-11-20",
+        "scope": "committed NORM and RAW fixtures; bundle framing, vertical scale, summary and verdict"
+      },
+      {
+        "vendor": "siglent",
+        "model": "SDS824X HD",
+        "serial": "SDS08A0Q909185",
+        "firmware": "4.8.12.1.1.6.5",
+        "interface": "SCPI raw TCP 5025",
+        "date": "2026-11-21",
+        "scope": "byte-domain three-way level cross-check on one 3.04 V level at 1 V/div with zero offset"
+      },
+      {
+        "vendor": "gwinstek",
+        "model": "GDS-1000B",
+        "serial": null,
+        "firmware": null,
+        "interface": null,
+        "date": null,
+        "scope": "documented header fixture only; no instrument exercised"
+      }
+    ]
+  },
+  "source": {
+    "operation": "offline waveform analysis of one stored oscilloscope capture: integrity, statistics, verdict gating, threshold events, pulse structure, regime segmentation, raw windows, ringing screening, evidence packaging and optional SVG",
+    "transport": "none; every script reads files on disk and never opens a socket",
+    "inputs": [
+      "waveform-bundle/v1",
+      "csv",
+      "npz",
+      "siglent-manifest"
+    ],
+    "manual": null
+  },
+  "data": {
+    "kind": "waveform",
+    "raw_path": null,
+    "raw_sha256": null,
+    "raw_provenance": "no capture is committed with this Skill. Captures are produced by a device-control Skill and handed over as a waveform-bundle/v1 document plus its payload file; the two committed fixtures read during acceptance live in the Rigol and GW Instek control Skills, and the analysis path is additionally exercised by the bundled offline tests."
+  },
+  "tooling": {
+    "runtime_dependencies": [
+      "numpy"
+    ],
+    "runtime_minimum_version": "2.0",
+    "outputs": [
+      "bounded JSON on stdout or --out",
+      "optional raw-sample SVG via --svg"
+    ],
+    "scripts": {
+      "loader": "scripts/waveform_bundle.py",
+      "analysis": "scripts/waveform_analysis.py",
+      "scan_and_verdict": "scripts/waveform_scan.py",
+      "cli": "scripts/analyze_waveform.py",
+      "evidence": "scripts/waveform_evidence.py",
+      "offline_tests": [
+        "scripts/test_waveform_bundle.py",
+        "scripts/test_waveform_analysis.py",
+        "scripts/test_verdict_gate.py",
+        "scripts/test_waveform_evidence.py"
+      ]
+    },
+    "references": [
+      "references/bundle-schema.md",
+      "references/analysis-methods.md",
+      "references/integrity-and-evidence.md"
+    ],
+    "support_record": "SUPPORT.md",
+    "subcommands": [
+      "inspect",
+      "summarize",
+      "verdict",
+      "events",
+      "structure",
+      "regimes",
+      "window",
+      "ringing"
+    ]
+  },
+  "support": {
+    "level": "documented",
+    "hardware_verified": false,
+    "offline_tested": true,
+    "scope_note": "no instrument command is sent by this Skill, so it carries no Skill-level hardware claim. The per-claim list below is the authority: the loaders, signal-processing engine, verdict gate and evidence builder are offline-tested; the Rigol fixture round-trip is hardware-verified for the bytes it was given; the Siglent three-way level cross-check reached PASS on one level, one range and zero offset; the GW Instek fixture is documented and offline-tested only.",
+    "per_claim": [
+      {
+        "claim": "waveform-bundle/v1 loader",
+        "status": "offline-tested",
+        "evidence": "scripts/test_waveform_bundle.py; mismatch raises AnalysisError, never a partial capture"
+      },
+      {
+        "claim": "CSV and NPZ loaders",
+        "status": "offline-tested",
+        "evidence": "scripts/test_waveform_bundle.py; a sample-interval flag that contradicts a recorded interval is refused, a missing time base is refused instead of assumed, and an unsupported units label is refused"
+      },
+      {
+        "claim": "legacy Siglent manifest loader",
+        "status": "offline-tested",
+        "evidence": "scripts/test_waveform_bundle.py; read-only adapter, no device-Skill import"
+      },
+      {
+        "claim": "signal-processing engine",
+        "status": "offline-tested",
+        "evidence": "scripts/test_waveform_analysis.py; 241 tests across the four suites, no socket opened"
+      },
+      {
+        "claim": "verdict gate",
+        "status": "offline-tested",
+        "evidence": "scripts/test_verdict_gate.py; derived thresholds, refusal codes and the closed claims vocabulary"
+      },
+      {
+        "claim": "evidence builder and SVG",
+        "status": "offline-tested",
+        "evidence": "scripts/test_waveform_evidence.py; five axis scopes, budget trimming, reserved-path delivery"
+      },
+      {
+        "claim": "Rigol DS1074Z fixture round-trip",
+        "status": "hardware-verified",
+        "scope": "framing, vertical scale, summary and verdict for the bytes captured from firmware 00.04.02.SP4 over raw TCP 5555; level_confirmed stays UNKNOWN because no instrument measurement accompanies the fixtures"
+      },
+      {
+        "claim": "GW Instek GDS-1000B fixture round-trip",
+        "status": "documented",
+        "scope": "documented header fixture, offline-tested only; the voltage scale stays OBSERVED_UNVERIFIED per the GDS-1000B contract"
+      },
+      {
+        "claim": "Siglent SDS824X HD three-way level cross-check",
+        "status": "hardware-verified",
+        "scope": "one 3.04 V level at 1 V/div with zero offset on firmware 4.8.12.1.1.6.5 (SCPI raw TCP 5025): reconstructed 3.0417 V against 3.04167 V, tolerance 0.0611, level_confirmed PASS, fabricated 5.0 V reconstruction FAIL. Non-zero offset, a second voltage range and a bundle round-trip from capture_scope.py remain UNVERIFIED"
+      }
+    ],
+    "known_limitations": [
+      "A level_confirmed PASS covers one metric on one stored frame at one V/div and offset setting; it is a self-consistency check against the instrument's own reading, never a calibration against a traceable reference.",
+      "level_confirmed is UNKNOWN whenever the capture records no instrument measurement or records one under a metric outside PKPK, top and base.",
+      "A width-2 (WORD or left-aligned 16-bit) capture stays in the code domain until an external calibration file binds the scale to that record's SHA-256.",
+      "Clipping is only observable up to the representable code range; a floating-point record with no declared ADC rails cannot establish either outcome and reports rail_bounds_unknown.",
+      "Structural completeness is scoped to the stored record: whole-screen coverage, acquisition-memory extent, same-frame identity and trigger or wall-clock alignment stay UNVERIFIED because no accepted input carries a frame identifier.",
+      "Units, probe attenuation and signal names are not inferable from the samples; a capture that records none leaves them unknown.",
+      "Every list output is bounded: edge, cycle, event and JSON budgets yield explicit lower bounds or prefixes beside an authoritative count.",
+      "ringing and candidate-window review are bounded local observations, not proof that a physical event ended or that no other candidate exists.",
+      "Nothing here repairs a capture; an INCOMPLETE or mismatched record is refused at load time and must be re-captured by the device-control Skill."
+    ]
+  },
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "offline_tests",
+        "status": "pass",
+        "evidence": {
+          "command": "python3 -m unittest discover -s skills/oscilloscope-waveform-analysis/scripts -p 'test_*.py'",
+          "tests": 241,
+          "network": "none; fixtures and synthesized captures only"
+        }
+      },
+      {
+        "name": "rigol_fixture_roundtrip",
+        "status": "pass",
+        "evidence": {
+          "fixtures": [
+            "skills/rigol-ds1000z-control/assets/fixtures/waveform-norm-ch1.bin",
+            "skills/rigol-ds1000z-control/assets/fixtures/waveform-raw-ch1.bin"
+          ],
+          "identity": "RIGOL TECHNOLOGIES,DS1074Z,DS1ZA171004155,00.04.02.SP4",
+          "result": "NORM reconstructs -0.04 V to 3.00 V and yields OBSERVED; RAW reconstructs 0.0 V to 0.08375 V and yields REFUSED thresholds_not_separated; level_confirmed UNKNOWN without an instrument measurement"
+        }
+      },
+      {
+        "name": "gwinstek_fixture_roundtrip",
+        "status": "pass",
+        "evidence": {
+          "fixtures": [
+            "skills/gwinstek-gds1000b-control/assets/fixtures/waveform-valid.bin"
+          ],
+          "result": "loads and summarizes as OBSERVED_UNVERIFIED with scale_usable UNKNOWN and level_confirmed UNKNOWN; a 4-point fixture supports no structure claim"
+        }
+      },
+      {
+        "name": "voltage_calibration",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no traceable reference was measured; the only voltage cross-check is against the instrument's own reading, on one level at one range"
+        }
+      },
+      {
+        "name": "frame_association",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no accepted input carries a shared frame identifier, so same-frame identity stays UNVERIFIED by construction"
+        }
+      }
+    ],
+    "analysis_allowed": "offline-analysis-only",
+    "limitations": [
+      "Voltage levels are not confirmed against a traceable reference, and one PASS does not transfer to another range, offset, channel or frame.",
+      "Same-frame identity and absolute or trigger time are never established by this Skill."
+    ]
+  }
+}
