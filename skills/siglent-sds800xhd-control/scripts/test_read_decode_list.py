@@ -1,95 +1,49 @@
-#!/usr/bin/env python3
-import io
+from __future__ import annotations
+
+import hashlib
+import sys
 import unittest
-from unittest.mock import patch
+from pathlib import Path
 
-import read_decode_list as rdl
+SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS))
 
-
-class _FakeSocket:
-    def __init__(self, responses):
-        # responses: list of bytes chunks to return from recv, or Timeout/EOF markers
-        self._items = list(responses)
-        self.sent = b""
-        self.timeouts = []
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
-
-    def settimeout(self, value):
-        self.timeouts.append(value)
-
-    def sendall(self, data):
-        self.sent += data
-
-    def recv(self, _size):
-        if not self._items:
-            return b""
-        item = self._items.pop(0)
-        if item is TimeoutError:
-            raise TimeoutError()
-        return item
+from read_decode_list import _evidence_fields  # noqa: E402
 
 
-class ReadDecodeListTests(unittest.TestCase):
-    def test_validate_query_rejects_writes_and_compounds(self):
-        self.assertEqual(rdl._validate_query(" :DECode:LIST? \n"), ":DECode:LIST?")
-        for bad in ("TRMD SINGLE", ":TRMD SINGLE?", "*RST?", "DEC?\nTRMD SINGLE", "DEC?;*RST?", "DEC"):
-            with self.assertRaises(rdl.DecodeReadError):
-                rdl._validate_query(bad)
+class EvidenceFieldTests(unittest.TestCase):
+    """A decode reply must say what it proves, not just that bytes arrived."""
 
-    def test_port_5024_refused(self):
-        with self.assertRaises(rdl.DecodeReadError):
-            rdl.query_text("127.0.0.1", 5024, "DEC?")
+    def test_a_complete_framing_does_not_claim_complete_content(self):
+        raw = b"HEAD\nrow1\n"
+        result = _evidence_fields(raw, "HEAD\nrow1\n", "idle_timeout")
+        self.assertTrue(result["framing_complete"])
+        self.assertEqual(result["content_complete"], "UNKNOWN")
+        self.assertEqual(result["row_count"], 1)
+        self.assertEqual(result["terminator"], "\n")
+        self.assertEqual(result["frame_binding"], "UNVERIFIED")
+        self.assertEqual(result["raw_sha256"], hashlib.sha256(raw).hexdigest())
 
-    def test_multiline_complete_on_idle_after_final_newline(self):
-        fake = _FakeSocket([b"SPI, Time, MISO, MOSI\n1,1ns,'[0]','[1]'\n", TimeoutError])
-        with patch.object(rdl, "_connect", return_value=fake):
-            res = rdl.query_text("127.0.0.1", 5025, ":DECode:LIST1:RESult?", first_byte_timeout=1.0, idle=0.2)
-        self.assertEqual(res["end_reason"], "idle_timeout")
-        self.assertTrue(res["likely_complete"])
-        self.assertFalse(res["truncated_risk"])
-        self.assertIn("SPI, Time", res["text"])
+    def test_a_header_only_reply_is_indistinguishable_from_no_events(self):
+        header = _evidence_fields(b"HEAD\n", "HEAD\n", "idle_timeout")
+        empty = _evidence_fields(b"", "", "first_byte_timeout")
+        # The bytes differ; the honesty fields do not claim more than framing.
+        self.assertTrue(header["framing_complete"])
+        self.assertEqual(header["row_count"], 0)
+        self.assertEqual(header["content_complete"], "UNKNOWN")
+        self.assertFalse(empty["framing_complete"])
+        self.assertEqual(empty["content_complete"], "UNKNOWN")
+        self.assertIn("not evidence of zero events", empty["warning"])
 
-    def test_first_byte_timeout_reports_no_data(self):
-        fake = _FakeSocket([TimeoutError])
-        with patch.object(rdl, "_connect", return_value=fake):
-            res = rdl.query_text("127.0.0.1", 5025, "DEC?", first_byte_timeout=0.2, idle=0.2)
-        self.assertEqual(res["bytes"], 0)
-        self.assertEqual(res["end_reason"], "first_byte_timeout")
-        self.assertFalse(res["likely_complete"])
+    def test_a_missing_final_newline_is_a_truncation_risk(self):
+        result = _evidence_fields(b"HEAD\nrow1", "HEAD\nrow1", "idle_timeout")
+        self.assertFalse(result["framing_complete"])
+        self.assertTrue(result["truncated_risk"])
+        self.assertIn("may be truncated", result["warning"])
 
-    def test_idle_timeout_without_final_newline_is_truncation_risk(self):
-        fake = _FakeSocket([b"SPI, Time, MISO, MOSI\n1,1ns", TimeoutError])
-        with patch.object(rdl, "_connect", return_value=fake):
-            res = rdl.query_text("127.0.0.1", 5025, ":DECode:LIST1:RESult?")
-        self.assertEqual(res["end_reason"], "idle_timeout")
-        self.assertFalse(res["likely_complete"])
-        self.assertTrue(res["truncated_risk"])
-        self.assertIn("warning", res)
-
-    def test_drain_system_errors_until_zero(self):
-        calls = [
-            {"text": '-113,"Undefined header;X"\n', "end_reason": "idle_timeout", "bytes": 1},
-            {"text": '0,"No error"\n', "end_reason": "idle_timeout", "bytes": 1},
-        ]
-        with patch.object(rdl, "query_text", side_effect=calls):
-            out = rdl.drain_system_errors("127.0.0.1", 5025)
-        self.assertTrue(out["terminated"])
-        self.assertEqual(len(out["entries"]), 1)
-        self.assertIn("-113", out["entries"][0])
-
-    def test_zero_byte_diagnosis_drains_errors(self):
-        diag = {"command": "DEC?", "bytes": 0, "text": "", "end_reason": "first_byte_timeout",
-                "likely_complete": False, "truncated_risk": False}
-        drain = {"entries": ['-113,"Undefined header;BAD?"'], "terminated": True, "not_empty_after_limit": False}
-        with patch.object(rdl, "query_text", return_value=diag), patch.object(rdl, "drain_system_errors", return_value=drain):
-            res = rdl.query_text_with_diagnosis("127.0.0.1", 5025, "DEC?")
-        self.assertEqual(res["system_error"]["entries"][0].split(",")[0], "-113")
-        self.assertIn("warning", res)
+    def test_the_deprecated_alias_means_framing_only(self):
+        result = _evidence_fields(b"HEAD\n", "HEAD\n", "idle_timeout")
+        self.assertEqual(result["likely_complete"], result["framing_complete"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ host-side reconstruction.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import socket
@@ -80,6 +81,41 @@ def _connect(host: str, port: int, timeout: float) -> socket.socket:
     return socket.create_connection((host, port), timeout=timeout)
 
 
+def _evidence_fields(raw: bytes, text: str, end_reason: str) -> dict[str, Any]:
+    """Describe what the received bytes prove, and nothing more.
+
+    A decode list carries no total-count field, so "the bytes stopped arriving"
+    is the strongest fact available. That fact is `framing_complete`. Content
+    completeness is a separate question and stays `UNKNOWN`: a header-only reply
+    and a truncation after the last full row look identical from here.
+    """
+
+    lines = [line for line in text.splitlines() if line.strip()] if text else []
+    framing_complete = bool(raw) and raw.endswith(b"\n") and end_reason in {
+        "idle_timeout",
+        "connection_closed",
+    }
+    result: dict[str, Any] = {
+        "raw_sha256": hashlib.sha256(raw).hexdigest(),
+        "row_count": max(0, len(lines) - 1) if lines else 0,
+        "terminator": "\n" if raw.endswith(b"\n") else None,
+        "frame_binding": "UNVERIFIED",
+        "content_complete": "UNKNOWN",
+        "framing_complete": framing_complete,
+        "truncated_risk": bool(raw) and not framing_complete,
+        # Deprecated alias kept one release: it means framing_complete only.
+        "likely_complete": framing_complete,
+    }
+    if not raw:
+        result["warning"] = "no response bytes: this is not evidence of zero events"
+    elif result["truncated_risk"]:
+        result["warning"] = (
+            "response may be truncated (no final newline or unexpected end). "
+            "Treat as no complete decoded evidence; increase --idle/--first-byte-timeout if needed."
+        )
+    return result
+
+
 def query_text(
     host: str,
     port: int,
@@ -133,22 +169,8 @@ def query_text(
             "end_reason": end_reason,
         }
         result.update(_decode_text(raw))
-        if raw:
-            # Idle timeout after data is the expected end for these text results;
-            # missing final newline is still reported as a truncation risk.
-            result["likely_complete"] = raw.endswith(b"\n") and end_reason in {
-                "idle_timeout",
-                "connection_closed",
-            }
-            result["truncated_risk"] = not result["likely_complete"]
-            if result["truncated_risk"]:
-                result["warning"] = (
-                    "response may be truncated (no final newline or unexpected end). "
-                    "Treat as no complete decoded evidence; increase --idle/--first-byte-timeout if needed."
-                )
-        else:
-            result["likely_complete"] = False
-            result["truncated_risk"] = False
+
+        result.update(_evidence_fields(raw, result.get("text", ""), end_reason))
         return result
 
 
@@ -313,6 +335,19 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         _print_text(report)
+
+    # Exit code must say whether evidence exists, not merely that the run did not
+    # raise: a query that answered nothing is not "zero events decoded".
+    queries = report.get("queries") or {}
+    answered = [item for item in queries.values() if isinstance(item, dict) and item.get("bytes")]
+    unanswered = [name for name, item in queries.items() if isinstance(item, dict) and not item.get("bytes")]
+    if not answered:
+        print(
+            f"no decode evidence: {len(unanswered)} quer{'y' if len(unanswered) == 1 else 'ies'} "
+            "returned 0 bytes; this is not evidence of zero events",
+            file=sys.stderr,
+        )
+        return 3
     return 0
 
 
