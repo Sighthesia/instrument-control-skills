@@ -38,6 +38,7 @@ from ds1000z_protocol import (  # noqa: E402
     MAX_INLINE_RAW_BYTES,
     MEASUREMENT_COMMANDS,
     ProtocolError,
+    export_waveform_bundle,
     is_command_error,
     parse_cursor_readout,
     parse_error_queue,
@@ -384,6 +385,16 @@ class Session:
 # ---------------------------------------------------------------------------
 
 
+def _bundle_stem(path: Path) -> str:
+    """``<stem>.bundle.json`` and ``<stem>.json`` name the same bundle as ``<stem>``."""
+
+    name = path.name
+    for suffix in (".bundle.json", ".json"):
+        if name.endswith(suffix) and len(name) > len(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
 def save_raw(path: Path, raw: bytes, *, overwrite: bool = False) -> dict:
     """Write raw bytes atomically and refuse to overwrite by default."""
 
@@ -611,8 +622,14 @@ def cmd_waveform(
     start: int | None = None,
     stop: int | None = None,
     overwrite: bool = False,
+    bundle_out: Path | None = None,
 ) -> int:
-    """Read one waveform block and save the bytes that the instruments sent."""
+    """Read one waveform block and save the bytes that the instruments sent.
+
+    ``bundle_out`` additionally writes a ``waveform-bundle/v1`` document for the
+    vendor-neutral analysis Skill; it is written only for a COMPLETE parse and
+    its payload goes next to it as ``<name>.bin``.
+    """
 
     if (start is None) != (stop is None):
         raise SessionError("--start and --stop must be given together")
@@ -631,6 +648,9 @@ def cmd_waveform(
         points_raw = session.query_text(":WAVeform:POINts?")
         preamble_raw = session.query_text(":WAVeform:PREamble?")
         data_raw = session.query_block(":WAVeform:DATA?")
+        # A bundle names the model that produced its samples, so read the
+        # identity only when one is asked for; a waveform read never needed it.
+        identity_raw = session.query_text("*IDN?") if bundle_out is not None else None
     finally:
         if state_changed:
             _restore_acquire_context(session, prior)
@@ -656,6 +676,29 @@ def cmd_waveform(
         "data_sha256": saved["sha256"],
         "captured_at": _utc_now(),
     }
+    if bundle_out is not None:
+        if result["status"] == "COMPLETE":
+            destination = Path(bundle_out)
+            idn_text = (
+                None if identity_raw is None else identity_raw.decode("ascii", "replace").strip()
+            )
+            result["bundle"] = export_waveform_bundle(
+                data_raw,
+                preamble_raw=preamble_raw,
+                out_dir=destination.parent,
+                name=_bundle_stem(destination),
+                channel=channel,
+                idn=idn_text,
+                captured_at=result["transport"]["captured_at"],
+                raw_file=Path(out),
+                overwrite=overwrite,
+            )
+        else:
+            result["bundle"] = {
+                "written": False,
+                "status": result["status"],
+                "reasons": result["integrity"]["reasons"],
+            }
     _print_json(result)
     return 0 if result["status"] not in {"INVALID", "INCOMPLETE", "UNSUPPORTED"} else 1
 
@@ -1126,6 +1169,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_wave.add_argument("--start", type=int)
     p_wave.add_argument("--stop", type=int)
     p_wave.add_argument("--overwrite", action="store_true")
+    p_wave.add_argument(
+        "--bundle-out",
+        type=Path,
+        help=(
+            "also write a waveform-bundle/v1 document for the analysis Skill: "
+            "<name>.bundle.json plus <name>.bin beside it, where <name> drops a "
+            "trailing .bundle.json / .json"
+        ),
+    )
 
     p_shot = sub.add_parser("screenshot", help="read :DISPlay:DATA? and save the BMP")
     p_shot.add_argument("--out", required=True, type=Path, help="raw response path; the image goes to <out>.bmp")
@@ -1184,6 +1236,7 @@ def main(argv: list[str] | None = None) -> int:
                 start=args.start,
                 stop=args.stop,
                 overwrite=args.overwrite,
+                bundle_out=args.bundle_out,
             )
         if args.subcommand == "screenshot":
             return cmd_screenshot(

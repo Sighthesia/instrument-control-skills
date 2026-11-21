@@ -15,7 +15,7 @@ FIXTURES = ROOT / "assets" / "fixtures"
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
-from ds1000z_protocol import encode_ieee_block, parse_measurement  # noqa: E402
+from ds1000z_protocol import encode_ieee_block, parse_ieee_block, parse_measurement  # noqa: E402
 from ds1000z_session import (  # noqa: E402
     DEFAULT_PORT,
     Session,
@@ -545,6 +545,92 @@ class WaveformCommandTests(unittest.TestCase):
             with self.assertRaises(SessionError):
                 cmd_waveform(session, out=out_path)
             self.assertEqual(out_path.read_bytes(), b"operator data")
+
+
+class WaveformBundleCommandTests(unittest.TestCase):
+    """`waveform --bundle-out` writes the analysis Skill's interchange document."""
+
+    def test_bundle_out_writes_bundle_and_payload(self):
+        session = FakeSession(healthy_responses())
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "wave.bin"
+            bundle_path = Path(tmp) / "capture.bundle.json"
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = cmd_waveform(session, out=out_path, channel=1, bundle_out=bundle_path)
+            result = json.loads(buffer.getvalue())
+            bundle = json.loads(bundle_path.read_text())
+            payload = Path(tmp, "capture.bin").read_bytes()
+        self.assertEqual(code, 0)
+        self.assertEqual(result["bundle"]["path"], str(bundle_path))
+        self.assertEqual(payload, parse_ieee_block(fixture("waveform-norm-block.bin")).payload)
+        self.assertEqual(bundle["schema"], "waveform-bundle/v1")
+        self.assertEqual(bundle["source"]["model"], "DS1074Z")
+        self.assertEqual(bundle["source"]["channel"], "CH1")
+        self.assertEqual(bundle["data"]["file"], "capture.bin")
+        self.assertEqual(bundle["data"]["points"], 1200)
+        self.assertEqual(bundle["vertical"]["zero_code"], 51)
+        self.assertEqual(bundle["vertical"]["calibration_source"], "rigol_preamble")
+        self.assertEqual(bundle["integrity"]["status"], "COMPLETE")
+        self.assertEqual(bundle["provenance"]["raw_file"], "wave.bin")
+        self.assertEqual(bundle["provenance"]["raw_sha256"], result["saved"]["sha256"])
+        self.assertEqual(bundle["source"]["captured_at"], result["transport"]["captured_at"])
+
+    def test_bundle_out_without_channel_leaves_it_null(self):
+        session = FakeSession(healthy_responses())
+        with tempfile.TemporaryDirectory() as tmp:
+            # "--bundle-out capture.json" keeps the schema's canonical file name.
+            bundle_path = Path(tmp) / "capture.json"
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                cmd_waveform(session, out=Path(tmp) / "wave.bin", bundle_out=bundle_path)
+            written = json.loads(buffer.getvalue())["bundle"]
+            self.assertEqual(written["path"], str(Path(tmp) / "capture.bundle.json"))
+            bundle = json.loads(Path(tmp, "capture.bundle.json").read_text())
+            self.assertTrue(Path(tmp, "capture.bin").exists())
+            self.assertFalse(bundle_path.exists())
+        self.assertIsNone(bundle["source"]["channel"])
+        self.assertNotIn(":WAVeform:SOURce", session.commands)
+
+    def test_incomplete_waveform_writes_no_bundle(self):
+        responses = healthy_responses()
+        responses[":WAVeform:DATA?"] = fixture("waveform-length-short.bin")
+        session = FakeSession(responses)
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "wave.bin"
+            bundle_path = Path(tmp) / "capture.bundle.json"
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = cmd_waveform(session, out=out_path, bundle_out=bundle_path)
+            result = json.loads(buffer.getvalue())
+            self.assertTrue(out_path.exists())
+            self.assertFalse(bundle_path.exists())
+            self.assertEqual(list(Path(tmp).iterdir()), [out_path])
+        self.assertEqual(code, 1)
+        self.assertFalse(result["bundle"]["written"])
+        self.assertIn("block_payload_truncated", result["bundle"]["reasons"])
+
+    def test_dry_run_queries_identity_but_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "wave.bin"
+            bundle_path = Path(tmp) / "capture.bundle.json"
+            code, out, _ = run_cli([
+                "--dry-run", "waveform", "--out", str(out_path), "--bundle-out", str(bundle_path),
+            ])
+            self.assertEqual(code, 0)
+            self.assertIn("b'*IDN?\\n'", out)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_existing_bundle_is_not_overwritten(self):
+        session = FakeSession(healthy_responses())
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_path = Path(tmp) / "capture.bundle.json"
+            bundle_path.write_text("operator data\n")
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(FileExistsError):
+                    cmd_waveform(session, out=Path(tmp) / "wave.bin", bundle_out=bundle_path)
+            self.assertEqual(bundle_path.read_text(), "operator data\n")
+            self.assertFalse(Path(tmp, "capture.bin").exists())
 
 
 class ScreenshotCommandTests(unittest.TestCase):

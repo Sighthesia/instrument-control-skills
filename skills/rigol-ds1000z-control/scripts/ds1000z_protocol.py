@@ -106,6 +106,16 @@ WAVEFORM_FORMAT_BYTES = {0: 1, 1: 2, 2: 1}
 # Manual p. 2-226: <type> 0=NORMal, 1=MAXimum, 2=RAW.
 WAVEFORM_MODES = {0: "NORM", 1: "MAX", 2: "RAW"}
 
+# waveform-bundle/v1 (2026-11-21 waveform-analysis spec §2): the interchange
+# document the vendor-neutral analysis Skill reads. This Skill writes the two
+# sections it can prove from the instrument's own preamble and refuses the rest.
+BUNDLE_SCHEMA = "waveform-bundle/v1"
+BUNDLE_VENDOR = "rigol"
+# The preamble's own scale reproduces :MEASure:VPP on the bench (module notes),
+# so it is recorded as verified *from the preamble*, not as a calibration claim.
+BUNDLE_CALIBRATION_STATUS = "VERIFIED"
+BUNDLE_CALIBRATION_SOURCE = "rigol_preamble"
+
 # Manual p. 2-226: preamble field order.
 PREAMBLE_FIELDS = (
     "format",
@@ -2173,6 +2183,249 @@ def waveform_to_csv(
         "status": artifact["status"],
         "calibration_status": artifact["calibration"]["status"],
         "preamble_present": preamble is not None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# waveform-bundle/v1 export
+# ---------------------------------------------------------------------------
+
+
+def _bundle_channel(channel: int | str | None) -> str | None:
+    """``CH1`` for a channel number, the given token otherwise."""
+
+    if channel is None:
+        return None
+    if isinstance(channel, int) and not isinstance(channel, bool):
+        return f"CH{channel}"
+    text = str(channel).strip()
+    return text or None
+
+
+def _bundle_model(idn: str | None) -> str | None:
+    """The model field of an ``*IDN?`` reply; ``None`` when no reply was given."""
+
+    if not isinstance(idn, str):
+        return None
+    fields = [field.strip() for field in idn.split(",")]
+    if len(fields) < 2:
+        return None
+    return fields[1] or None
+
+
+def export_waveform_bundle(
+    data_raw: bytes,
+    *,
+    preamble_raw: bytes,
+    out_dir: str | Path,
+    name: str | None = None,
+    channel: int | str | None = None,
+    idn: str | None = None,
+    captured_at: str | None = None,
+    raw_file: str | Path | None = None,
+    instrument_measurements: dict[str, Any] | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Write one ``waveform-bundle/v1`` document beside the payload it names.
+
+    The vertical block is the DS1000Z preamble itself, so the bundle's
+    ``(sample - zero_code) * code_scale_v + offset_v`` reproduces
+    :func:`sample_voltage` and ``time_origin_s + index * sample_interval_s``
+    reproduces :func:`sample_time` for every point.
+
+    Only a COMPLETE parse is exported: a partially received, superseded, or
+    undecodable response must never become a bundle the analysis Skill trusts.
+    ``name`` defaults to ``waveform`` or ``waveform-ch<n>``; the files written
+    are ``<name>.bin`` and ``<name>.bundle.json`` under ``out_dir``.
+    """
+
+    artifact = parse_waveform(data_raw, preamble_raw=preamble_raw)
+    if artifact["status"] != "COMPLETE":
+        reasons = artifact["integrity"]["reasons"]
+        raise ProtocolError(
+            f"waveform cannot be exported: status {artifact['status']}",
+            artifact["status"],
+            reasons[0] if reasons else "waveform_not_complete",
+        )
+    preamble = artifact["preamble"]
+
+    if instrument_measurements is not None and not isinstance(instrument_measurements, dict):
+        raise ProtocolError(
+            "instrument_measurements must be a mapping",
+            "INVALID",
+            "instrument_measurements_not_mapping",
+        )
+
+    # parse_waveform() already reports WORD/ASC as UNSUPPORTED, so only BYTE
+    # reaches this point; the guard stays because ``dtype`` is the one statement
+    # the bundle makes about how its bytes are to be read.
+    if preamble["format"] == 0:
+        # Manual p. 2-226 and measured: BYTE is one unsigned byte per point on
+        # the full 8-bit code range.
+        dtype, width_bytes, adc_min_code, adc_max_code = "u1", 1, 0, 255
+    elif preamble["format"] == 1:
+        # WORD samples are 16-bit, but neither the manual nor this bench read
+        # establishes their byte order, and :WAVeform:DATA? has only ever been
+        # captured as BYTE. A dtype here would be a guess; refuse instead.
+        raise ProtocolError(
+            "WORD-format samples have no verified byte order on this firmware",
+            "UNSUPPORTED",
+            "word_byte_order_unverified",
+        )
+    else:
+        raise ProtocolError(
+            "ASC-format samples are text voltages, not codes",
+            "UNSUPPORTED",
+            "asc_samples_not_codes",
+        )
+    if artifact["bytes_per_point"] != width_bytes:
+        raise ProtocolError(
+            f"preamble reports {artifact['bytes_per_point']} bytes per point, "
+            f"{dtype} needs {width_bytes}",
+            "INVALID",
+            "sample_width_mismatch",
+        )
+
+    _, block_bytes = _split_block_prefix(bytes(data_raw))
+    payload = parse_ieee_block(block_bytes).payload
+    points = artifact["points"]
+    if len(payload) != points:
+        raise ProtocolError(
+            f"payload holds {len(payload)} bytes but the preamble declares {points} points",
+            "INVALID",
+            "payload_points_mismatch",
+        )
+
+    sample_interval_s = preamble["xincrement"]
+    time_origin_s = preamble["xorigin"]
+    # The analysis Skill rebuilds every sample time from these two fields, so
+    # check the reconstruction against :func:`sample_time` point by point rather
+    # than trusting that the two formulas agree by construction.
+    for index in range(points):
+        reconstructed = time_origin_s + index * sample_interval_s
+        expected = sample_time(index, xorigin=time_origin_s, xincrement=sample_interval_s)
+        if reconstructed != expected:
+            raise ProtocolError(
+                f"time_axis fields do not reproduce sample_time({index})",
+                "INVALID",
+                "time_axis_parity_failed",
+            )
+
+    channel_name = _bundle_channel(channel)
+    stem = name if name is not None else (
+        f"waveform-{channel_name.lower()}" if channel_name else "waveform"
+    )
+    stem = str(stem).strip()
+    if not stem:
+        raise ProtocolError("bundle name must not be empty", "INVALID", "bundle_name_empty")
+
+    directory = Path(out_dir)
+    payload_path = directory / f"{stem}.bin"
+    bundle_path = directory / f"{stem}.bundle.json"
+    for destination in (payload_path, bundle_path):
+        if destination.exists() and not overwrite:
+            raise FileExistsError(f"refusing to overwrite {destination}")
+
+    written = write_payload(payload, payload_path, overwrite=overwrite)
+    payload_sha256 = hashlib.sha256(payload).hexdigest()
+
+    provenance: dict[str, Any] = {
+        "raw_file": None,
+        "raw_sha256": None,
+        "new_transition_proven": None,
+        "screen_range": None,
+        "screenshot": None,
+    }
+    if raw_file is not None:
+        # The recorded hash is read back from the file that was kept, not copied
+        # from the response in memory, so the bundle names exactly what is on disk.
+        raw_path = Path(raw_file)
+        provenance["raw_sha256"] = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+        provenance["raw_file"] = (
+            raw_path.name if raw_path.resolve().parent == directory.resolve() else str(raw_file)
+        )
+
+    bundle: dict[str, Any] = {
+        "schema": BUNDLE_SCHEMA,
+        "source": {
+            "vendor": BUNDLE_VENDOR,
+            "model": _bundle_model(idn),
+            "idn": idn,
+            "channel": channel_name,
+            "captured_at": captured_at,
+        },
+        "data": {
+            "file": payload_path.name,
+            "sha256": payload_sha256,
+            "file_sha256": written["sha256"],
+            "dtype": dtype,
+            "points": points,
+            "byte_offset": 0,
+            "byte_length": len(payload),
+            "width_bytes": width_bytes,
+        },
+        "time_axis": {
+            "sample_interval_s": sample_interval_s,
+            "time_origin_s": time_origin_s,
+            # :WAVeform:PREamble? carries no timebase or horizontal offset field;
+            # null keeps that absence visible instead of implying a reading.
+            "timebase_s": None,
+            "horizontal_offset_s": None,
+            "reference": "descriptor",
+            "origin_formula": "time_origin_s + sample_index * sample_interval_s",
+        },
+        "vertical": {
+            "units": "V",
+            "scale_usable": True,
+            "zero_code": preamble["zero_code"],
+            "code_scale_v": preamble["yincrement"],
+            "offset_v": 0.0,
+            "vdiv_v_per_div": None,
+            "adc_min_code": adc_min_code,
+            "adc_max_code": adc_max_code,
+            "full_scale_code": None,
+            "calibration_status": BUNDLE_CALIBRATION_STATUS,
+            "calibration_source": BUNDLE_CALIBRATION_SOURCE,
+            "scale_reasons": [],
+        },
+        "integrity": {
+            "status": artifact["status"],
+            "bytes_complete": True,
+            "checks": [
+                f"{check['name']}:{check['status']}" for check in artifact["integrity"]["checks"]
+            ],
+            "status_meaning": "payload framing/count integrity only",
+        },
+        "provenance": provenance,
+        "instrument_measurements": (
+            None if instrument_measurements is None else dict(instrument_measurements)
+        ),
+    }
+
+    text = json.dumps(bundle, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    temporary = bundle_path.with_name(bundle_path.name + ".tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        temporary.replace(bundle_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+    return {
+        "schema": BUNDLE_SCHEMA,
+        "path": str(bundle_path),
+        "payload_path": str(payload_path),
+        "points": points,
+        "byte_length": len(payload),
+        "dtype": dtype,
+        "channel": channel_name,
+        "sample_interval_s": sample_interval_s,
+        "code_scale_v": preamble["yincrement"],
+        "payload_sha256": payload_sha256,
+        "file_sha256": written["sha256"],
+        "bundle_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "calibration_status": BUNDLE_CALIBRATION_STATUS,
+        "status": "COMPLETE",
     }
 
 

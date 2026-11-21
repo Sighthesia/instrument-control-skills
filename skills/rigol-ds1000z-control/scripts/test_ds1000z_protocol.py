@@ -25,6 +25,7 @@ from ds1000z_protocol import (  # noqa: E402
     PREAMBLE_FIELDS,
     ProtocolError,
     encode_ieee_block,
+    export_waveform_bundle,
     extract_payload,
     is_command_error,
     iter_codes,
@@ -801,6 +802,220 @@ class CsvTests(unittest.TestCase):
                 waveform_to_csv(fixture("waveform-length-short.bin"), Path(tmp) / "w.csv")
 
 
+class WaveformBundleExportTests(unittest.TestCase):
+    """waveform-bundle/v1 export: exact sample_voltage/sample_time parity."""
+
+    def _bundle(self, written: dict) -> dict:
+        return json.loads(Path(written["path"]).read_text())
+
+    def _assert_axis_parity(self, written: dict, preamble_fixture: str) -> None:
+        bundle = self._bundle(written)
+        payload = Path(written["payload_path"]).read_bytes()
+        preamble = parse_preamble(fixture(preamble_fixture))
+        vertical = bundle["vertical"]
+        time_axis = bundle["time_axis"]
+        self.assertEqual(len(payload), bundle["data"]["points"])
+        for index, code in enumerate(payload):
+            self.assertAlmostEqual(
+                (code - vertical["zero_code"]) * vertical["code_scale_v"] + vertical["offset_v"],
+                sample_voltage(
+                    code,
+                    yorigin=preamble["yorigin"],
+                    yreference=preamble["yreference"],
+                    yincrement=preamble["yincrement"],
+                ),
+                delta=1e-12,
+            )
+            self.assertAlmostEqual(
+                time_axis["time_origin_s"] + index * time_axis["sample_interval_s"],
+                sample_time(index, xorigin=preamble["xorigin"], xincrement=preamble["xincrement"]),
+                delta=1e-12,
+            )
+
+    def test_norm_bundle_records_the_preamble_scale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = export_waveform_bundle(
+                fixture("waveform-norm-ch1.bin"),
+                preamble_raw=fixture("preamble-norm.txt"),
+                out_dir=tmp,
+                name="norm-ch1",
+                channel=1,
+                idn=fixture("identity.txt").decode().strip(),
+                captured_at="2026-11-21T00:00:00Z",
+            )
+            bundle = self._bundle(written)
+            payload = Path(tmp, "norm-ch1.bin").read_bytes()
+        self.assertEqual(Path(written["path"]).name, "norm-ch1.bundle.json")
+        self.assertEqual(Path(written["payload_path"]).name, "norm-ch1.bin")
+        self.assertEqual(bundle["schema"], "waveform-bundle/v1")
+        self.assertEqual(bundle["source"]["vendor"], "rigol")
+        self.assertEqual(bundle["source"]["model"], "DS1074Z")
+        self.assertEqual(bundle["source"]["channel"], "CH1")
+        self.assertEqual(bundle["source"]["captured_at"], "2026-11-21T00:00:00Z")
+        self.assertEqual(bundle["data"]["file"], "norm-ch1.bin")
+        self.assertEqual(bundle["data"]["dtype"], "u1")
+        self.assertEqual(bundle["data"]["width_bytes"], 1)
+        self.assertEqual(bundle["data"]["points"], 1200)
+        self.assertEqual(bundle["data"]["byte_offset"], 0)
+        self.assertEqual(bundle["data"]["byte_length"], 1200)
+        self.assertEqual(bundle["data"]["sha256"], hashlib.sha256(payload).hexdigest())
+        self.assertEqual(bundle["data"]["file_sha256"], bundle["data"]["sha256"])
+        self.assertEqual(bundle["vertical"]["zero_code"], 51)
+        self.assertEqual(bundle["vertical"]["code_scale_v"], 0.02)
+        self.assertEqual(bundle["vertical"]["offset_v"], 0.0)
+        self.assertEqual(bundle["vertical"]["units"], "V")
+        self.assertTrue(bundle["vertical"]["scale_usable"])
+        self.assertEqual(bundle["vertical"]["adc_min_code"], 0)
+        self.assertEqual(bundle["vertical"]["adc_max_code"], 255)
+        self.assertEqual(bundle["vertical"]["calibration_status"], "VERIFIED")
+        self.assertEqual(bundle["vertical"]["calibration_source"], "rigol_preamble")
+        self.assertEqual(bundle["time_axis"]["sample_interval_s"], 2e-6)
+        self.assertEqual(bundle["time_axis"]["time_origin_s"], -1.2e-3)
+        self.assertEqual(bundle["integrity"]["status"], "COMPLETE")
+        self.assertTrue(bundle["integrity"]["bytes_complete"])
+        self.assertIn("declared_points:pass", bundle["integrity"]["checks"])
+        self.assertIsNone(bundle["provenance"]["raw_file"])
+        self.assertIsNone(bundle["instrument_measurements"])
+
+    def test_norm_parity_with_sample_voltage_and_sample_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = export_waveform_bundle(
+                fixture("waveform-norm-ch1.bin"),
+                preamble_raw=fixture("preamble-norm.txt"),
+                out_dir=tmp,
+                channel=1,
+            )
+            self._assert_axis_parity(written, "preamble-norm.txt")
+            # The fixture's own decoded extremes survive the round trip.
+            bundle = self._bundle(written)
+            payload = Path(written["payload_path"]).read_bytes()
+        scale = bundle["vertical"]["code_scale_v"]
+        zero = bundle["vertical"]["zero_code"]
+        self.assertAlmostEqual((min(payload) - zero) * scale, -0.04)
+        self.assertAlmostEqual((max(payload) - zero) * scale, 3.0)
+
+    def test_raw_parity_uses_the_raw_increment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = export_waveform_bundle(
+                fixture("waveform-raw-ch1.bin"),
+                preamble_raw=fixture("preamble-raw.txt"),
+                out_dir=tmp,
+            )
+            bundle = self._bundle(written)
+            self._assert_axis_parity(written, "preamble-raw.txt")
+        self.assertEqual(bundle["data"]["points"], 4000)
+        self.assertEqual(bundle["vertical"]["zero_code"], 49)
+        self.assertEqual(bundle["vertical"]["code_scale_v"], 0.0209375)
+        self.assertEqual(bundle["time_axis"]["sample_interval_s"], 1e-9)
+        self.assertIsNone(bundle["source"]["model"])
+        self.assertEqual(Path(written["payload_path"]).name, "waveform.bin")
+
+    def test_default_name_follows_the_channel(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = export_waveform_bundle(
+                fixture("waveform-norm-ch1.bin"),
+                preamble_raw=fixture("preamble-norm.txt"),
+                out_dir=tmp,
+                channel="CH2",
+            )
+            self.assertEqual(Path(written["path"]).name, "waveform-ch2.bundle.json")
+            self.assertEqual(Path(written["payload_path"]).name, "waveform-ch2.bin")
+            self.assertEqual(written["channel"], "CH2")
+
+    def test_provenance_records_the_saved_raw_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw_path = Path(tmp, "wave.raw")
+            raw_path.write_bytes(fixture("waveform-norm-ch1.bin"))
+            written = export_waveform_bundle(
+                fixture("waveform-norm-ch1.bin"),
+                preamble_raw=fixture("preamble-norm.txt"),
+                out_dir=tmp,
+                name="wave",
+                channel=1,
+                raw_file=raw_path,
+            )
+            bundle = self._bundle(written)
+        self.assertEqual(bundle["provenance"]["raw_file"], "wave.raw")
+        self.assertEqual(
+            bundle["provenance"]["raw_sha256"],
+            hashlib.sha256(fixture("waveform-norm-ch1.bin")).hexdigest(),
+        )
+
+    def test_instrument_measurement_is_passed_through(self):
+        measurement = {
+            "metric": "VPP",
+            "value": 3.04,
+            "unit": "V",
+            "source_query": ":MEASure:VPP?",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            written = export_waveform_bundle(
+                fixture("waveform-norm-ch1.bin"),
+                preamble_raw=fixture("preamble-norm.txt"),
+                out_dir=tmp,
+                instrument_measurements=measurement,
+            )
+            bundle = self._bundle(written)
+        self.assertEqual(bundle["instrument_measurements"], measurement)
+
+    def test_incomplete_waveform_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                export_waveform_bundle(
+                    fixture("waveform-length-short.bin"),
+                    preamble_raw=fixture("preamble-norm.txt"),
+                    out_dir=tmp,
+                )
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_invalid_preamble_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                export_waveform_bundle(
+                    fixture("waveform-norm-block.bin"),
+                    preamble_raw=fixture("preamble-truncated.txt"),
+                    out_dir=tmp,
+                )
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_word_format_is_refused(self):
+        # 16-bit samples: the width is known, the byte order is not. The parse is
+        # already UNSUPPORTED, so nothing may be written under a guessed dtype.
+        preamble = fixture("preamble-raw.txt").replace(b"0,2,4000,", b"1,2,2000,")
+        raw = preamble + encode_ieee_block(b"\x33\x00" * 2000) + b"\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                export_waveform_bundle(raw, preamble_raw=preamble, out_dir=tmp)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_refuses_existing_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            existing = Path(tmp, "waveform.bin")
+            existing.write_bytes(b"operator data")
+            with self.assertRaises(FileExistsError):
+                export_waveform_bundle(
+                    fixture("waveform-norm-ch1.bin"),
+                    preamble_raw=fixture("preamble-norm.txt"),
+                    out_dir=tmp,
+                )
+            self.assertEqual(existing.read_bytes(), b"operator data")
+            self.assertFalse(Path(tmp, "waveform.bundle.json").exists())
+
+    def test_overwrite_replaces_both_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "waveform.bin").write_bytes(b"operator data")
+            Path(tmp, "waveform.bundle.json").write_text("{}\n")
+            written = export_waveform_bundle(
+                fixture("waveform-norm-ch1.bin"),
+                preamble_raw=fixture("preamble-norm.txt"),
+                out_dir=tmp,
+                overwrite=True,
+            )
+            payload = Path(written["payload_path"]).read_bytes()
+            self.assertEqual(hashlib.sha256(payload).hexdigest(), written["payload_sha256"])
+            self.assertEqual(self._bundle(written)["data"]["points"], 1200)
+
+
 def _bmp(width: int, height: int) -> bytes:
     row = ((width * 24 + 31) // 32) * 4
     pixels = bytes(range(row % 256)) * (height * row // max(row % 256, 1) + 1)
@@ -1122,6 +1337,19 @@ class IsolationTests(unittest.TestCase):
                 self.assertNotIn("socket", [alias.name for alias in node.names])
             if isinstance(node, ast.ImportFrom):
                 self.assertNotEqual(node.module, "socket")
+
+    def test_only_stdlib_imports(self):
+        # The exporter feeds a vendor-neutral consumer: no numpy, and no module
+        # from another Skill, may become a dependency of this one.
+        tree = ast.parse((SCRIPTS / "ds1000z_protocol.py").read_text())
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[0])
+        self.assertNotIn("numpy", imported)
+        self.assertEqual(imported - set(sys.stdlib_module_names), set())
 
 
 class CliTests(unittest.TestCase):
