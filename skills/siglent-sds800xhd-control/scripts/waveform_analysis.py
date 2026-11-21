@@ -395,6 +395,144 @@ def _channel_snapshot(manifest: dict[str, Any], channel: str) -> dict[str, Any]:
     return {}
 
 
+def _level_cross_check(
+    calibration: dict[str, Any],
+    manifest: dict[str, Any],
+    channel: str,
+) -> dict[str, Any]:
+    """Compare the reconstructed amplitude with the instrument's own reading.
+
+    Structural completeness never proves a physical level: a wrong V/div source,
+    an ampere scale read as volts, or a dropped panel offset all keep every
+    structural check green. The only available independent number is the scope's
+    own ``:MEASure:SIMPle:VALue?`` reply recorded by the capture step under
+    ``manifest["instrument_measurements"][channel]``.
+
+    Tolerance is ``2*lsb + 0.02*|instrument|`` where ``lsb`` is ``code_scale_v``:
+    two codes cover the quantisation of both ends of a peak-to-peak reading, and
+    the 2% term covers the instrument's own measurement chain. The verdict is
+    ``UNKNOWN`` when the manifest carries no reading — never a silent pass.
+    """
+
+    result: dict[str, Any] = {
+        "verdict": "UNKNOWN",
+        "reason": "instrument_measurement_absent",
+        "instrument_value": None,
+        "reconstructed_value": None,
+        "tolerance": None,
+        "lsb": None,
+    }
+    measurements = manifest.get("instrument_measurements")
+    if not isinstance(measurements, dict):
+        return result
+    per_channel = measurements.get(channel)
+    if not isinstance(per_channel, dict):
+        result["reason"] = f"instrument_measurement_absent_for_{channel}"
+        return result
+    for key in ("pkpk", "top", "base"):
+        entry = per_channel.get(key)
+        if not isinstance(entry, dict):
+            continue
+        instrument = _finite_number(entry.get("value"))
+        if instrument is None:
+            continue
+        lsb = _finite_number(calibration.get("code_scale_v"))
+        unit = str(entry.get("unit", "")).strip().lower()
+        result["instrument_metric"] = key
+        result["instrument_value"] = instrument
+        result["instrument_unit"] = unit or None
+        if unit and unit != "v":
+            result["verdict"] = "FAIL"
+            result["reason"] = f"instrument_measurement_in_{unit}_not_volts"
+            return result
+        if lsb is None:
+            result["reason"] = "code_scale_unknown"
+            return result
+        tolerance = 2.0 * lsb + 0.02 * abs(instrument)
+        result["lsb"] = lsb
+        result["tolerance"] = tolerance
+        # The comparison itself belongs to attach_three_way_status, which holds
+        # the reconstructed amplitude.
+        result["verdict"] = "COMPARABLE"
+        result["reason"] = "measured"
+        return result
+    return result
+
+
+def attach_three_way_status(
+    calibration: dict[str, Any],
+    *,
+    manifest: dict[str, Any],
+    channel: str,
+    reconstruction: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Add the three separate claims this artifact can make.
+
+    ``bytes_complete`` — structural/count integrity of the downloaded record.
+    ``scale_usable``   — the V/div, offset and unit needed for a conversion are
+                         present and not contradicted by the record.
+    ``level_confirmed`` — the reconstructed amplitude agrees with the instrument's
+                         own reading inside the documented tolerance.
+
+    A reader must ask for each one; ``status == "VALID"`` is only the second.
+    """
+
+    issues = calibration.get("verification_failures") or []
+    calibration["bytes_complete"] = "COMPLETE" if not issues else "INCOMPLETE"
+
+    scale_reasons: list[str] = []
+    if calibration.get("status") != "VALID":
+        scale_reasons.append("calibration_status_not_valid")
+    if calibration.get("effective_vdiv_v_per_div") in (None, 0):
+        scale_reasons.append("vdiv_unknown")
+    if calibration.get("effective_offset_v") is None:
+        scale_reasons.append("offset_unknown")
+    units = str(calibration.get("units", "")).strip().lower()
+    if units not in ("v", "volts"):
+        scale_reasons.append(f"units_{units or 'missing'}_not_volts")
+    calibration["scale_usable"] = "VALID" if not scale_reasons else "UNKNOWN"
+    if scale_reasons:
+        calibration["scale_reasons"] = scale_reasons
+
+    check = _level_cross_check(calibration, manifest, channel)
+    if check["verdict"] == "UNKNOWN":
+        calibration["level_confirmed"] = "UNKNOWN"
+        calibration["level_reason"] = check.get("reason")
+        return calibration
+    if check["verdict"] == "FAIL":
+        # The instrument reported the metric in a unit that is not a voltage, so
+        # there is nothing to compare: refuse instead of converting silently.
+        calibration["level_confirmed"] = "FAIL"
+        calibration["level_reason"] = check.get("reason")
+        calibration["instrument_value"] = check.get("instrument_value")
+        calibration["instrument_unit"] = check.get("instrument_unit")
+        return calibration
+
+    instrument = check["instrument_value"]
+    tolerance = check["tolerance"]
+    reconstructed = None
+    if reconstruction is not None:
+        reconstructed = _finite_number(reconstruction.get("amplitude_v"))
+    if reconstructed is None:
+        calibration["level_confirmed"] = "UNKNOWN"
+        calibration["level_reason"] = "no_reconstructed_amplitude"
+        calibration["instrument_value"] = instrument
+        calibration["tolerance"] = tolerance
+        return calibration
+
+    calibration["instrument_value"] = instrument
+    calibration["reconstructed_value"] = reconstructed
+    calibration["tolerance"] = tolerance
+    calibration["lsb"] = check["lsb"]
+    calibration["instrument_metric"] = check.get("instrument_metric")
+    if abs(reconstructed - instrument) <= tolerance:
+        calibration["level_confirmed"] = "PASS"
+    else:
+        calibration["level_confirmed"] = "FAIL"
+        calibration["level_reason"] = "reconstructed_outside_tolerance"
+    return calibration
+
+
 def _load_calibration(
     manifest: dict[str, Any],
     channel: str,
@@ -752,6 +890,18 @@ def _percentile_code(histogram: Any, count: int, percentile: float, code_min: in
     return code_min + index
 
 
+def _three_way_calibration(capture: dict[str, Any], *, amplitude_v: Optional[float]) -> dict[str, Any]:
+    """Return the calibration block with the three separate claims attached."""
+
+    calibration = dict(capture.get("calibration") or {})
+    return attach_three_way_status(
+        calibration,
+        manifest=capture.get("manifest") or {},
+        channel=capture.get("channel", ""),
+        reconstruction={"amplitude_v": amplitude_v} if amplitude_v is not None else None,
+    )
+
+
 def summarize_capture(
     capture: dict[str, Any],
     *,
@@ -804,7 +954,8 @@ def summarize_capture(
         "capture": _capture_envelope(capture),
         "integrity": capture["integrity"],
         "sampling": _sampling_envelope(capture),
-        "calibration": capture["calibration"],
+        "calibration": _three_way_calibration(capture, amplitude_v=(maximum - minimum) * capture["calibration"].get("code_scale_v", 0.0)
+                                              if capture["calibration"].get("code_scale_v") else None),
         "summary": summary,
         "percentile_method": "nearest_rank_no_interpolation_exact_for_discrete_codes",
         "preview": preview,

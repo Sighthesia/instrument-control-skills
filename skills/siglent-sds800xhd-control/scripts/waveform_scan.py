@@ -1342,6 +1342,8 @@ def build_verdict(
         "v_per_div": v_per_div,
         "codes_per_v": codes_per_v,
         "scale_status": scale_status,
+        "level_confirmed": str(calibration.get("level_confirmed", "UNKNOWN")),
+        "level_reason": calibration.get("level_reason"),
         "scale_source": calibration.get("source"),
     }
 
@@ -1508,7 +1510,12 @@ def build_verdict(
         # Something was observed, so the caller may say so. The matching
         # limitation string keeps it from reading as a confirmed level.
         can_claim.append("candidate_excursions")
-    if scale_status != "VALID":
+    # "the scale is usable" is not "the level is confirmed". A wrong V/div
+    # source, an ampere scale read as volts or a dropped panel offset all keep
+    # scale_status at VALID; only an agreement with the instrument's own
+    # measurement inside 2*lsb + 2% may withhold the limitation.
+    level_status = str(calibration.get("level_confirmed", "UNKNOWN"))
+    if scale_status != "VALID" or level_status != "PASS":
         cannot_claim.append("absolute_voltage_accuracy")
     cannot_claim.extend(["period_stability_beyond_sample_grid", "stability_and_transition_analysis", "multi_channel_causality"])
     if bimodal:

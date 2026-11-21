@@ -18,6 +18,7 @@ from waveform_analysis import (
     m4_preview,
     summarize_capture,
     analyze_waveform_regimes,
+    attach_three_way_status,
 )
 
 
@@ -1038,6 +1039,78 @@ class RegimeAnalysisTests(unittest.TestCase):
             else:
                 self.assertTrue(bounded["required_summary_omitted"])
                 self.assertEqual(bounded["overall_status"], "UNVERIFIED")
+
+
+class ThreeWayStatusTests(unittest.TestCase):
+    """A structural status must never stand in for a confirmed physical level."""
+
+    def _calibration(self, **overrides):
+        base = {
+            "status": "VALID",
+            "units": "V",
+            "code_scale_v": 0.1,
+            "effective_vdiv_v_per_div": 1.0,
+            "effective_offset_v": 0.0,
+            "verification_failures": [],
+        }
+        base.update(overrides)
+        return base
+
+    def _manifest(self, value=3.0, unit="V"):
+        return {"instrument_measurements": {"C1": {"pkpk": {"value": value, "unit": unit, "raw": str(value)}}}}
+
+    def test_agreement_inside_tolerance_confirms_the_level(self):
+        result = attach_three_way_status(
+            self._calibration(), manifest=self._manifest(3.0), channel="C1",
+            reconstruction={"amplitude_v": 2.95},
+        )
+        self.assertEqual(result["bytes_complete"], "COMPLETE")
+        self.assertEqual(result["scale_usable"], "VALID")
+        self.assertEqual(result["level_confirmed"], "PASS")
+        self.assertAlmostEqual(result["tolerance"], 2 * 0.1 + 0.02 * 3.0)
+
+    def test_a_five_volt_reconstruction_for_a_three_volt_signal_fails(self):
+        result = attach_three_way_status(
+            self._calibration(), manifest=self._manifest(3.0), channel="C1",
+            reconstruction={"amplitude_v": 5.0},
+        )
+        # The structural status is still VALID: that is exactly the defect.
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["level_confirmed"], "FAIL")
+        self.assertEqual(result["level_reason"], "reconstructed_outside_tolerance")
+        self.assertEqual(result["instrument_value"], 3.0)
+        self.assertEqual(result["reconstructed_value"], 5.0)
+
+    def test_missing_instrument_measurement_is_unknown_not_pass(self):
+        result = attach_three_way_status(
+            self._calibration(), manifest={}, channel="C1",
+            reconstruction={"amplitude_v": 3.0},
+        )
+        self.assertEqual(result["level_confirmed"], "UNKNOWN")
+        self.assertEqual(result["level_reason"], "instrument_measurement_absent")
+
+    def test_ampere_scale_is_not_a_voltage_scale(self):
+        result = attach_three_way_status(
+            self._calibration(units="A"), manifest=self._manifest(), channel="C1",
+            reconstruction={"amplitude_v": 3.0},
+        )
+        self.assertEqual(result["scale_usable"], "UNKNOWN")
+        self.assertIn("units_a_not_volts", result["scale_reasons"])
+
+    def test_unknown_offset_makes_the_scale_unusable(self):
+        result = attach_three_way_status(
+            self._calibration(effective_offset_v=None), manifest=self._manifest(), channel="C1",
+            reconstruction={"amplitude_v": 3.0},
+        )
+        self.assertEqual(result["scale_usable"], "UNKNOWN")
+        self.assertIn("offset_unknown", result["scale_reasons"])
+
+    def test_measurement_in_other_units_fails_instead_of_converting(self):
+        result = attach_three_way_status(
+            self._calibration(), manifest=self._manifest(3.0, unit="A"), channel="C1",
+            reconstruction={"amplitude_v": 3.0},
+        )
+        self.assertEqual(result["level_confirmed"], "FAIL")
 
 
 if __name__ == "__main__":
