@@ -33,6 +33,11 @@ from scope_protocol import (
     validate_frame,
     validate_segments,
 )
+from channel_snapshot import (
+    QueryLog,
+    attribute_measurements,
+    read_measurement_block,
+)
 from screenshot_capture import (
     DEFAULT_MAX_BYTES as SCREENSHOT_MAX_BYTES,
     DEFAULT_MAX_SECONDS as SCREENSHOT_MAX_SECONDS,
@@ -356,47 +361,30 @@ def run_modern_probes(
 MEASURE_METRICS = ("PKPK", "TOP", "BASE")
 
 
-def read_instrument_measurements(scope, channels, *, timeout_s: float = 4.0) -> dict:
-    """Record the instrument's own level readings for the captured channel.
+def read_instrument_measurements(scope, channels, *, metrics=MEASURE_METRICS) -> dict:
+    """Record the instrument's own level readings, attributed only by readback.
 
     Structural checks never prove a physical level, so the analysis needs an
-    independent number from the same acquisition. The reply shape on
-    `4.8.12.1.1.6.5` is a bare NR3 (`3.04167E+00`), and the raw text is kept so a
-    reader can see exactly what was compared.
+    independent number from the same acquisition. The simple-measurement panel
+    has exactly one source and this frozen session must not write it; the source
+    is therefore *read* with the documented `:MEASure:SIMPle:SOURce?`
+    (programming guide PDF p. 210) before and after the metric queries. A numeric
+    value is kept only on the channel both readbacks name; every other requested
+    channel keeps its raw replies as `UNVERIFIED`. `***`, an empty or non-scalar
+    reply, and an unattributable value are never recorded as zero.
 
-    After `Stop` this session refuses every write, including `MEAS:SOUR` (the
-    frozen-command rule), and `:MEASure:SOURce?` is not an implemented header on
-    this firmware. The reading is therefore taken from whatever source the front
-    panel selected and recorded under that channel only when it can be
-    established; otherwise it is recorded under `"unattributed"` so the analysis
-    never attributes it to the wrong channel.
+    A transport failure stops every later query (the returned
+    ``transport_failure``) so the caller can keep the saved frame and skip the
+    optional screenshot; ``channels`` still holds every metric read before it.
     """
 
-    recorded: dict[str, dict[str, object]] = {}
-    per_channel: dict[str, object] = {}
-    for metric in MEASURE_METRICS:
-        raw = scope.query_ascii(f":MEASure:SIMPle:VALue? {metric}", allow_after_stop=True)
-        value = numeric_response(raw)
-        if value is None:
-            continue
-        per_channel[metric.lower()] = {
-            "value": value,
-            "unit": "V",
-            "raw": raw.strip(),
-            "metric": metric,
-            # The exact query that produced the reading, so an exported bundle
-            # can name its own source instead of restating the metric alone.
-            "source_query": f":MEASure:SIMPle:VALue? {metric}",
-        }
-    if not per_channel:
-        return recorded
-    per_channel["queried_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    # A single-channel capture can be attributed safely; with several channels the
-    # source is unknowable after Stop, so the reading is not bound to any of them.
-    key = channels[0] if len(channels) == 1 else "unattributed"
-    per_channel["source_attribution"] = "single-captured-channel" if len(channels) == 1 else "unknown_after_stop"
-    recorded[key] = per_channel
-    return recorded
+    log = QueryLog(lambda command: scope.query_ascii(command, allow_after_stop=True))
+    block = read_measurement_block(log, metrics)
+    return {
+        "channels": attribute_measurements(block, channels),
+        "transport_failure": block.get("transport_failure"),
+        "queries": log.entries,
+    }
 
 
 def read_modern_channel(
@@ -1065,12 +1053,6 @@ def main() -> int:
         else:
             raise SystemExit("Use --trigger for a new capture or --existing-stopped for the current stopped frame")
         manifest["state_evidence"] = [asdict(entry) for entry in scope.state_log]
-        # Same acquisition, same channel: this is the only independent number the
-        # offline analysis can compare a reconstructed level against.
-        try:
-            manifest["instrument_measurements"] = read_instrument_measurements(scope, args.channels)
-        except ScopeProtocolError as exc:
-            manifest["instrument_measurements_error"] = f"{type(exc).__name__}: {exc}"
         if args.mode == "modern":
             snapshot = manifest["capture_configuration"]["acquisition"]
             scope_points = args.scope_record_points
@@ -1091,8 +1073,29 @@ def main() -> int:
             manifest["results"].extend(results)
             if args.read_descriptors:
                 add_legacy_descriptors(scope, args.out, results)
+        # Instrument readings are optional evidence and are taken only after every
+        # requested waveform payload and descriptor is on disk, so a measurement
+        # timeout cannot cost the verified frame. The panel has one source; only
+        # the channel its before/after readback names gets a numeric value.
+        measurement = read_instrument_measurements(scope, args.channels)
+        manifest["instrument_measurements"] = measurement["channels"]
+        measurement_failed = measurement["transport_failure"]
+        if measurement_failed:
+            manifest["instrument_measurements_error"] = (
+                f"{measurement_failed['query']}: {measurement_failed['error']}"
+            )
         if args.screenshot:
-            manifest["screenshot"] = capture_optional_screenshot(scope, args.out)
+            if measurement_failed:
+                # Every query after a transport failure is forbidden on this
+                # session, so the requested screenshot is recorded rather than
+                # attempted. It remains the last step when the session is healthy.
+                manifest["screenshot"] = {
+                    "status": "NOT_ATTEMPTED",
+                    "reason": "measurement readback hit a transport failure; no later query was sent on this session",
+                    "failed_query": measurement_failed["query"],
+                }
+            else:
+                manifest["screenshot"] = capture_optional_screenshot(scope, args.out)
         manifest["command_log"] = [event.__dict__ for event in scope.events]
         write_channel_bundles(manifest, args.out)
         save_json(args.out / "manifest.json", manifest)

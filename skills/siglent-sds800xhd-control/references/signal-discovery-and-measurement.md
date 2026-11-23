@@ -11,7 +11,7 @@ Load this reference when the goal is to find an active signal, choose useful ver
 
 ## Minimal Read-Only Snapshot
 
-The following scalar forms are **Target-tested** on TCP 5025:
+The following scalar forms are **Target-tested** on TCP 5025 unless a row says otherwise:
 
 | Query | Use / response |
 |---|---|
@@ -26,7 +26,8 @@ The following scalar forms are **Target-tested** on TCP 5025:
 | `:TIMebase:SCALe?`, `:TIMebase:DELay?` | Main timebase in s/div and horizontal delay in s. |
 | `:TIMebase:REFerence:POSition?` | Horizontal reference position percentage, 0..100, for delay-fixed expansion. |
 | `:ACQuire:MDEPth?` | Current acquisition memory-depth class; SDS800X HD lists 100M/50M/25M classes by active channel count. |
-| `:CHANnel<n>:SCALe?`, `:CHANnel<n>:OFFSet?`, `:CHANnel<n>:SWITch?`, `:CHANnel<n>:COUPling?`, `:CHANnel<n>:PROBe?` | Per-channel V/div, offset, channel state, AC/DC/GND coupling, and probe attenuation. Substitute channel number 1-4. |
+| `:CHANnel<n>:SCALe?`, `:CHANnel<n>:OFFSet?`, `:CHANnel<n>:COUPling?`, `:CHANnel<n>:PROBe?` | Per-channel V/div, offset, AC/DC/GND coupling, and probe attenuation. Substitute channel number 1-4. |
+| `:CHANnel<n>:SWITch?` | **Manual-supported, not target-tested here** (PDF p. 57 / printed p. 29). Channel enable; returns a bare `ON` or `OFF`. `ON` only means the channel is enabled, not that a signal is present. |
 | `:TRIGger:EDGE:LEVel?` | Edge trigger threshold in V. |
 
 Example target snapshot observed: record `25 Mpts`, sample rate `5 MSa/s`, timebase `0.5 s/div`, trigger delay `+2 s` in `TIMebase:DELay?`, edge level `2.5 V`. Do not assume the delay sign is the same as a legacy `TRDL?` field without checking that path's convention.
@@ -42,6 +43,108 @@ post-trigger = (10 - margin_div) * Timebase
 ```
 
 For `margin_div=1`, this is `Delay=+4*Timebase`, one division before the trigger and nine divisions after it. Use this only for events expected to continue after the trigger. Set `TIM:SCAL`, `TIM:DEL`, optional `TIM:REF:POS`, and `ACQ:MDEP` before `TRMD SINGLE`; never apply them while reading an existing stopped frame. `ACQ:MDEP` is additionally dropped outright while `SAST?` is `Stop`, and `TIM:SCAL` is clamped by `ACQ:POIN?/(SARA*10)` — see [Sample Rate and Memory Management](#sample-rate-and-memory-management).
+
+## Per-Channel Evidence Before a "No Signal" Verdict
+
+**Hard rule:** signal presence is a per-channel read. A screenshot, a rendered
+band, a colour, or the on-screen measurement panel is never evidence that a
+channel is flat, at 0 V, or undriven. The measurement panel belongs to exactly
+one selected **simple-measurement** source (`:MEASure:SIMPle:SOURce?`), which is
+not the trigger source or the threshold source, and it cannot describe several
+channels at once.
+
+Before stating that a channel has no signal, read at least:
+
+| Query | Why it is required |
+|---|---|
+| `SAST?` and `TRMD?` | Acquisition state and trigger mode. `Ready` means armed and waiting for a trigger, so a live trace is not a completed frame; `Stop` describes only the current stopped state and proves no new frame. |
+| `:TRIGger:TYPE?` | Which trigger context applies. Read `:TRIGger:EDGE:SOURce?`, `:TRIGger:EDGE:SLOPe?` and `:TRIGger:EDGE:LEVel?` only when the type is a readable `EDGE`; for another readable type those settings are `NOT_APPLICABLE`. If the type is unreadable, do not probe the EDGE fields and record them `UNVERIFIED`; a placeholder or error reply is never `OBSERVED`. |
+| `:CHANnel<n>:SWITch?` | Channel enable. This is the documented channel-state query (manual PDF p. 57 / printed p. 29). Do not use `C<n>:TRA?`: it is not a documented query and timed out mid-session on the verified firmware (`.specs/2026-11-04-verdict-gate-design.md` E12). |
+| `C<n>:VDIV?`, `C<n>:OFST?`, `:CHANnel<n>:COUPling?` | Scale, offset, and coupling. `GND` coupling disconnects the input; a flat trace is not a zero-volt signal. |
+| `:MEASure:SIMPle:SOURce?`, then `:MEASure:SIMPle:VALue? PKPK` (plus `MAX`/`MIN`), then `:MEASure:SIMPle:SOURce?` again | Amplitude evidence and the source that owns it. |
+
+The sequence is read-only: do not write the measurement source, enable a
+measurement item, change `:FORMat:DATA`, arm or stop the acquisition, or clear
+the error queue. `scripts/channel_snapshot.py` implements exactly this snapshot:
+
+```text
+python3 scripts/channel_snapshot.py --host <ip> --channels C1 C2 C3 --out snapshot.json
+```
+
+Record every raw reply with its query. The channel rows are sequential reads and
+are not proven to come from one frame, so do not claim frame identity from them.
+
+The snapshot is complete only when every requested channel has its switch,
+V/div, offset, and coupling readback; the acquisition state and trigger context
+are recorded; every amplitude query has a raw reply or an explicit `UNVERIFIED`;
+and the measurement-source readback is unchanged before and after the values.
+A missing readback or a transport failure leaves the affected rows `UNVERIFIED`
+or `INCOMPLETE`; it never becomes a zero or a negative presence claim. The
+snapshot's `status` describes this query flow: `COMPLETE` means every planned
+query returned a reply (including `***` or error text), not that every channel
+has usable evidence. `evidence_status` reports whether at least one channel
+received a usable V/A measurement, so an all-`***` snapshot is
+`COMPLETE`/`UNVERIFIED`, never zero.
+
+### Attribution and unreadable values
+
+- The simple-measurement panel has one source. Read `:MEASure:SIMPle:SOURce?`
+  before and after the value queries. A numeric value may be recorded only for
+  the channel both readbacks name. If the source is unknown, changes between the
+  readbacks, or names another channel, the value is `UNVERIFIED` for the channel
+  being asked about — never copied onto it. A single-channel download is not
+  evidence about the measurement source.
+- `:MEASure:SIMPle:SOURce?` is documented (PDF p. 210 / printed p. 182).
+  `:MEASure:SOURce?` is not an implemented header on the verified firmware; do
+  not use it. The target firmware's reply shape for the documented query is
+  `documented`, not hardware-verified in this revision.
+- `***`, `****`, an empty reply, a timeout, an error string, a non-finite
+  number (`1E999`), a reply whose header is not the expected query header
+  (`ERROR 0`, or another channel's header), or a value that cannot be attributed
+  is `UNVERIFIED`; it is not 0 V, not flat, and not "no signal". A negative
+  `PKPK` contradicts the peak-to-peak definition and is not recorded as a level.
+- A bare NR3 carries no unit. Bind `V` only when the reply has a `V` suffix or
+  `:CHANnel<n>:UNIT?` reads `V`; record `A` when that readback is `A`, and keep
+  the unit `UNVERIFIED` when neither readback establishes it. Never label a bare
+  number as volts by assumption. A numeric observation without a proven V/A
+  unit stays raw-only: it is not exported as a consumable value, so it cannot
+  enter the capture/bundle voltage cross-check.
+- If a query times out or the transport fails, stop every later query on that
+  session, keep the rows already read, and do not reconnect or retry. A timeout
+  is missing evidence, not a zero.
+
+`PKPK = 0` has one strict meaning: no variation was measured in the current
+measurement window. It is not an absolute 0 V level and not proof that the
+channel is undriven. A negative conclusion from stored samples still has to
+state the original offline window and its detection capability
+(`observation_status = NOT_OBSERVED_WITHIN_DETECTION_CAPABILITY`,
+`detection_resolution_s`, `minimum_detectable_pulse_s`); a whole-frame zero does
+not prove a narrow pulse is absent.
+
+### Triage order for an apparent 0 V
+
+1. Read that channel's amplitude (`PKPK`, `MAX`, `MIN`) and confirm the
+   measurement-source readback.
+2. Read the channel state, scale, offset, and coupling. `SWITch OFF` disables
+   the channel and can produce a flat trace; `SWITch ON` only enables it and does
+   not by itself prove a signal. Coupling `GND` disconnects the input; a wrong
+   V/div or clipping can hide a real signal.
+3. Confirm the probe ground is on the **same board's** GND reference. Multi-MCU
+   boards have separate references, and a probe returned to another board can
+   read 0 V or a wrong level while the pin is driven.
+4. Only after each earlier cause has its own evidence — including an independent
+   electrical check that the pin is not being driven (for example a second
+   known-good probe or a known driver state) — may "undriven" be stated.
+   Confirming the probe ground and excluding setup/coupling do not prove the pin
+   is undriven. A true 0 V reading has at least those causes (channel off, GND
+   coupling, clipping/wrong scale, missing per-board ground, genuinely undriven
+   pin); the reading alone is a finding, not a diagnosis.
+
+A screenshot can only describe shape or qualitative context, so no screenshot
+path can produce a "no signal" verdict. The instrument measurement block in
+`capture_scope.py` follows the same attribution rules; see
+[Waveform evidence report](waveform-evidence.md) before turning a reading into a
+level claim.
 
 ## Vertical Channel Control
 
@@ -197,7 +300,7 @@ Still unknown and deliberately not guessed: the actual Roll depth limit, whether
 
 1. Query `*IDN?`, acquisition status, record length/rate, and channel state/coupling/probe/scale/offset.
 2. The bundled scripts do not currently provide an automatic signal-discovery/autorange command. Follow the bounded read-measure-adjust loop below, using only commands documented for the identified model and firmware.
-3. For a manual read-only check, use `:MEASure:SIMPle:VALue? PKPK`, then `MAX`, `MIN`, `FREQ`, or `PER` for the selected simple-measurement source. Set/read `:MEASure:SIMPle:SOURce?` only when source identity is ambiguous.
+3. For a manual read-only check, first read `:MEASure:SIMPle:SOURce?` and record the reply: the simple-measurement panel has exactly one source, and only that channel's numbers may be attributed. Then read `:MEASure:SIMPle:VALue? PKPK`, then `MAX`, `MIN`, `FREQ`, or `PER` for that source. Do not write `:MEASure:SIMPle:SOURce` during a stopped-frame read or a read-only snapshot; changing the source is an instrument configuration write. When the source readback is missing, non-scalar, or names another channel, the value is `UNVERIFIED` for the channel being asked about.
 4. A `TRIGger:FREQuency?` value can inform a coarse timebase, but verify with a waveform/measurement. If it returns zero, fall back to measured period or sampled waveform; do not conclude the input is disconnected.
 
 `AUToset` is documented by the manual as a state-changing convenience command and is discouraged for signals below 100 Hz. Use it only when explicitly requested; for controlled agent tuning, prefer bounded V/div, offset, timebase, and trigger adjustments followed by readback.
@@ -218,6 +321,8 @@ Manual-supported, target response not individually checked for each parameter:
 ```
 
 The item must be enabled with `:MEASure:SIMPle:ITEM <parameter>,ON` before `VALue?` returns it; a reading that depends on an item nobody enabled is not a measurement result. The manual lists 52 parameters (printed pp. 181-182), including `PKPK`, `MAX`, `MIN`, `AMPL`, `TOP`, `BASE`, `LEVELX`, `CMEAN`, `MEAN`, `STDEV`, `VSTD`, `RMS`, `CRMS`, `MEDIAN`, `CMEDIAN`, `OVSN`, `OVSP`, `FPRE`, `RPRE`, `ULOWer`, `PER`, `FREQ`, `TMAX`, `TMIN`, `PWID`, `NWID`, `DUTY`, `NDUTY`, `WID`, `NBWID`, `DELAY`, `TIMEL`, `RISE`, `FALL`, `RISE20T80`, `FALL80T20`, `CCJ`, `PAREA`, `NAREA`, `AREA`, `ABSAREA`, `CYCLES`, `REDGES`, `FEDGES`, `EDGES`, `PPULSES`, `NPULSES`, `PACArea`, `NACArea`, `ACArea`, `ABSACArea`. `ALL` is documented as querying every basic measurement item; its result is not guaranteed to be a single scalar.
+
+The source query is read-only; its setter is a configuration write. Read `:MEASure:SIMPle:SOURce?` before and after any amplitude value used as evidence, and record a numeric value only for the channel both replies name. `:MEASure:SIMPle:SOURce?` is documented (PDF p. 210 / printed p. 182); the earlier `:MEASure:SOURce?` spelling is not an implemented header on the verified firmware and must not be used. The target firmware's reply shape for the documented source query remains `documented` (not hardware-verified in this revision). A `***`, `****`, empty, error, or otherwise unattributable reply is `UNVERIFIED`, never `0`.
 
 ### Measurement threshold context
 

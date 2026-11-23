@@ -2,6 +2,8 @@
 
 Load this reference when the agent needs visual inspection, raw waveform samples, or offline numerical analysis. Do not load decoder/search configuration unless the capture indicates a protocol or anomaly workflow.
 
+> **A screenshot is qualitative context only.** It can show shape, overlap, and clipping; it can never establish that a channel carries no signal, is at 0 V, or is flat. The on-screen measurement panel belongs only to the selected simple-measurement source (`:MEASure:SIMPle:SOURce?`), not to a trigger or threshold source. Before any per-channel presence/absence statement, take the read-only snapshot in [Signal discovery and measurement](signal-discovery-and-measurement.md#per-channel-evidence-before-a-no-signal-verdict) (`scripts/channel_snapshot.py`) and record the raw replies.
+
 ## Screenshot
 
 - **Manual-supported SCPI path**: `:PRINt? PNG` or `:PRINt? BMP[,NORMal|INVerted]`. The manual documents a binary *image* response but does not specify IEEE 488.2 block framing; `:PRINt?` is neither a scalar ASCII query nor a well-formed block. On firmware `4.8.12.1.1.6.5` the framing is a **raw PNG stream with no header** (see *Verified screenshot transfer* below): read bytes, never `readline()`, and do not call `query_block()`.

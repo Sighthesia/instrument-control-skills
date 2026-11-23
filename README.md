@@ -23,7 +23,7 @@ evidence labels.
 
 | Skill | Manual coverage | Auxiliary tooling |
 |---|---|---|
-| `siglent-sds800xhd-control` | Manual index: 873 rows, parameters transcribed | 7 scripts: `capture_scope` (`waveform-bundle/v1`), `scope_protocol`, `configure_scope`, `screenshot_capture`, `read_decode_list` … |
+| `siglent-sds800xhd-control` | Manual index: 873 rows, parameters transcribed | 8 scripts: `capture_scope` (`waveform-bundle/v1`), `scope_protocol`, `channel_snapshot`, `configure_scope`, `screenshot_capture`, `read_decode_list` … |
 | `keithley-2000-control` | 11/11 panel functions; 287 index rows, parameters transcribed | `keithley2000_session`: dry run, raw capture, lock |
 | `gwinstek-gdm8352-control` | Read-only subset; writes refused; 173 index rows | `gdm8352_session`: dry run, whitelist, sha256 fixtures |
 | `gwinstek-afg2225-control` | Partial: ARB/IEEE block builders and parsers; 13 unit tables | `afg2225_protocol`: ARB/IEEE block codec, error queue |

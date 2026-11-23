@@ -36,7 +36,7 @@
   "support": {
     "level": "firmware-scoped",
     "hardware_verified": true,
-    "scope_note": "hardware_verified covers the session, capture, waveform download and :MEASure paths only. The :PRINt? reader, waveform-bundle/v1 export and the decode-list reader are documented and offline-tested, not exercised on a physical instrument. Offline waveform analysis lives in the sibling oscilloscope-waveform-analysis Skill.",
+    "scope_note": "hardware_verified covers the session, capture, waveform download and the :MEASure:SIMPle:VALue? value path only. The :MEASure:SIMPle:SOURce? readback, the per-channel snapshot (:CHANnel<n>:SWITch?), the :PRINt? reader, waveform-bundle/v1 export and the decode-list reader are documented and offline-tested, not exercised on a physical instrument. Offline waveform analysis lives in the sibling oscilloscope-waveform-analysis Skill.",
     "hardware_evidence": {
       "model": "SDS824X HD",
       "serial": "SDS08A0Q909185",
