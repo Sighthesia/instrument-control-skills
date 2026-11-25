@@ -68,7 +68,7 @@ measurement item, change `:FORMat:DATA`, arm or stop the acquisition, or clear
 the error queue. `scripts/channel_snapshot.py` implements exactly this snapshot:
 
 ```text
-python3 scripts/channel_snapshot.py --host <ip> --channels C1 C2 C3 --out snapshot.json
+python3 scripts/channel_snapshot.py --host <ip> --channels C1 C2 C3 --out-dir <dir>
 ```
 
 Record every raw reply with its query. The channel rows are sequential reads and
@@ -85,6 +85,94 @@ query returned a reply (including `***` or error text), not that every channel
 has usable evidence. `evidence_status` reports whether at least one channel
 received a usable V/A measurement, so an all-`***` snapshot is
 `COMPLETE`/`UNVERIFIED`, never zero.
+
+### Horizontal and record context
+
+The snapshot reads `TIM:SCAL?`, `ACQ:SRAT?` and `ACQ:POIN?` beside the acquisition,
+trigger and per-channel state, and records each as a parsed quantity with its raw
+reply. They are context, not a completeness claim: `ACQ:POIN?` is the on-screen
+waveform count, so the sample probe may use it as the record authority only when
+it parses as a positive whole number and is not larger than the descriptor count.
+A voltage suffix on `ACQ:POIN?`, or any unreadable placeholder, leaves the entry
+`UNVERIFIED` and the probe falls back to `WAV:PRE?` `wave_array_count`, recording
+which authority it used in `total_points_authority`.
+
+### Stopped-frame sample probe
+
+When `SAST?` is `Stop` and `--strict-readonly` is not set, each requested channel
+with `SWITch ON` is probed through `WAV:SOUR`, `WAV:INT 1` (verified by
+`WAV:INT?`), `WAV:STAR`, `WAV:WIDT`/`WAV:BYT` and a bounded `WAV:DATA?` read, with
+`WAV:PRE?` supplying the point count and transfer width. These are
+transfer-selection writes on an already stopped frame: they change the transfer
+view, never the acquisition state, and the probe never stops a `Ready`, `Run` or
+`Roll` scope in order to read it.
+
+| Field | Meaning |
+|---|---|
+| `coverage_mode` | `FULL_RECORD` when the record fits the slice budget and was read end to end; `PARTIAL_SLICES` when only head, middle and tail slices of `--slice-points` were read |
+| `sampled_points`, `total_points`, `coverage_ratio` | how much of the record the codes actually cover; the ratio is `null` when the total is unknown |
+| `code_min`, `code_max`, `code_span` | observed signed transfer codes, across the sampled ranges only |
+| `clipped` | true when a code reached a signed transfer bound (`-128..127` BYTE, `-32768..32767` WORD) |
+| `activity_hint` | `ACTIVE_CODES` (span > 0), `FLAT_IN_FULL_RECORD`, `FLAT_IN_SAMPLED_SLICES_ONLY`, `CLIPPED` (takes precedence), or `UNVERIFIED` when no codes were read |
+
+The hints are hints, not verdicts, and their blind spots differ.
+`FLAT_IN_SAMPLED_SLICES_ONLY` means a pulse lying outside the three slices would
+be missed — it is never "no signal" and never "flat across the record"; the row's
+`coverage_warning` says so next to the value. `FLAT_IN_FULL_RECORD` is a finding
+that still needs the apparent-zero triage below. `CLIPPED` means amplitude and
+shape may be truncated, so raise V/div and recapture. `ACTIVE_CODES` proves
+variation inside the sampled ranges, not a level, a period, or a protocol.
+
+Probe statuses are separate from the hint:
+
+| Probe status | Meaning |
+|---|---|
+| `LIVE_NOT_STOPPED` | `SAST?` was not `Stop` (for example `Ready`, `Run`, `Roll`), so the probe was skipped without stopping the scope; capture a single-shot frame and rerun |
+| `CHANNEL_OFF` | `SWITch` is `OFF`; enable it and capture a new frame if a signal is expected there |
+| `SKIPPED_STRICT_READONLY` | `--strict-readonly` disabled the probe to guarantee a 0-write session |
+| `UNVERIFIED` | the preamble, transfer selection or payload could not be validated; the reason is recorded beside it |
+
+### CLI options and artifacts
+
+`--out-dir <dir>` writes `<dir>/snapshot.json` and `<dir>/screen.png` and cannot be
+combined with `--out` or `--screenshot`; `--out <path>` writes only the JSON, and
+`--screenshot <png>` writes the PNG plus its `.json` sidecar. `--strict-readonly`
+guarantees a query-only command log (`writes` stays empty, `read_only` is true),
+`--slice-points` sets the per-slice budget (default 4096, capped by `WAV:MAXP?`
+and the record length), `--model-channels 2|4` records a caller-confirmed channel
+count, and `--json` prints the machine-readable snapshot instead of the table.
+The screenshot runs **last** on the same session, is recorded as `NOT_ATTEMPTED`
+with its reason if an earlier transport or protocol failure stopped the session,
+is always `qualitative_only`, and its absence is recorded as
+`visual_context.status = "NOT_CAPTURED"` together with the reason that shape,
+ringing and the full-screen overview were not inspected.
+
+### `next_actions` and the Second-Capture Rule
+
+`next_actions` is an ordered, de-duplicated list of executable follow-ups, each
+with `action`, `message` and a `command` when one applies. Treat it as part of the
+evidence: `CAPTURE_SINGLE_SHOT_FRAME` (`LIVE_NOT_STOPPED`),
+`ADJUST_VDIV_AND_RECAPTURE` (`CLIPPED`), `DO_NOT_CONCLUDE_NO_SIGNAL`
+(`FLAT_IN_SAMPLED_SLICES_ONLY`), `RUN_APPARENT_ZERO_TRIAGE`
+(`FLAT_IN_FULL_RECORD` or `PKPK == 0`),
+`CAPTURE_SCREENSHOT_FOR_VISUAL_CONTEXT` (`NOT_CAPTURED`),
+`ENABLE_CHANNEL_AND_RECAPTURE` (`CHANNEL_OFF`) and
+`RERUN_WITHOUT_STRICT_READONLY` (`SKIPPED_STRICT_READONLY`).
+
+**Second-Capture Rule.** No single snapshot may be concluded with "no signal",
+"0 V", "waveform abnormal", "suspect hardware/power/ground fault" or "reflash the
+firmware". At least one second observation from a different view is required — a
+wider or zoomed timebase, a changed V/div, or a full record plus a screenshot that
+cross-check each other — and its first purpose is to falsify a scope setup cause
+(channel off, `GND` coupling, wrong V/div, clipping, missing same-board GND), and
+only then to consider the board. **The blind spot is bidirectional:** a screenshot
+alone proves nothing about presence, and a number or a `PARTIAL_SLICES` probe
+alone proves nothing about the whole record; a record-wide claim needs the
+coverage figures *and* either the whole-screen view or the full-record read.
+Before any fault report, print the 3-line gate: per-channel raw readings with code
+span and coverage, whether the visual whole-frame evidence and the trigger state
+were actually inspected, and the second-capture result plus the setup, GND and
+`UNVERIFIED` items still not excluded.
 
 ### Attribution and unreadable values
 

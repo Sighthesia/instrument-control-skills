@@ -12,7 +12,9 @@ image. Container validity also never proves that the image shows the same
 acquisition as a downloaded waveform, so that association stays ``UNVERIFIED``.
 
 The reader is validated offline against fragmented fake sockets. It has not
-been exercised against a physical SDS800X HD.
+been exercised against a physical SDS800X HD. Every record carries
+``qualitative_only: True`` and points at ``scripts/channel_snapshot.py`` for
+per-channel numeric evidence; a PNG can never settle signal presence or absence.
 """
 
 from __future__ import annotations
@@ -35,6 +37,15 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 PNG_QUERY = ":PRINt? PNG"
 FRAMING = "raw_png_chunks_through_iend_plus_lf_not_ieee4882"
 SCHEMA_VERSION = "screenshot-evidence-v1"
+QUALITATIVE_ONLY = True
+QUALITATIVE_WARNING = (
+    "qualitative observation only: a screenshot may show shape, ringing, and the full-screen "
+    "overview, but it must not be used to decide whether a channel carries a signal"
+)
+CHANNEL_SNAPSHOT_NEXT_ACTION = (
+    "run scripts/channel_snapshot.py --host <host> --channels <C1 ...> for per-channel numeric "
+    "evidence with record coverage; do not infer signal presence or absence from this PNG"
+)
 DEFAULT_MAX_BYTES = 8 * 1024 * 1024
 DEFAULT_MAX_SECONDS = 15.0
 RECV_CHUNK = 65536
@@ -318,6 +329,9 @@ def screenshot_failure_record(
         "schema_version": SCHEMA_VERSION,
         "command": PNG_QUERY,
         "framing": FRAMING,
+        "qualitative_only": QUALITATIVE_ONLY,
+        "warning": QUALITATIVE_WARNING,
+        "next_action": CHANNEL_SNAPSHOT_NEXT_ACTION,
         "raw_path": str(raw_path),
         "metadata_path": str(metadata_path),
         "max_bytes": max_bytes,
@@ -381,6 +395,9 @@ def capture_png_on_session(
         "schema_version": SCHEMA_VERSION,
         "command": PNG_QUERY,
         "framing": FRAMING,
+        "qualitative_only": QUALITATIVE_ONLY,
+        "warning": QUALITATIVE_WARNING,
+        "next_action": CHANNEL_SNAPSHOT_NEXT_ACTION,
         "raw_path": str(raw_path),
         "metadata_path": str(metadata_path),
         "max_bytes": max_bytes,

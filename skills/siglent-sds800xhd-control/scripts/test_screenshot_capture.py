@@ -130,6 +130,10 @@ class PngCaptureTests(unittest.TestCase):
             self.assertEqual(record["chunks"], 3)
             self.assertEqual(record["crc_checked"], 3)
             self.assertEqual(record["terminator"], "IEND+LF")
+            self.assertTrue(record["qualitative_only"])
+            self.assertIn("qualitative observation only", record["warning"])
+            self.assertIn("scripts/channel_snapshot.py", record["next_action"])
+            self.assertIn("do not infer signal presence or absence", record["next_action"])
             self.assertEqual(record["frame_association"]["status"], "UNVERIFIED")
             self.assertEqual(raw_path.read_bytes(), png)
             stored = json.loads(metadata_path.read_text())
@@ -138,6 +142,24 @@ class PngCaptureTests(unittest.TestCase):
             self.assertEqual(stored["command_log"][-1]["response_kind"], "png_raw")
             self.assertEqual(stored["command_log"][-1]["response_length"], len(png))
             self.assertEqual(sock.sent, [PNG_QUERY.encode("ascii") + b"\n"])
+
+    def test_every_record_is_qualitative_only_and_points_to_channel_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            complete = capture_png_on_session(
+                fake_session(FakeSocket([png_bytes()])),
+                Path(tmp) / "shot.png",
+                Path(tmp) / "shot.png.json",
+            )
+            failure = write_connection_failure_record(
+                Path(tmp) / "failed.png",
+                Path(tmp) / "failed.png.json",
+                ConnectionRefusedError(111, "refused"),
+            )
+        for record in (complete, failure):
+            self.assertTrue(record["qualitative_only"])
+            self.assertIn("must not be used to decide", record["warning"])
+            self.assertIn("scripts/channel_snapshot.py", record["next_action"])
+            self.assertIn("--channels", record["next_action"])
 
     def test_ancillary_chunk_after_idat_is_accepted(self):
         ihdr = struct.pack(">IIBBBBB", 4, 2, 8, 2, 0, 0, 0)
@@ -449,6 +471,8 @@ class ConnectionFailureRecordTests(unittest.TestCase):
             self.assertIn("ConnectionRefusedError", stored["error"])
             self.assertFalse(stored["container_valid"])
             self.assertEqual(stored["image_decode_status"], "UNVERIFIED")
+            self.assertTrue(stored["qualitative_only"])
+            self.assertIn("scripts/channel_snapshot.py", stored["next_action"])
             self.assertFalse(stored["raw_file_created"])
             self.assertEqual(stored["raw_bytes"], 0)
             self.assertEqual(stored["frame_association"]["status"], "UNVERIFIED")
@@ -538,7 +562,10 @@ class StandaloneCliTests(unittest.TestCase):
                     code = screenshot_capture.main(["--host", "example.invalid", "--out", str(raw_path)])
             self.assertEqual(code, 0)
             self.assertEqual(raw_path.read_bytes(), png)
-            self.assertEqual(json.loads(stdout.getvalue())["status"], "COMPLETE")
+            summary = json.loads(stdout.getvalue())
+            self.assertEqual(summary["status"], "COMPLETE")
+            self.assertTrue(summary["qualitative_only"])
+            self.assertIn("scripts/channel_snapshot.py", summary["next_action"])
             self.assertTrue((Path(tmp) / "shot.png.json").exists())
 
     def test_cli_records_connection_failure_with_exit_code_2(self):
