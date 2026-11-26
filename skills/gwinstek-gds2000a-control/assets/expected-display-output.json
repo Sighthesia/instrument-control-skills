@@ -1,0 +1,12 @@
+{
+  "schema_version": "gds2000a-protocol-v1",
+  "kind": "screen-image",
+  "status": "UNVERIFIED",
+  "raw_bytes": 38830,
+  "raw_sha256": "1775e99fee32598113ccd88dc0297fcdef0fe11d18e1f2641d29ce5d3b2564e7",
+  "block_declared_bytes": 38822,
+  "block_payload_bytes": 38822,
+  "block_trailing_hex": "0a",
+  "reason": "16-bit RGB run-length image decoding is not implemented; raw bytes only",
+  "provenance": "real :DISPlay:OUTPut? capture, GDS-2104A V1.18, 2026-11-26"
+}

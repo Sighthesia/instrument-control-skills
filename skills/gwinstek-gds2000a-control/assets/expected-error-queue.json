@@ -1,0 +1,28 @@
+{
+  "schema_version": "gds2000a-protocol-v1",
+  "kind": "status-record",
+  "record_type": "error-queue",
+  "code": 0,
+  "message": "No error.",
+  "quoted": true,
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "error_queue_record",
+        "status": "pass",
+        "evidence": {
+          "code": 0
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "0869b2f462e7c8b16c895c21b1d15090442fc3880da74a9452a612ba949f27bd",
+    "raw_bytes": 16,
+    "raw_response_base64": "KzAsICJObyBlcnJvci4iCg==",
+    "input_provenance": "hardware-verified",
+    "support_level": "hardware-verified",
+    "parser": "gds2000a-protocol/0.1.0"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "schema_version": "gds2000a-protocol-v1",
+  "kind": "waveform",
+  "artifact": "acquisition-memory",
+  "points": 5000,
+  "point_count": 5000,
+  "bytes_per_point": 2,
+  "sample_encoding": "signed-16-bit",
+  "sample_byte_order": "little",
+  "sample_byte_order_status": "observed",
+  "sample_byte_order_note": "The manual does not state byte order; little-endian is inferred from the GDS-2104A capture.",
+  "block_length": 10000,
+  "block_bytes": 10000,
+  "declared_block_bytes": 10000,
+  "trailing_bytes": 1,
+  "trailing_hex": "0a",
+  "headerless": false,
+  "header_present": true,
+  "header": {
+    "Format": "2.0A",
+    "Memory Length": "5000",
+    "IntpDistance": "0",
+    "Trigger Address": "2499",
+    "Trigger Level": "2.520E+00",
+    "Source": "CH1",
+    "Vertical Units": "V",
+    "Vertical Units Div": "0",
+    "Vertical Units Extend Div": "13",
+    "Label": "",
+    "Probe Type": "0",
+    "Probe": "1.000e+00",
+    "Vertical Scale": "1.000e+00",
+    "Vertical Position": "-2.360e+00",
+    "Horizontal Units": "S",
+    "Horizontal Scale": "5.000E-04",
+    "Horizontal Position": "0.000E+00",
+    "Horizontal Mode": "Main",
+    "SincET Mode": "Real Time",
+    "Sampling Period": "1.000e-06",
+    "Horizontal Old Scale": "5.000E-04",
+    "Horizontal Old Position": "0.000E+00",
+    "Firmware": "V1.18",
+    "Time": "26-Nov-26 17:34:01"
+  },
+  "header_text": "Format,2.0A;Memory Length,5000;IntpDistance,0;Trigger Address,2499;Trigger Level,2.520E+00;Source,CH1;Vertical Units,V;Vertical Units Div,0;Vertical Units Extend Div,13;Label,;Probe Type,0;Probe,1.000e+00;Vertical Scale,1.000e+00;Vertical Position,-2.360e+00;Horizontal Units,S;Horizontal Scale,5.000E-04;Horizontal Position,0.000E+00;Horizontal Mode,Main;SincET Mode,Real Time;Sampling Period,1.000e-06;Horizontal Old Scale,5.000E-04;Horizontal Old Position,0.000E+00;Firmware,V1.18;Time,26-Nov-26 17:34:01;",
+  "source": "CH1",
+  "vertical_units": "V",
+  "vertical_scale": 1.0,
+  "sampling_period": 1e-06,
+  "trigger_address": 2499,
+  "firmware": "V1.18",
+  "device_time": "26-Nov-26 17:34:01",
+  "code_min": 256,
+  "code_max": 768,
+  "code_mean": 639.8976,
+  "status": "COMPLETE",
+  "checks": [
+    {
+      "name": "ieee_block_length",
+      "status": "pass",
+      "evidence": {
+        "declared_bytes": 10000,
+        "observed_bytes": 10000
+      }
+    },
+    {
+      "name": "sample_width",
+      "status": "pass",
+      "evidence": {
+        "bytes_per_point": 2
+      }
+    },
+    {
+      "name": "declared_points",
+      "status": "pass",
+      "evidence": {
+        "declared_points": 5000,
+        "observed_points": 5000
+      }
+    },
+    {
+      "name": "vertical_scale",
+      "status": "pass",
+      "evidence": {
+        "value": 1.0
+      }
+    },
+    {
+      "name": "sampling_period",
+      "status": "pass",
+      "evidence": {
+        "value": 1e-06
+      }
+    }
+  ],
+  "reasons": [],
+  "calibration": {
+    "status": "UNVERIFIED",
+    "vertical_scale": 1.0,
+    "reason": "The programming manual does not document a code-to-volts conversion."
+  },
+  "analysis_allowed": "code-domain-only",
+  "payload_sha256": "e19970488b6f98c79613298b77b1d5d65244ac0649c50da672f686df8fd842de",
+  "raw_sha256": "2b92d68aa4dd4a5797bbb426228d628ed779fb838a9ce4845c064220e2b04eca",
+  "raw_bytes": 10531,
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "ieee_block_length",
+        "status": "pass",
+        "evidence": {
+          "declared_bytes": 10000,
+          "observed_bytes": 10000
+        }
+      },
+      {
+        "name": "sample_width",
+        "status": "pass",
+        "evidence": {
+          "bytes_per_point": 2
+        }
+      },
+      {
+        "name": "declared_points",
+        "status": "pass",
+        "evidence": {
+          "declared_points": 5000,
+          "observed_points": 5000
+        }
+      },
+      {
+        "name": "vertical_scale",
+        "status": "pass",
+        "evidence": {
+          "value": 1.0
+        }
+      },
+      {
+        "name": "sampling_period",
+        "status": "pass",
+        "evidence": {
+          "value": 1e-06
+        }
+      }
+    ],
+    "reasons": [],
+    "calibration": "UNVERIFIED",
+    "analysis_allowed": "code-domain-only",
+    "input_provenance": "hardware-verified",
+    "support_level": "hardware-verified",
+    "parser": "gds2000a-protocol/0.1.0",
+    "raw_sha256": "2b92d68aa4dd4a5797bbb426228d628ed779fb838a9ce4845c064220e2b04eca",
+    "payload_sha256": "e19970488b6f98c79613298b77b1d5d65244ac0649c50da672f686df8fd842de"
+  }
+}

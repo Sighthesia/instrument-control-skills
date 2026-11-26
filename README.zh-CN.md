@@ -11,9 +11,10 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | [`siglent-sds800xhd-control`](skills/siglent-sds800xhd-control/SKILL.md) | 示波器 | ✅ SDS824X HD |
 | [`keithley-2000-control`](skills/keithley-2000-control/SKILL.md) | 台式万用表 | ✅ Model 2000 |
 | [`gwinstek-gdm8352-control`](skills/gwinstek-gdm8352-control/SKILL.md) | 台式万用表 | ✅ GDM-8352 |
-| [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | 函数发生器 | — |
+| [`gwinstek-afg2225-control`](skills/gwinstek-afg2225-control/SKILL.md) | 函数发生器 | ✅ AFG-2225 |
 | [`gwinstek-gpd4303s-control`](skills/gwinstek-gpd4303s-control/SKILL.md) | 直流电源 | ✅ GPD-4303S |
 | [`gwinstek-gds1000b-control`](skills/gwinstek-gds1000b-control/SKILL.md) | 示波器 | — |
+| [`gwinstek-gds2000a-control`](skills/gwinstek-gds2000a-control/SKILL.md) | 示波器 | ✅ GDS-2104A |
 | [`rigol-ds1000z-control`](skills/rigol-ds1000z-control/SKILL.md) | 示波器 | ✅ DS1074Z |
 | [`oscilloscope-waveform-analysis`](skills/oscilloscope-waveform-analysis/SKILL.md) | 离线波形分析 | —（离线；已通过 DS1074Z / SDS824X HD 样本验证） |
 | [`write-new-instrument-control`](skills/write-new-instrument-control/SKILL.md) | 编写指南 | — |
@@ -25,9 +26,10 @@ SCPI 仪器控制、响应解析与证据分级的 Agent 技能。
 | `siglent-sds800xhd-control`    | 手册索引 873 行，参数已转录 | `capture_scope`（导出 `waveform-bundle/v1`）、`scope_protocol`、`channel_snapshot`、`configure_scope`、`screenshot_capture`、`read_decode_list` 等 8 个脚本 |
 | `keithley-2000-control`        | 11/11 面板功能；287 行索引，参数已转录 | `keithley2000_session`：试运行、原始捕获、串口锁         |
 | `gwinstek-gdm8352-control`     | 仅可读子集；写操作拒绝；索引 173 行 | `gdm8352_session`：试运行、白名单、sha256 fixtures       |
-| `gwinstek-afg2225-control`     | 部分：ARB/IEEE 块构建与解析；13 个单位表 | `afg2225_protocol`：ARB/IEEE 块编解码、错误队列          |
+| `gwinstek-afg2225-control`     | 手册索引 170 行；已捕获只读子集 + 一次输出环回 | `afg2225_protocol`：ARB/IEEE 块编解码、错误队列、硬件捕获 |
 | `gwinstek-gpd4303s-control`    | 仅可读子集；写操作拒绝；索引 48 行 | `gpd4303s_protocol`/`_session`：`STATUS?` 位解码、试运行 |
 | `gwinstek-gds1000b-control`    | 部分：测量与波形下载；索引 450 行 | `gds1000b_protocol`/`_session`：IEEE 块编解码、`waveform-bundle/v1` 导出、离线波形校验 |
+| `gwinstek-gds2000a-control`    | 手册索引 339 行（339/339 形式），51 条硬件验证 | `gds2000a_protocol`/`_session`：IEEE 块、波形 CSV、原始屏幕 RLE 回读、状态快照、试运行 |
 | `rigol-ds1000z-control`        | 手册索引 500 行，参数已转录 | `ds1000z_protocol`/`_session`：IEEE 块、`waveform-bundle/v1` 导出、BMP 裁剪、游标读数、锁步 TCP |
 | `oscilloscope-waveform-analysis` | —（跨厂商离线分析，依赖 `numpy`） | `analyze_waveform`、`waveform_bundle`、`waveform_analysis`、`waveform_scan`、`waveform_evidence`：`waveform-bundle/v1` / CSV / NPZ、脉冲结构、多工况、振铃、verdict 门、SVG |
 | `write-new-instrument-control` | —（无设备命令）                      | 解析器模板、响应分帧示例、完整性状态                     |

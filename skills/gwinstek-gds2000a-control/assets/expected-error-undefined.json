@@ -1,0 +1,30 @@
+{
+  "schema_version": "gds2000a-protocol-v1",
+  "kind": "status-record",
+  "record_type": "error-queue",
+  "code": -113,
+  "message": "Undefined header",
+  "quoted": true,
+  "status": "UNVERIFIED",
+  "integrity": {
+    "status": "UNVERIFIED",
+    "checks": [
+      {
+        "name": "error_queue_record",
+        "status": "pass",
+        "evidence": {
+          "code": -113
+        }
+      }
+    ],
+    "reasons": [
+      "instrument_reported_error_or_status"
+    ],
+    "raw_sha256": "3d1108cac1138f5c60fcfea36dffcca380c41f8faaffa7cb1e54086c60bcf2ed",
+    "raw_bytes": 25,
+    "raw_response_base64": "LTExMywgIlVuZGVmaW5lZCBoZWFkZXIiCg==",
+    "input_provenance": "hardware-verified",
+    "support_level": "hardware-verified",
+    "parser": "gds2000a-protocol/0.1.0"
+  }
+}

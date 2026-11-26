@@ -1,0 +1,33 @@
+{
+  "schema_version": "gds2000a-protocol-v1",
+  "kind": "scalar-measurement",
+  "quantity": "pk2pk",
+  "command": ":MEASure:PK2PK?",
+  "value": 0.08,
+  "raw_value": 0.08,
+  "numeric_token": "8.000E-02",
+  "unit": "V or A",
+  "unit_status": "source-dependent",
+  "raw_unit": null,
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "measurement_parse",
+        "status": "pass",
+        "evidence": {
+          "token": "8.000E-02",
+          "unit": "V or A"
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "c3ed45201c5e17cf0f13dab0c7ef99be075df61a21a34ae5d26924b6c56e7ff9",
+    "raw_bytes": 10,
+    "raw_response_base64": "OC4wMDBFLTAyCg==",
+    "input_provenance": "hardware-verified",
+    "support_level": "hardware-verified",
+    "parser": "gds2000a-protocol/0.1.0"
+  }
+}

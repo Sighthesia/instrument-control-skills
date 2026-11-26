@@ -1,0 +1,281 @@
+{
+  "schema_version": "artifact-envelope-v1",
+  "parser": {
+    "name": "gds2000a-protocol",
+    "version": "0.1.0"
+  },
+  "instrument": {
+    "vendor": "GW Instek",
+    "model": "GDS-2104A",
+    "firmware": "V1.18",
+    "serial": "GEN182193",
+    "interface": "USB CDC-ACM (VID:PID 2184:0014), /dev/ttyACM1, 115200 8N1, LF terminator"
+  },
+  "source": {
+    "operation": "offline response parsing plus read-only queries, selected set/readback/restore checks, RUN/STOP/SINGle transitions, one acquisition-memory waveform, and one raw screen-image block",
+    "transport": "USB CDC-ACM (VID:PID 2184:0014), /dev/ttyACM1, 115200 8N1; no *RST, *SAV, *RCL, autoscale, calibration, file write, or hardcopy START was sent",
+    "captured_at": "2026-11-26",
+    "manual": {
+      "title": "GDS-2000A Series Programming Manual",
+      "revision": "Version 1.4, August 2013",
+      "url": "https://www.gwinstek.com/en-global/products/detail/GDS-2000A",
+      "location": "local converted text ref/GDS-2000A_Programming_Manual_v1.4.extracted.md; the converted copy has no body page breaks, so page citations are table-of-contents or List of Commands markers (pp. 24-34), never inferred body pages"
+    }
+  },
+  "data": {
+    "kind": "waveform",
+    "raw_path": "assets/fixtures/hardware/acquire1-memory.bin",
+    "raw_sha256": "2b92d68aa4dd4a5797bbb426228d628ed779fb838a9ce4845c064220e2b04eca",
+    "raw_provenance": "Real :ACQuire1:MEMory? response after :STOP, captured on 2026-11-26 from GDS-2104A serial GEN182193, firmware V1.18, over USB CDC-ACM 2184:0014 at /dev/ttyACM1. The block contains an ASCII header, 'Waveform Data;', '#510000', 10,000 payload bytes (5,000 signed 16-bit points), and one LF. The full exchange is in artifacts/hw-verify/gds2000a-20261126/ (git-ignored, local reference only). This is a code-domain capture, not a calibrated voltage record."
+  },
+  "support": {
+    "level": "hardware-verified",
+    "hardware_verified": true,
+    "hardware_verified_scope": "Restricted to the observations captured on 2026-11-26 from GDS-2104A serial GEN182193, firmware V1.18, USB CDC-ACM 2184:0014 at /dev/ttyACM1: *IDN? identity; the :SYSTem:ERRor? format and its +0 record; read-only queries for acquisition mode/record length/header, CH1 vertical settings, math display/type, hardcopy state, measurement gating/method, timebase, trigger, panel lock, save-image format/ink saver, search state/total, buzzer, Go-NoGo script state, and segment state/total; set/readback/restore of :CHANnel1:SCALe, :CHANnel1:COUPling, :TIMebase:SCALe, :TRIGger:LEVel, and :BUZZER; :MEASure:SOURce1 change/restore and :MEASure:PK2PK? including Ch Off; :RUN/:STOP/:SINGle transitions; one :ACQuire1:MEMory? 5,000-point CH1 waveform; and one raw :DISPlay:OUTPut? block. Every other command family remains documented, and no waveform voltage calibration or image decode is claimed.",
+    "known_limitations": [
+      "Hardware evidence covers one unit, firmware, and interface; do not extend it to another GDS-2000A model, firmware revision, or transport.",
+      "The programming manual gives no code-to-volts formula. Waveform calibration is UNVERIFIED and analysis_allowed is code-domain-only.",
+      "The 16-bit RGB run-length screen image is captured raw; no decoder is bundled, so image content is UNVERIFIED.",
+      "No :SAVe:* file write and no :HARDcopy:START write was performed; file existence and content are unverified.",
+      "Only one :ACQuire1:MEMory? waveform (5,000 points) is shipped; the 1,000,000-point :ACQuire1:LMEMory? capture in local evidence is not shipped.",
+      "Only CH1 was exercised for vertical and measurement reads; CH2-CH4 behavior is unverified.",
+      "Most trigger subtypes, slotted-measurement configuration, math/FFT configuration, cursors, reference waveforms, and the remaining individual measurement items were not exercised.",
+      "Ethernet (DS2-LAN), GPIB (DS2-GPIB), RS-232C, the DS2-FGN function generator, DS2-8LA/16LA logic/bus options, DVM, Datalog, and Go-NoGo execution were not exercised.",
+      "Optional-option queries returned -240, empty lines, or -221 on the verified unit; treat every optional feature as absent until confirmed.",
+      "USB CDC serial defaults are not stated by the manual; 115200 8N1 is the helper default and the verified host setting, not a device requirement.",
+      "The manual's List of Commands often omits query '?' and channel/slot suffixes; the hardware required suffixed query forms. See references/command-reference.md.",
+      "The local command list omits the Go_NoGo/Template block (TOC pp. 226-231); those forms are recorded in Appendix A and are not part of the 339-row denominator.",
+      "The manual documents trigger states with a leading '*'; V1.18 returned them without it. The manual documents 'Chan Off'; V1.18 returned 'Ch Off'.",
+      ":TIMebase:EXPand? is documented for V1.18 but returned -221 Settings conflict on the verified unit.",
+      ":TRIGger:FREQuency? returned a second LF; the parser keeps it as framing evidence, not as a second response."
+    ]
+  },
+  "integrity": {
+    "status": "COMPLETE",
+    "scope": "hardware-verified subset only; unverified command families and features are listed as not_checked",
+    "checks": [
+      {
+        "name": "hardware_capture",
+        "status": "pass",
+        "evidence": {
+          "captured_at": "2026-11-26",
+          "identity": "GW,GDS-2104A,GEN182193,V1.18",
+          "transport": "USB CDC-ACM 2184:0014, /dev/ttyACM1, 115200 8N1, LF",
+          "raw_evidence_directory": "artifacts/hw-verify/gds2000a-20261126/",
+          "shipped_fixtures": "assets/fixtures/hardware/",
+          "synthetic_fixtures_separated_in": "assets/fixtures/synthetic/"
+        }
+      },
+      {
+        "name": "identity_parse",
+        "status": "pass",
+        "evidence": {
+          "command": "*IDN?",
+          "result": "COMPLETE",
+          "model": "GDS-2104A",
+          "serial": "GEN182193",
+          "firmware": "V1.18",
+          "raw_sha256": "b021fdb934807d6e0133265026cfb25179263ce2f55d2d7e116f9611c08c3e9c"
+        }
+      },
+      {
+        "name": "error_queue_format",
+        "status": "pass",
+        "evidence": {
+          "empty": "+0, \"No error.\"",
+          "observed_errors": [
+            "-113, \"Undefined header\"",
+            "-108, \"Parameter not allowed\""
+          ],
+          "empty_sha256": "0869b2f462e7c8b16c895c21b1d15090442fc3880da74a9452a612ba949f27bd"
+        }
+      },
+      {
+        "name": "read_only_queries",
+        "status": "pass",
+        "evidence": {
+          "commands": [
+            ":ACQuire:MODe?",
+            ":ACQuire:RECOrdlength?",
+            ":HEADer?",
+            ":CHANnel1:BWLimit?",
+            ":CHANnel1:COUPling?",
+            ":CHANnel1:DESKew?",
+            ":CHANnel1:DISPlay?",
+            ":CHANnel1:EXPand?",
+            ":CHANnel1:IMPedance?",
+            ":CHANnel1:INVert?",
+            ":CHANnel1:POSition?",
+            ":CHANnel1:PROBe:RATio?",
+            ":CHANnel1:PROBe:TYPe?",
+            ":CHANnel1:SCALe?",
+            ":MATH:DISP?",
+            ":MATH:TYPe?",
+            ":HARDcopy:MODe?",
+            ":HARDcopy:PRINTINKSaver?",
+            ":HARDcopy:SAVEINKSaver?",
+            ":HARDcopy:SAVEFORMat?",
+            ":HARDcopy:ASSIGN?",
+            ":MEASure:GATing?",
+            ":MEASure:METHod?",
+            ":TIMebase:POSition?",
+            ":TIMebase:SCALe?",
+            ":TIMebase:MODe?",
+            ":TRIGger:FREQuency?",
+            ":TRIGger:TYPe?",
+            ":TRIGger:SOURce?",
+            ":TRIGger:COUPle?",
+            ":TRIGger:NREJ?",
+            ":TRIGger:REJect?",
+            ":TRIGger:MODe?",
+            ":TRIGger:HOLDoff?",
+            ":TRIGger:LEVel?",
+            ":TRIGger:EDGe:SLOP?",
+            ":TRIGger:STATe?",
+            ":SYSTem:LOCK?",
+            ":SYSTem:ERRor?",
+            ":SAVe:IMAGe:FILEFormat?",
+            ":SAVe:IMAGe:INKSaver?",
+            ":SEARCH:STATE?",
+            ":SEARCH:TOTAL?",
+            ":BUZZER?",
+            ":GONogo:SCRipt?",
+            ":SEGMents:STATE?",
+            ":SEGMents:TOTalnum?"
+          ]
+        }
+      },
+      {
+        "name": "parameter_write_readback_restore",
+        "status": "pass",
+        "evidence": {
+          "channel_scale": ":CHANnel1:SCALe 2.0 -> read back -> restored 1.0",
+          "channel_coupling": ":CHANnel1:COUPling AC -> read back -> restored DC",
+          "timebase_scale": ":TIMebase:SCALe 1.000000e-03 -> read back -> restored 5.000000e-04",
+          "trigger_level": ":TRIGger:LEVel 2.600E+00 -> read back -> restored 2.520E+00",
+          "buzzer": ":BUZZER OFF -> read back OFF",
+          "measurement_source": ":MEASure:SOURce1 CH2 -> read back -> restored CH1",
+          "final_error_queue": "+0, \"No error.\"",
+          "all_restored": true
+        }
+      },
+      {
+        "name": "run_stop_single_transitions",
+        "status": "pass",
+        "evidence": {
+          "stop": "state SAVE",
+          "run": "state AUTO",
+          "single": "READY, acquire state 0; restored with STOP then RUN",
+          "final_trigger_state": "AUTO"
+        }
+      },
+      {
+        "name": "waveform_structure",
+        "status": "pass",
+        "evidence": {
+          "command": ":ACQuire1:MEMory?",
+          "points": 5000,
+          "declared_block_bytes": 10000,
+          "observed_block_bytes": 10000,
+          "trailing_hex": "0a",
+          "raw_sha256": "2b92d68aa4dd4a5797bbb426228d628ed779fb838a9ce4845c064220e2b04eca",
+          "payload_sha256": "e19970488b6f98c79613298b77b1d5d65244ac0649c50da672f686df8fd842de",
+          "calibration": "UNVERIFIED",
+          "analysis_allowed": "code-domain-only"
+        }
+      },
+      {
+        "name": "measurement_values",
+        "status": "pass",
+        "evidence": {
+          "pk2pk": "8.000E-02 with source CH1",
+          "ch_off": "Ch Off with source CH2 off -> INCOMPLETE",
+          "slotted_sentinel": "9.9E+37 with STATE 0 -> INCOMPLETE"
+        }
+      },
+      {
+        "name": "screen_image_raw_block",
+        "status": "pass",
+        "evidence": {
+          "command": ":DISPlay:OUTPut?",
+          "block_declared_bytes": 38822,
+          "block_payload_bytes": 38822,
+          "raw_bytes": 38830,
+          "raw_sha256": "1775e99fee32598113ccd88dc0297fcdef0fe11d18e1f2641d29ce5d3b2564e7",
+          "decode": "not implemented"
+        }
+      },
+      {
+        "name": "afg_loopback_measurement",
+        "status": "pass",
+        "evidence": {
+          "setup": "AFG-2225 CH1 (SIN, 1 kHz, 1 Vpp at 50 ohm reference, 0 V) into GDS CH1 at 1 MOhm, 1x, DC; :CHANnel1:SCALe 0.5, :CHANnel1:POSition 0, :TRIGger:LEVel 0, :MEASure:SOURce1 CH1",
+          "measured": "1.000E+03 Hz, 1.000E-03 s, 2.060E+00 Vpp, 7.270E-01 V RMS",
+          "restored": "original scale/position/trigger level restored; error queue +0, No error",
+          "record": "artifacts/hw-verify/loopback-20261126/loopback-result.json (git-ignored)",
+          "scope_limit": "one frequency and one level; not accuracy, flatness, or calibration"
+        }
+      },
+      {
+        "name": "offline_tests",
+        "status": "pass",
+        "evidence": {
+          "command": "python3 -m unittest discover -s skills/gwinstek-gds2000a-control/scripts -p 'test_*.py'",
+          "tests": 50,
+          "network": "none; hardware and synthetic fixtures only"
+        }
+      },
+      {
+        "name": "waveform_voltage_calibration",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "the programming manual documents no code-to-volts formula; no calibrated source or independent reference was used",
+          "note": "the 1 kHz single-point loopback in afg_loopback_measurement is not a calibration"
+        }
+      },
+      {
+        "name": "screen_image_decode",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "the 16-bit RGB run-length decoder is not implemented"
+        }
+      },
+      {
+        "name": "save_and_hardcopy_writes",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no :SAVe:* file write and no :HARDcopy:START was sent"
+        }
+      },
+      {
+        "name": "channels_2_to_4",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "vertical and measurement reads were exercised on CH1 only"
+        }
+      },
+      {
+        "name": "optional_features",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "DS2-LAN, DS2-GPIB, DS2-FGN, DS2-8LA/16LA, DVM, Datalog, and Go-NoGo were not exercised"
+        }
+      },
+      {
+        "name": "other_models_and_transports",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "only one GDS-2104A over USB CDC-ACM was tested; other models, Ethernet, GPIB, and RS-232C were not"
+        }
+      }
+    ],
+    "reasons": [
+      "waveform_voltage_calibration_not_checked",
+      "screen_image_decode_not_checked",
+      "save_and_hardcopy_writes_not_checked",
+      "channels_2_to_4_not_checked",
+      "optional_features_not_checked",
+      "other_models_and_transports_not_checked"
+    ]
+  }
+}

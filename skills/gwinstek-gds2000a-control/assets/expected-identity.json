@@ -1,0 +1,38 @@
+{
+  "schema_version": "gds2000a-protocol-v1",
+  "kind": "identity",
+  "vendor": "GW",
+  "model": "GDS-2104A",
+  "serial": "GEN182193",
+  "firmware": "V1.18",
+  "identity": {
+    "vendor": "GW",
+    "model": "GDS-2104A",
+    "serial": "GEN182193",
+    "firmware": "V1.18"
+  },
+  "profile": {
+    "channels": 4,
+    "channel_count_source": "inferred from the model number's last digit"
+  },
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "identity_parse",
+        "status": "pass",
+        "evidence": {
+          "model": "GDS-2104A"
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "b021fdb934807d6e0133265026cfb25179263ce2f55d2d7e116f9611c08c3e9c",
+    "raw_bytes": 29,
+    "raw_response_base64": "R1csR0RTLTIxMDRBLEdFTjE4MjE5MyxWMS4xOAo=",
+    "input_provenance": "hardware-verified",
+    "support_level": "hardware-verified",
+    "parser": "gds2000a-protocol/0.1.0"
+  }
+}
