@@ -2,8 +2,8 @@
   "schema_version": "afg2225-protocol-v1",
   "kind": "status-record",
   "record_type": "error-queue",
-  "code": -138,
-  "message": "Suffix not allowed",
+  "code": -102,
+  "message": "Syntax error.",
   "status": "UNVERIFIED",
   "integrity": {
     "status": "UNVERIFIED",
@@ -12,16 +12,16 @@
         "name": "error_queue_record",
         "status": "pass",
         "evidence": {
-          "code": -138
+          "code": -102
         }
       }
     ],
     "reasons": [
       "instrument_reported_error_or_status"
     ],
-    "raw_sha256": "696a452af01c3226a149e0935981a35cea1c260e9c2bb5e490aa3f2bc279c799",
-    "raw_response_base64": "LTEzOCBTdWZmaXggbm90IGFsbG93ZWQK",
+    "raw_sha256": "97c50775f442cea87eb14402d0e1976d26c04aa76fb25a4e951b63fcea7fac52",
+    "raw_response_base64": "LTEwMg0KU3ludGF4IGVycm9yLg==",
     "support_level": "documented",
-    "parser": "afg2225-protocol/0.1.0"
+    "parser": "afg2225-protocol/0.2.0"
   }
 }

@@ -25,7 +25,7 @@
     "raw_sha256": "1949c71648be83c05786c52493407d8a2b50dbbccc5a9e4bf5f7f650f8fafce8",
     "raw_response_base64": "REFUQTpEQUMgVk9MQVRJTEUsMCwtNTExLDAsNTExLDI1NiwtMjU2LDEyOCwtMTI4LDA=",
     "support_level": "documented",
-    "parser": "afg2225-protocol/0.1.0"
+    "parser": "afg2225-protocol/0.2.0"
   },
   "provenance": {
     "manual": "AFG-2225 Series User Manual, GW Instek part no. 82RF-22250M01",

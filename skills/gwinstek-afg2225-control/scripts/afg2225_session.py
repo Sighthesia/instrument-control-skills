@@ -81,6 +81,32 @@ class Session:
             raise RuntimeError("query response is incomplete (no terminator)")
         return response
 
+    def read_error_queue(self) -> bytes:
+        """Read the observed two-line ``SYST:ERR?`` response.
+
+        The verified AFG-2225 sends the code line with CRLF and the message
+        line without a terminator, so ``readline()`` returns only the code.
+        The remainder is read with a short timeout after the first line.
+        """
+
+        if self.dry_run:
+            return b""
+        port = self._open()
+        response = port.readline()
+        if not response:
+            raise RuntimeError("error-queue query timed out with no response")
+        previous_timeout = port.timeout
+        try:
+            port.timeout = 0.1
+            while True:
+                chunk = port.read(4096)
+                if not chunk:
+                    break
+                response += chunk
+        finally:
+            port.timeout = previous_timeout
+        return response
+
     def close(self) -> None:
         if self._serial is not None:
             try:
@@ -120,9 +146,10 @@ def cmd_query(session: Session, args) -> int:
 def cmd_errors(session: Session, args) -> int:
     limit = 20 if args.drain else 1
     for _ in range(limit):
-        response = session.send(b"SYST:ERR?", read_response=True)
+        session.send(b"SYST:ERR?", read_response=False)
         if session.dry_run:
             return 0
+        response = session.read_error_queue()
         print(f"RESPONSE: {response!r}")
         result = parse_error_queue(response, response_type="error-queue")
         if result.get("code") == 0:
@@ -224,14 +251,16 @@ def cmd_off(session: Session, args) -> int:
 
 def cmd_snapshot(session: Session, args) -> int:
     channel = args.channel
-    # VOLT:UNIT decides what AMPL? means; without it an amplitude readback is
-    # uninterpretable (manual pp. 214-215). LOAD is only a reference setting.
+    # VOLT:UNIT decides what the amplitude number means; without it an
+    # amplitude readback is uninterpretable (manual pp. 214-215). The long
+    # form is required: the verified V2.05 rejects SOUR<n>:AMPL? with -113.
+    # LOAD is only a reference setting.
     queries = [
         "*IDN?",
         f"SOUR{channel}:FUNC?",
         f"SOUR{channel}:FREQ?",
         f"SOUR{channel}:VOLT:UNIT?",
-        f"SOUR{channel}:AMPL?",
+        f"SOUR{channel}:AMPLITUDE?",
         f"SOUR{channel}:DCO?",
         f"OUTP{channel}?",
         f"OUTP{channel}:LOAD?",

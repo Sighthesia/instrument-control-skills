@@ -2,17 +2,19 @@
   "schema_version": "artifact-envelope-v1",
   "parser": {
     "name": "afg2225-protocol",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "instrument": {
     "vendor": "GW Instek",
     "model": "AFG-2225",
-    "firmware": null,
-    "serial": null
+    "firmware": "V2.05",
+    "serial": "GEP902745",
+    "interface": "USB CDC-ACM (VID:PID 2184:001c), /dev/ttyACM0, 115200 8N1; the link also answered at 9600"
   },
   "source": {
-    "operation": "offline response parsing and arbitrary waveform CSV/DAC command construction",
-    "transport": "offline saved bytes; optional USB CDC serial transport (not exercised)",
+    "operation": "offline response parsing plus read-only query and single-parameter write/readback/restore verification",
+    "transport": "USB CDC-ACM (VID:PID 2184:001c), /dev/ttyACM0, 115200 8N1; read-only queries plus one OUTP1 ON/OFF loopback into a GDS-2104A CH1 (1 MOhm); no APPLy, no *RST/*SAV/*RCL, no calibration",
+    "captured_at": "2026-11-26",
     "manual": {
       "title": "AFG-2225 Series User Manual",
       "revision": "GW Instek part no. 82RF-22250M01",
@@ -21,35 +23,147 @@
     }
   },
   "data": {
-    "kind": "waveform",
-    "raw_path": "assets/fixtures/arb-valid.csv",
-    "raw_sha256": "6f899f11c72c51218a3a342877ba2f15a94373bccc1a4bfc268366626d4bde5b",
-    "raw_provenance": "Synthetic fixture following the manual's documented DATA:DAC example; not a real instrument capture."
+    "kind": "instrument-response",
+    "raw_path": "assets/captures/idn.txt",
+    "raw_sha256": "c5c220c240bed5f6b87da2875722e21bc2356c640c09e38fd4aab59431a20e16",
+    "raw_provenance": "Real *IDN? response captured on 2026-11-26 from AFG-2225 serial GEP902745, firmware V2.05, over USB CDC-ACM 2184:001c at /dev/ttyACM0. The raw bytes are indexed in assets/captures/captures.jsonl; the full exchange is in artifacts/hw-verify/afg2225-20261126/ (git-ignored, local reference only). This is read-back evidence, not a calibration certificate."
   },
   "support": {
-    "level": "documented",
-    "hardware_verified": false,
+    "level": "hardware-verified",
+    "hardware_verified": true,
+    "hardware_verified_scope": "Restricted to the observations captured on 2026-11-26 from AFG-2225 serial GEP902745, firmware V2.05, USB CDC-ACM 2184:001c at /dev/ttyACM0: *IDN?; the two-line SYSTem:ERRor? format and its empty-queue form; read-only queries for function, frequency, amplitude (long form only), offset, output state, load, phase, duty cycle, counter state/value, and APPL?; single-parameter write/readback/restore of SOUR1:FREQ, SOUR1:AMPLITUDE, and SOUR1:DCO with the output OFF before and after; and one output-on loopback (SIN 1 kHz, 1 Vpp at 50 ohm reference, 0 V offset) into a GDS-2104A CH1 at 1 MOhm, measured 1.000E+03 Hz / 2.060E+00 Vpp / 7.27E-01 V RMS, then OUTP1 OFF and the original SIN 0.5 Hz / 3 Vpp setup restored. Every other command family remains documented.",
     "known_limitations": [
-      "No hardware verification is included; the optional USB CDC transport is untested.",
-      "USB CDC identity (0x2184:0x001c) is external/Linux-kernel evidence, not manual text.",
-      "Binary ARB byte order is unverified; ASCII decimal list is the default safe path.",
+      "Hardware evidence covers one unit, firmware, and interface; do not extend it to another AFG-2225 or firmware revision.",
+      "APPLy writes, ARB DATA:DAC uploads, modulation, sweep, burst, counter enable/measurement, phase/coupling writes, save/recall/delete, and calibration were not exercised. OUTPut ON/OFF was exercised once as an unloaded 1 kHz loopback, not across waveforms, levels, or loads.",
+      "Binary ARB byte order remains unverified; the ASCII decimal list is the default safe path.",
+      "The error queue is two lines on the wire: a CRLF-terminated code line and an unterminated message line, for example -102\\r\\nSyntax error.; the empty queue is \\r\\nNo error. The parser accepts this and the manual's single-line form.",
+      "SOUR<n>:APPL? returns a quoted composite string on the wire; the manual example omits the quotes.",
+      "SOUR<n>:AMPL? is rejected by V2.05 with no response and -113 Undefined header; use the long form SOUR<n>:AMPLITUDE?.",
+      "The manual and firmware provide no SCPI beeper command; the beeper is panel-only (UTIL -> F3 System -> F3 Beep -> F2 OFF).",
       "The manual's DATA:DAC example claims 5 values / 16 bytes; actual byte count is 10 bytes. This is a documented manual defect.",
+      "115200 8N1 is the helper default, not a manual requirement; the verified link also answered at 9600 baud.",
       "No LAN, GPIB, or RS-232 interface; USB device port only.",
-      "No automatic *RST, *SAV, *RCL, delete, or calibration.",
-      "115200 8N1 is an assumption, not a manual default."
+      "Voltage/amplitude accuracy, flatness, and calibration are not verified; one 1 kHz loopback point proves the command path and the 50 ohm-to-1 MOhm doubling, not a calibrated level.",
+      "Community observations (SOURCE1:OUTPUT ON versus OUTP1 ON, positive DC offset with ARB) remain unverified."
     ]
   },
   "integrity": {
-    "status": "UNVERIFIED",
+    "status": "COMPLETE",
+    "scope": "hardware-verified subset only; unverified command families are listed as not_checked",
     "checks": [
       {
-        "name": "fixture_origin",
+        "name": "hardware_capture",
         "status": "pass",
         "evidence": {
-          "synthetic": true,
-          "hardware_capture": false
+          "capture_index": "assets/captures/captures.jsonl",
+          "captured_at": "2026-11-26",
+          "identity": "GW INSTEK,AFG-2225,SN:GEP902745,V2.05",
+          "transport": "USB CDC-ACM 2184:001c, /dev/ttyACM0",
+          "synthetic_fixtures_separated_in": "assets/fixtures/"
+        }
+      },
+      {
+        "name": "identity_parse",
+        "status": "pass",
+        "evidence": {
+          "command": "*IDN?",
+          "result": "COMPLETE",
+          "serial": "GEP902745",
+          "firmware": "V2.05"
+        }
+      },
+      {
+        "name": "error_queue_wire_format",
+        "status": "pass",
+        "evidence": {
+          "nonzero": "-102\\r\\nSyntax error.",
+          "empty": "\\r\\nNo error.",
+          "message_line_terminated": false,
+          "captures": [
+            "assets/captures/error-syntax.txt",
+            "assets/captures/error-empty.txt"
+          ]
+        }
+      },
+      {
+        "name": "read_only_queries",
+        "status": "pass",
+        "evidence": {
+          "capture_index": "assets/captures/captures.jsonl",
+          "commands": [
+            "OUTP1?",
+            "SOUR1:FUNC?",
+            "SOUR1:FREQ?",
+            "SOUR1:VOLT:UNIT?",
+            "SOUR1:AMPLITUDE?",
+            "SOUR1:DCO?",
+            "OUTP1:LOAD?",
+            "SOUR1:PHAS?",
+            "SOUR1:SQU:DCYC?",
+            "COUN:STAT?",
+            "COUN:VAL?",
+            "SOUR1:APPL?"
+          ]
+        }
+      },
+      {
+        "name": "parameter_write_readback_restore",
+        "status": "pass",
+        "evidence": {
+          "frequency": "SOUR1:FREQ 1234.5 -> +1.2345000000000E+03 -> restored +5.0000000000000E-01",
+          "amplitude": "SOUR1:AMPLITUDE 1.5 -> +1.500E+00 -> restored +3.000E+00",
+          "offset": "SOUR1:DCO 0.5 -> +5.00E-01 -> restored +0.00E+00",
+          "output_state": "OUTP1? and OUTP2? read 0 before and after",
+          "error_queue": "empty after every write and restore"
+        }
+      },
+      {
+        "name": "output_on_loopback",
+        "status": "pass",
+        "evidence": {
+          "setup": "SOUR1:FUNC SIN, FREQ 1000, AMPLITUDE 1 (VPP, 50 ohm reference), DCO 0, OUTP1 ON",
+          "scope": "GDS-2104A CH1, 1 MOhm, 1x, DC, 2026-11-26",
+          "measured": "1.000E+03 Hz, 1.000E-03 s, 2.060E+00 Vpp, 7.270E-01 V RMS",
+          "restored": "OUTP1 OFF -> 0; SIN 0.5 Hz / 3 Vpp / 0 V restored; both error queues empty",
+          "record": "artifacts/hw-verify/loopback-20261126/loopback-result.json (git-ignored)",
+          "scope_limit": "one frequency and one level; not amplitude accuracy or flatness"
+        }
+      },
+      {
+        "name": "offline_tests",
+        "status": "pass",
+        "evidence": {
+          "command": "python3 -m unittest discover -s skills/gwinstek-afg2225-control/scripts -p 'test_*.py'",
+          "tests": 106,
+          "network": "none; captures and fixtures only"
+        }
+      },
+      {
+        "name": "arb_binary_byte_order",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no DATA:DAC upload was sent; volatile ARB memory has no readback/restore path in this Skill"
+        }
+      },
+      {
+        "name": "modulation_sweep_burst",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no modulation, sweep, or burst command was exercised"
+        }
+      },
+      {
+        "name": "voltage_accuracy_calibration",
+        "status": "not_checked",
+        "evidence": {
+          "reason": "no calibrated source or measurement cross-check was performed"
         }
       }
+    ],
+    "reasons": [
+      "arb_binary_byte_order_not_checked",
+      "modulation_sweep_burst_not_checked",
+      "voltage_accuracy_calibration_not_checked"
     ]
   }
 }

@@ -1,0 +1,29 @@
+{
+  "schema_version": "afg2225-protocol-v1",
+  "kind": "numeric",
+  "quantity": "amplitude",
+  "value": 3.0,
+  "raw_value": 3.0,
+  "numeric_token": "+3.000E+00",
+  "unit": "Vpp",
+  "raw_unit": null,
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "numeric_parse",
+        "status": "pass",
+        "evidence": {
+          "token": "+3.000E+00",
+          "unit": "Vpp"
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "41e17e0080a2a36ae8a7726329a481ea324d9e73cc5d97b32250928a80199457",
+    "raw_response_base64": "KzMuMDAwRSswMA0K",
+    "support_level": "documented",
+    "parser": "afg2225-protocol/0.2.0"
+  }
+}

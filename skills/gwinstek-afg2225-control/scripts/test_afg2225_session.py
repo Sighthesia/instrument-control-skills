@@ -91,6 +91,43 @@ class SessionDryRunTests(unittest.TestCase):
             code = afg2225_session.main(["--dry-run", "query", "SOUR1:FREQ?"])
         self.assertEqual(code, 0)
 
+    def test_snapshot_uses_long_amplitude_query(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = afg2225_session.main(["--dry-run", "snapshot"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("SOUR1:AMPLITUDE?", output)
+        self.assertNotIn("SOUR1:AMPL?", output)
+        self.assertIn("SOUR1:VOLT:UNIT?", output)
+
+
+class FakeSerial:
+    """Two-line error-queue reply with no terminator on the message line."""
+
+    def __init__(self, chunks):
+        self.chunks = list(chunks)
+        self.timeout = 2.0
+
+    def readline(self):
+        return self.chunks.pop(0) if self.chunks else b""
+
+    def read(self, size):
+        return self.chunks.pop(0) if self.chunks else b""
+
+
+class SessionTransportTests(unittest.TestCase):
+    def test_read_error_queue_reads_both_lines(self):
+        session = afg2225_session.Session("fake", 115200, 2.0, False)
+        session._serial = FakeSerial([b"-102\r\n", b"Syntax error."])
+        self.assertEqual(session.read_error_queue(), b"-102\r\nSyntax error.")
+        self.assertEqual(session._serial.timeout, 2.0)
+
+    def test_read_error_queue_reads_empty_queue_form(self):
+        session = afg2225_session.Session("fake", 115200, 2.0, False)
+        session._serial = FakeSerial([b"\r\n", b"No error."])
+        self.assertEqual(session.read_error_queue(), b"\r\nNo error.")
+
 
 if __name__ == "__main__":
     unittest.main()

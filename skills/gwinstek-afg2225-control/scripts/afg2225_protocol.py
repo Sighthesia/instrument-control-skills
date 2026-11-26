@@ -27,7 +27,7 @@ from typing import Any
 
 
 PARSER_NAME = "afg2225-protocol"
-PARSER_VERSION = "0.1.0"
+PARSER_VERSION = "0.2.0"
 SUPPORT_LEVEL = "documented"
 MAX_ARB_POINTS = 4096
 DAC_MIN = -511
@@ -203,6 +203,62 @@ def read_frame(raw: bytes) -> Frame:
     return Frame(content=raw[:start], terminator=terminator, trailing=trailing)
 
 
+def read_error_queue_frame(raw: bytes) -> Frame:
+    """Read one ``SYSTem:ERRor?`` response, including its observed two-line form.
+
+    The manual prints a single line (``-138 Suffix not allowed``), but the
+    verified AFG-2225 V2.05 sends a CRLF-terminated code line followed by an
+    unterminated message line::
+
+        b"-102\r\nSyntax error."
+        b"\r\nNo error."
+
+    The returned :class:`Frame` carries the two lines joined by one space so
+    the existing metadata stage can classify the code and message.  The raw
+    bytes used for evidence remain the original, unmodified response.
+    """
+
+    raw = bytes(raw)
+    try:
+        return read_frame(raw)
+    except ProtocolError as exc:
+        if exc.status != "INVALID" or "extra bytes" not in str(exc):
+            raise
+
+    line_end = min(
+        position
+        for delimiter in (b"\r", b"\n")
+        if (position := raw.find(delimiter)) >= 0
+    )
+    first_terminator = b"\r\n" if raw[line_end : line_end + 2] == b"\r\n" else raw[line_end : line_end + 1]
+    first_line = raw[:line_end]
+    remainder = raw[line_end + len(first_terminator) :]
+
+    message_end = min(
+        (position for delimiter in (b"\r", b"\n") if (position := remainder.find(delimiter)) >= 0),
+        default=None,
+    )
+    if message_end is None:
+        message_line = remainder
+        message_terminator = b""
+        trailing = b""
+    else:
+        message_line = remainder[:message_end]
+        message_terminator = (
+            b"\r\n"
+            if remainder[message_end : message_end + 2] == b"\r\n"
+            else remainder[message_end : message_end + 1]
+        )
+        trailing = remainder[message_end + len(message_terminator) :]
+        if trailing:
+            raise ProtocolError("extra bytes follow the error-queue message", "INVALID")
+
+    if not first_line and not message_line:
+        raise ProtocolError("error-queue response has no code or message", "INCOMPLETE")
+    content = b" ".join(line for line in (first_line, message_line) if line)
+    return Frame(content=content, terminator=first_terminator, trailing=b"")
+
+
 def _text(frame: Frame) -> str:
     try:
         return frame.content.decode("ascii").strip()
@@ -221,11 +277,17 @@ _ERROR_QUEUE_RE = re.compile(r"^\s*(?P<code>[+-]?\d+)(?:\s*,\s*|\s+)(?P<message>
 
 
 def _is_no_error_text(line: str) -> bool:
-    return re.fullmatch(r'"?no error"?', line, re.IGNORECASE) is not None
+    return re.fullmatch(r'"?no error\.?"?', line, re.IGNORECASE) is not None
+
+
+def _normalized_queue_message(message: str) -> str:
+    """Normalize the observed message line without losing the raw text."""
+
+    return message.strip().strip("\"'").strip().rstrip(".").casefold()
 
 
 def _is_known_error_queue_sentinel(code: int, message: str) -> bool:
-    normalized = message.strip().strip("\"'").strip().casefold()
+    normalized = _normalized_queue_message(message)
     return (code == 0 and normalized == "no error") or (
         abs(code) == 350 and normalized == "queue overflow"
     )
@@ -288,7 +350,7 @@ def parse_metadata(frame: Frame, *, response_type: str = "auto") -> dict[str, An
 
     if _is_no_error_text(line):
         code = 0
-        message = "No error"
+        message = line.strip().strip("\"'").strip()
     else:
         match = _ERROR_QUEUE_RE.fullmatch(line)
         if not match:
@@ -521,7 +583,7 @@ def normalize(
                 "reasons": ["explicit_error_queue_mode_required"],
             }
 
-        normalized = message.casefold()
+        normalized = _normalized_queue_message(message)
         if code == 0 and normalized == "no error":
             status = "COMPLETE"
             reasons: list[str] = []
@@ -686,7 +748,7 @@ def parse_error_queue(raw: bytes, *, response_type: str = "auto") -> dict[str, A
     if response_type not in {"auto", "error-queue"}:
         return _error_queue_failure(raw, "INVALID", "response_type must be auto or error-queue")
     try:
-        frame = read_frame(raw)
+        frame = read_error_queue_frame(raw)
         metadata = parse_metadata(frame, response_type=response_type)
         payload = extract_payload(metadata)
         artifact = normalize(metadata, payload)

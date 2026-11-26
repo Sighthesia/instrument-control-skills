@@ -1,7 +1,8 @@
 # Bench Setup and Panel Connectors (AFG-2225)
 
 Manual: *AFG-2225 Series User Manual*, pp. 7-9, 13-20, 181, 293. Support
-level: `documented`.
+level: `documented` for the connectors and power; the verified transport is
+USB CDC-ACM `2184:001c` at `/dev/ttyACM0` on 2026-11-26.
 
 ## Outputs
 

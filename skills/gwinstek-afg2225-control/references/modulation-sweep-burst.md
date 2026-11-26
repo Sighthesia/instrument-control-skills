@@ -1,7 +1,10 @@
 # Modulation, Sweep, Burst, Counter, Phase, Coupling (AFG-2225)
 
 Manual: *AFG-2225 Series User Manual*, pp. 218-270. Support level:
-`documented`.
+`documented` for modulation, sweep, and burst; the 2026-11-26 hardware
+verification did not exercise any of these modes command by command. Only
+`COUN:STAT?` and `COUN:VAL?` were read, with the counter disabled, so the
+counter value is not a measurement.
 
 ## Modulation commands
 

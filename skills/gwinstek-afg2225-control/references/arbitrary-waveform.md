@@ -1,7 +1,10 @@
 # Arbitrary Waveform (AFG-2225)
 
 Manual: *AFG-2225 Series User Manual*, pp. 260-265, 271. Support level:
-`documented`.
+`documented` for the ARB write path and `UNVERIFIED` for binary byte order. The
+2026-11-26 hardware verification did not send `DATA:DAC`: volatile ARB memory
+has no readback/restore path in this Skill, so no upload or byte order was
+confirmed.
 
 ## Memory and points
 

@@ -1,7 +1,9 @@
 # Basic Waveforms and Output (AFG-2225)
 
 Manual: *AFG-2225 Series User Manual*, pp. 200-215. Support level:
-`documented`.
+`hardware-verified` for the `APPL?` query, the read-only amplitude/frequency
+readbacks, and single-parameter `FREQ`/`AMPLITUDE`/`DCO` write/readback; the
+APPLy write family and everything else remain `documented`.
 
 ## APPLy commands
 
@@ -18,6 +20,17 @@ sweep, and turns the output **on**. Nested optional parameters. Defaults:
 | `SOURce[1|2]:APPLy:NOISe` | frequency not applicable; use `DEF` | 204 |
 | `SOURce[1|2]:APPLy:USER` | 1 µHz-60 MHz | 204 |
 | `SOURce[1|2]:APPLy?` | returns function/frequency/amplitude/offset | 205 |
+
+The verified V2.05 returns a quoted string even though the manual example omits
+the quotes:
+
+```text
+SOUR1:APPL? -> b'"SIN +5.0000000000000E-01,+3.000E+00,+0.00E+00"\r\n'
+```
+
+The composite carries function, frequency, amplitude, and offset; the amplitude
+unit still comes from `SOUR<n>:VOLT:UNIT?` (observed `VPP`). APPLy writes were
+not exercised because they turn the output on.
 
 APPLy amplitude is `1 mVpp-10 Vpp` into 50 Ω; offset is `-4.99 V..4.99 V`
 (manual pp. 202-204). The square APPLy command forces 50 % duty and the ramp
@@ -36,6 +49,20 @@ APPLy command forces 50 % symmetry; use the low-level commands to change them.
 | `OUTPut[1|2]` | ON/OFF | 213 |
 | `OUTPut[1|2]:LOAD` | `DEFault` (50 Ω) / `INFinity` (>10 kΩ); reference only; not usable while ARB/MOD/SWEEP/BURST is active | 143, 213 |
 | `SOURce[1|2]:VOLTage:UNIT` | `VPP` / `VRMS` / `DBM` (dBm unavailable in high-Z); sets the **default unit for all subsequent amplitude commands** | 214-215 |
+
+### Observed readback (2026-11-26)
+
+- `SOUR1:FREQ?` -> `+5.0000000000000E-01\r\n`.
+- `SOUR1:AMPLITUDE?` -> `+3.000E+00\r\n`; `SOUR1:VOLT:UNIT?` -> `VPP\r\n`,
+  so the readback is 3.0 Vpp.
+- `SOUR1:DCO?` -> `+0.00E+00\r\n`.
+- `SOUR1:AMPL?`, `SOUR1:AMPL? MAX`, and `SOUR1:AMPL? MIN` produced no response
+  and queued `-113 Undefined header`; use `SOUR1:AMPLITUDE?` instead.
+- `SOUR1:AMPLITUDE? MAX` -> `+1.000E+01\r\n` and
+  `SOUR1:AMPLITUDE? MIN` -> `+1.000E-03\r\n` were observed without an error.
+- `SOUR1:FREQ 1234.5`, `SOUR1:AMPLITUDE 1.5`, and `SOUR1:DCO 0.5` were each
+  written, read back, and restored to the original value with the output OFF;
+  the error queue stayed empty after each step.
 
 ## Load impedance and amplitude math
 
@@ -83,7 +110,7 @@ Consequences:
 - dBm requires a known reference load; it is refusable in high-Z.
 - `FUNC` itself can rewrite the amplitude when it changes shape: the manual's
   example is a 5 Vrms square wave becoming a 3.536 Vrms sine after a shape
-  change (manual p. 206). An `AMPL?` readback after `FUNC` therefore reports
+  change (manual p. 206). A `SOUR<n>:AMPLITUDE?` readback after `FUNC` therefore reports
   the instrument's value, not the value that was requested.
 
 Record `VOLTage:UNIT?` and `OUTPut:LOAD?` with every amplitude.

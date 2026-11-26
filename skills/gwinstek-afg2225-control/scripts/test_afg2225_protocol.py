@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "assets" / "fixtures"
+CAPTURES = ROOT / "assets" / "captures"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from afg2225_protocol import (  # noqa: E402
@@ -30,6 +31,7 @@ from afg2225_protocol import (  # noqa: E402
     parse_identity,
     parse_metadata,
     parse_numeric,
+    read_error_queue_frame,
     read_frame,
     scale_normalized,
     validate,
@@ -118,13 +120,13 @@ class StageTests(unittest.TestCase):
 
 class IdentityTests(unittest.TestCase):
     def test_valid(self):
-        raw = (FIXTURES / "identity.txt").read_bytes()
+        raw = (CAPTURES / "idn.txt").read_bytes()
         r = parse_identity(raw)
         self.assertEqual(r["status"], "COMPLETE")
         self.assertEqual(r["vendor"], "GW INSTEK")
         self.assertEqual(r["model"], "AFG-2225")
-        self.assertEqual(r["serial"], "AFG2225000001")
-        self.assertEqual(r["firmware"], "V1.23")
+        self.assertEqual(r["serial"], "GEP902745")
+        self.assertEqual(r["firmware"], "V2.05")
         self.assertEqual(r["integrity"]["status"], "COMPLETE")
         self.assertEqual(base64.b64decode(r["integrity"]["raw_response_base64"]), raw)
 
@@ -154,7 +156,7 @@ class IdentityTests(unittest.TestCase):
 
     def test_expected_fixture(self):
         expected = json.loads((ROOT / "assets" / "expected-identity.json").read_text())
-        raw = (FIXTURES / "identity.txt").read_bytes()
+        raw = (CAPTURES / "idn.txt").read_bytes()
         r = parse_identity(raw)
         self.assertEqual(r["status"], expected["status"])
         self.assertEqual(r["identity"], expected["identity"])
@@ -162,11 +164,18 @@ class IdentityTests(unittest.TestCase):
 
 class NumericTests(unittest.TestCase):
     def test_unitless_frequency(self):
-        raw = (FIXTURES / "frequency.txt").read_bytes()
+        raw = (CAPTURES / "freq.txt").read_bytes()
         r = parse_numeric(raw, quantity="frequency", unit="Hz")
         self.assertEqual(r["status"], "COMPLETE")
-        self.assertEqual(r["value"], 1000000.0)
+        self.assertEqual(r["value"], 0.5)
         self.assertEqual(r["unit"], "Hz")
+
+    def test_long_form_amplitude(self):
+        raw = (CAPTURES / "amplitude.txt").read_bytes()
+        r = parse_numeric(raw, quantity="amplitude")
+        self.assertEqual(r["status"], "COMPLETE")
+        self.assertEqual(r["value"], 3.0)
+        self.assertEqual(r["unit"], "Vpp")
 
     def test_nan(self):
         raw = (FIXTURES / "frequency-bad.txt").read_bytes()
@@ -228,10 +237,43 @@ class NumericTests(unittest.TestCase):
 
 class ErrorQueueTests(unittest.TestCase):
     def test_none(self):
-        raw = (FIXTURES / "error-none.txt").read_bytes()
+        raw = (CAPTURES / "error-empty.txt").read_bytes()
         r = parse_error_queue(raw)
         self.assertEqual(r["status"], "COMPLETE")
         self.assertEqual(r["code"], 0)
+        self.assertEqual(r["message"], "No error.")
+
+    def test_observed_two_line_syntax_error(self):
+        raw = (CAPTURES / "error-syntax.txt").read_bytes()
+        r = parse_error_queue(raw, response_type="error-queue")
+        self.assertEqual(r["status"], "UNVERIFIED")
+        self.assertEqual(r["code"], -102)
+        self.assertEqual(r["message"], "Syntax error.")
+        self.assertEqual(r["integrity"]["raw_sha256"], hashlib.sha256(raw).hexdigest())
+
+    def test_observed_two_line_undefined_header(self):
+        raw = (CAPTURES / "error-undefined-header.txt").read_bytes()
+        r = parse_error_queue(raw, response_type="error-queue")
+        self.assertEqual(r["status"], "UNVERIFIED")
+        self.assertEqual(r["code"], -113)
+        self.assertEqual(r["message"], "Undefined header.")
+
+    def test_read_error_queue_frame_combines_two_lines(self):
+        frame = read_error_queue_frame(b"-102\r\nSyntax error.")
+        self.assertEqual(frame.content, b"-102 Syntax error.")
+        self.assertEqual(frame.terminator, b"\r\n")
+        self.assertEqual(frame.trailing, b"")
+
+    def test_two_line_with_trailing_terminator(self):
+        r = parse_error_queue(b"-102\r\nSyntax error.\r\n", response_type="error-queue")
+        self.assertEqual(r["status"], "UNVERIFIED")
+        self.assertEqual(r["code"], -102)
+
+    def test_extra_line_after_error_message_is_invalid(self):
+        r = parse_error_queue(
+            b"-102\r\nSyntax error.\r\nEXTRA", response_type="error-queue"
+        )
+        self.assertEqual(r["status"], "INVALID")
 
     def test_suffix_auto_unsupported(self):
         raw = (FIXTURES / "error-suffix.txt").read_bytes()
@@ -449,8 +491,17 @@ class ArbArtifactTests(unittest.TestCase):
 class ExpectedResultTests(unittest.TestCase):
     def test_expected_numeric(self):
         expected = json.loads((ROOT / "assets" / "expected-numeric.json").read_text())
-        raw = (FIXTURES / "frequency.txt").read_bytes()
+        raw = (CAPTURES / "freq.txt").read_bytes()
         result = parse_numeric(raw, quantity="frequency", unit="Hz")
+        self.assertEqual(result["status"], expected["status"])
+        self.assertEqual(result["value"], expected["value"])
+        self.assertEqual(result["unit"], expected["unit"])
+        self.assertEqual(result["integrity"]["raw_sha256"], hashlib.sha256(raw).hexdigest())
+
+    def test_expected_amplitude(self):
+        expected = json.loads((ROOT / "assets" / "expected-amplitude.json").read_text())
+        raw = (CAPTURES / "amplitude.txt").read_bytes()
+        result = parse_numeric(raw, quantity="amplitude")
         self.assertEqual(result["status"], expected["status"])
         self.assertEqual(result["value"], expected["value"])
         self.assertEqual(result["unit"], expected["unit"])
@@ -458,10 +509,20 @@ class ExpectedResultTests(unittest.TestCase):
 
     def test_expected_error_queue(self):
         expected = json.loads((ROOT / "assets" / "expected-error-queue.json").read_text())
-        raw = (FIXTURES / "error-suffix.txt").read_bytes()
+        raw = (CAPTURES / "error-syntax.txt").read_bytes()
         result = parse_error_queue(raw, response_type="error-queue")
         self.assertEqual(result["status"], expected["status"])
         self.assertEqual(result["code"], expected["code"])
+        self.assertEqual(result["message"], expected["message"])
+        self.assertEqual(result["integrity"]["raw_sha256"], hashlib.sha256(raw).hexdigest())
+
+    def test_expected_error_empty(self):
+        expected = json.loads((ROOT / "assets" / "expected-error-empty.json").read_text())
+        raw = (CAPTURES / "error-empty.txt").read_bytes()
+        result = parse_error_queue(raw, response_type="error-queue")
+        self.assertEqual(result["status"], expected["status"])
+        self.assertEqual(result["code"], expected["code"])
+        self.assertEqual(result["message"], expected["message"])
         self.assertEqual(result["integrity"]["raw_sha256"], hashlib.sha256(raw).hexdigest())
 
 
@@ -469,7 +530,7 @@ class CliTests(unittest.TestCase):
     def test_identity_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "idn.txt"
-            p.write_bytes((FIXTURES / "identity.txt").read_bytes())
+            p.write_bytes((CAPTURES / "idn.txt").read_bytes())
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 code = main(["identity", str(p)])
@@ -480,7 +541,7 @@ class CliTests(unittest.TestCase):
     def test_numeric_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "freq.txt"
-            p.write_bytes((FIXTURES / "frequency.txt").read_bytes())
+            p.write_bytes((CAPTURES / "freq.txt").read_bytes())
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 code = main(["numeric", str(p), "--quantity", "frequency", "--unit", "Hz"])
@@ -489,7 +550,7 @@ class CliTests(unittest.TestCase):
     def test_error_queue_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "err.txt"
-            p.write_bytes((FIXTURES / "error-suffix.txt").read_bytes())
+            p.write_bytes((CAPTURES / "error-syntax.txt").read_bytes())
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 code = main(["error-queue", str(p), "--response-type", "error-queue"])
@@ -511,6 +572,54 @@ class CliTests(unittest.TestCase):
             with contextlib.redirect_stdout(buf):
                 code = main(["numeric", str(p), "--quantity", "frequency"])
             self.assertEqual(code, 1)
+
+
+class CaptureIndexTests(unittest.TestCase):
+    def _entries(self):
+        lines = (CAPTURES / "captures.jsonl").read_text(encoding="utf-8").splitlines()
+        return [json.loads(line) for line in lines if line.strip()]
+
+    def test_index_matches_fixture_hashes(self):
+        entries = self._entries()
+        self.assertGreaterEqual(len(entries), 20)
+        for entry in entries:
+            raw = (CAPTURES / entry["fixture"]).read_bytes()
+            self.assertEqual(len(raw), entry["response_bytes"], entry["fixture"])
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["response_sha256"])
+            self.assertEqual(raw.hex(), entry["response_hex"])
+
+    def test_index_records_one_instrument_and_firmware(self):
+        for entry in self._entries():
+            self.assertEqual(entry["model"], "AFG-2225")
+            self.assertEqual(entry["serial"], "GEP902745")
+            self.assertEqual(entry["firmware"], "V2.05")
+            self.assertEqual(entry["captured_on"], "2026-11-26")
+
+    def test_apply_query_capture_keeps_quotes(self):
+        raw = (CAPTURES / "apply-query.txt").read_bytes()
+        self.assertEqual(
+            raw,
+            b'"SIN +5.0000000000000E-01,+3.000E+00,+0.00E+00"\r\n',
+        )
+        frame = read_frame(raw)
+        self.assertTrue(frame.content.startswith(b'"SIN '))
+        self.assertTrue(frame.content.endswith(b'\"'))
+
+    def test_version_capture_is_multiline_and_not_a_single_frame(self):
+        raw = (CAPTURES / "version.txt").read_bytes()
+        self.assertGreater(raw.count(b"\r\n"), 1)
+        with self.assertRaises(ProtocolError):
+            read_frame(raw)
+
+    def test_short_amplitude_query_has_no_response(self):
+        raw = (CAPTURES / "amplitude-short-rejected.empty").read_bytes()
+        self.assertEqual(raw, b"")
+        self.assertEqual(parse_numeric(raw, quantity="amplitude")["status"], "INCOMPLETE")
+
+    def test_empty_error_queue_capture_has_blank_code_line(self):
+        raw = (CAPTURES / "error-empty.txt").read_bytes()
+        self.assertTrue(raw.startswith(b"\r\n"))
+        self.assertTrue(raw.endswith(b"No error."))
 
 
 class ManifestHashTests(unittest.TestCase):

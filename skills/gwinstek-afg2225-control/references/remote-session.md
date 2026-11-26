@@ -1,19 +1,25 @@
 # Remote Session (AFG-2225)
 
 Manual: *AFG-2225 Series User Manual*, GW Instek part no. 82RF-22250M01,
-REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `documented`.
+REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `hardware-verified`
+for the captured identity, error-queue, and read-only query subset; `documented`
+for everything else.
 
 ## Interface
 
 - **USB device port only** (Type-B slave, USB 1.1/2.0 full speed). No
   LAN, GPIB, or RS-232 (manual p. 181).
+- **Verified link**: USB CDC-ACM `2184:001c` at `/dev/ttyACM0`, 115200 8N1,
+  AFG-2225 serial `GEP902745`, firmware `V2.05`, 2026-11-26. Every response in
+  the verified set ended with `\r\n` except the error-queue message line.
 - USB CDC-ACM virtual COM port, **not** USBTMC. Linux device ID
   `0x2184:0x001c` is **external evidence** from the Linux kernel commit
   `cf84a691a61606a2e7269907d3727e2d9fa148ee`; the manual does not list
   VID/PID (external, not manual).
 - The manual asks the operator to set COM port, baud rate, stop bit, data
-  bit, and parity, but lists no defaults. `115200 8N1` used by the optional
-  transport is an **assumption**, not a manual default.
+  bit, and parity, but lists no defaults. `115200 8N1` is the helper default,
+  not a manual default; the verified unit also answered at 9600, so the host
+  baud rate is not a device setting.
 - Terminators: LF, CR, or LF/CR; EOI is also listed. In terminal programs use
   `^j` or `^m` (manual pp. 182, 187).
 - All panel keys lock in remote mode except F5 (REM/LOCK) (manual p. 182).
@@ -33,8 +39,8 @@ REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `documented`.
 
 | Command | Type | Manual page | Notes |
 |---|---|---|---|
-| `*IDN?` | query | 193 | `GW INSTEK,AFG-2225,SN:XXXXXXXX,Vm.mm` |
-| `SYSTem:VERSion?` | query | 194 | instrument/firmware/FPGA revision string |
+| `*IDN?` | query | 193 | Raw: `GW INSTEK,AFG-2225,SN:GEP902745,V2.05\r\n` |
+| `SYSTem:VERSion?` | query | 194 | Multi-line raw on V2.05: `Version-2.05_0112`, `FPGA:20130410`, `SN: GEP902745`, `MODE:Plant Pattern` |
 
 ## Status and error
 
@@ -53,9 +59,25 @@ REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `documented`.
 
 - Error queue: 20 entries, FIFO. Full queue returns `-350 Queue overflow`;
   empty queue returns `0 No error` or a bare `No error` (manual p. 292, which
-  does not show the empty-queue wire format). `*CLS` clears the error
-  queue; `*RST` resets instrument settings and does not delete saved states,
-  but the manual does not state its effect on the error queue (manual p. 194).
+  does not show the empty-queue wire format). The verified unit sends two
+  lines: a CRLF-terminated code line and an unterminated message line, for
+  example `-102\r\nSyntax error.`; its empty queue is `\r\nNo error.`.
+  `*CLS` clears the error queue; `*RST` resets instrument settings and does not
+  delete saved states, but the manual does not state its effect on the error
+  queue (manual p. 194).
+
+### Channel prefix and absent beeper
+
+- Channel commands must include the source/output prefix: `SOUR1:FREQ?`,
+  `SOUR1:APPL?`, `OUTP1?`. The verified V2.05 did not answer bare `FREQ?`,
+  `VOLT?`, `APPL?`, or `FUNC?`; no response is not a value, and the next query
+  can then read the previous reply.
+- There is no SCPI beeper command in the manual's System Commands list.
+  `SYSTem:BEEPer?` and `SYST:BUZZ?` produced no response and queued
+  `-113 Undefined header`; `:BUZZER?` produced `-102 Syntax error`. Use the
+  panel: UTIL -> F3 System -> F3 Beep -> F2 OFF.
+- Amplitude readback uses the long form `SOUR<n>:AMPLITUDE?`; the short query
+  `SOUR<n>:AMPL?` produced no response and `-113 Undefined header`.
 
 ## Remote/local
 
@@ -70,11 +92,14 @@ REMOTE INTERFACE chapter, PDF pp. 180-199. Support level: `documented`.
 2. Send `*IDN?`; preserve raw bytes; validate vendor/model/serial/firmware.
 3. Query `SYSTem:VERSion?` when firmware evidence is needed.
 4. Clear only authorized status (`*CLS`); `*RST` only if operator authorizes.
-5. Drain `SYSTem:ERRor?` until `0 No error`/`No error`.
+5. Drain `SYSTem:ERRor?` until the observed empty form `\r\nNo error.`
+   (`0 No error` is the manual's single-line form). The verified reply is two
+   lines: `-102\r\n` then `Syntax error.` with no terminator on the message.
 6. Configure waveform/output settings.
 7. Turn output on only when authorized; verify `OUTP<n>?` rather than assuming
    a low-level command changed the output state.
-8. Verify readback where a query exists.
+8. Verify readback where a query exists; use `SOUR<n>:AMPLITUDE?` for
+   amplitude.
 9. Drain the error queue again.
 
 ## Save/recall (manual pp. 271-272)
@@ -93,7 +118,9 @@ operator-owned slots automatically.
 
 One transport session, one query, one response. Do not send a second query
 while an earlier response is unread. Preserve raw bytes and SHA-256 for
-every response.
+every response. For `SYSTem:ERRor?`, read both lines before the next command;
+reading only the CRLF-terminated code line leaves the message line to be
+mistaken for the next query's answer.
 
 ## Manual citation index
 

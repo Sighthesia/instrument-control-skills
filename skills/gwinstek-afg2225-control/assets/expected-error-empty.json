@@ -1,0 +1,25 @@
+{
+  "schema_version": "afg2225-protocol-v1",
+  "kind": "status-record",
+  "record_type": "error-queue",
+  "code": 0,
+  "message": "No error.",
+  "status": "COMPLETE",
+  "integrity": {
+    "status": "COMPLETE",
+    "checks": [
+      {
+        "name": "error_queue_record",
+        "status": "pass",
+        "evidence": {
+          "code": 0
+        }
+      }
+    ],
+    "reasons": [],
+    "raw_sha256": "0fb5164ac2bd5791c0eb407556eae41fb65d2c33b1437db3701f202ad6cf0482",
+    "raw_response_base64": "DQpObyBlcnJvci4=",
+    "support_level": "documented",
+    "parser": "afg2225-protocol/0.2.0"
+  }
+}
